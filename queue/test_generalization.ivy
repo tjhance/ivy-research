@@ -1,0 +1,98 @@
+#lang ivy1.3
+
+#
+# A queue for testing the interactive invariant construction tool
+#
+
+module total_order(t,r) = {
+    axiom r(X:t,X)                        # Reflexivity
+    axiom r(X:t, Y) & r(Y, Z) -> r(X, Z)  # Transitivity
+    axiom r(X:t, Y) & r(Y, X) -> X = Y    # Anti-symmetry
+    axiom r(X:t, Y) | r(Y, X)             # Totality
+}
+
+module incrementable_ = {
+
+    type t
+    relation (X:t <= Y:t)
+	instantiate total_order(t, <=) 
+
+	interpret t -> int
+
+    action next (input:t) returns (output:t) = {
+		assume input + 1 > input ;
+        output := input + 1 ;
+		assert  ~(output <= input) ;
+		#assert assert succ(input, output)
+    }
+}
+
+module unbounded_queue(data) =
+{
+    instance incrementable: incrementable_
+	individual next_e : incrementable.t
+	relation content(D:data, E:incrementable.t)
+	individual first_e : incrementable.t
+	individual first : data
+
+	after init
+	{
+		content(D,E) := false ;
+		first_e := 0 ;
+		next_e := 0
+	}
+
+	derived empty = next_e <= first_e
+
+	action push (da:data) =
+	{
+		if empty
+		{
+			first := da
+		} ;
+		content(da, next_e) := true ;
+		next_e := incrementable.next(next_e)
+	}
+
+	action pop returns (res:data) =
+	{
+		assume ~empty ;
+		res := first ;
+		content(first, first_e) := false ;
+		first_e := incrementable.next(first_e) ;
+		if exists A. content(A, first_e)
+		{
+			local nf:data 
+			{
+				assume content(nf,first_e) ;
+				first := nf
+			}
+		}
+	}
+
+	individual content_f(E:incrementable.t) : data
+	before push (da:data)
+	{
+		content_f(next_e) := da
+	}
+
+	conjecture first_e <= next_e
+	conjecture forall E,F,G. (content(E,G) & content(F,G)) -> E=F
+	conjecture ~empty -> first = content_f(first_e)
+	conjecture forall E,F. content(E,F) -> (~next_e <= F & first_e <= F)
+	conjecture forall E,F. empty -> ~content(E,F)
+	#conjecture forall E. (first_e <= E & ~next_e <= E) -> content(content_f(E), E) # Quote it to test interactive invariant construction tools
+	# Tests
+	#conjecture ~empty -> content(content_f(first_e),first_e)
+	#conjecture incrementable.succ(first_e, A) & ~next_e <= A -> content(content_f(A),A)
+	#conjecture ((forall Z. ~(first_e < Z & Z < A)) & first_e < A & ~next_e <= A) -> content(content_f(A),A)
+
+    export pop
+    export push
+}
+
+type data
+instance q: unbounded_queue(data)
+
+isolate iso_queue = q
+
