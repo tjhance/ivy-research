@@ -62,7 +62,7 @@ object incrementable = {
     # Provide an implementation for this abstract module (=interface). Not needed if we just want to prove the lock protocol.
     object impl = {
 
-		interpret t -> int
+	interpret t -> int
 
         implement next {
             output := input + 1
@@ -72,132 +72,132 @@ object incrementable = {
 
 module counter =
 {
-	individual cur: incrementable.t
+    individual cur: incrementable.t
 
-	after init
-	{
-		cur := 0 # If we see t as an uninterpreted type, 0 is a "random" value. But for the implementation, t is interpreted as int.
-	}
+    after init
+    {
+	cur := 0 # If we see t as an uninterpreted type, 0 is a "random" value. But for the implementation, t is interpreted as int.
+    }
 
-	action next returns (output:incrementable.t) =
-	{
-		output := cur ;
-		cur := incrementable.next(cur)
-	}
+    action next returns (output:incrementable.t) =
+    {
+	output := cur ;
+	cur := incrementable.next(cur)
+    }
 
-	after next {
-		assert ~(cur <= output)
-	}
+    after next {
+	assert ~(cur <= output)
+    }
 }
 
 object lock =
 {
-	################################################################################
-	#
-	# Types, relations and functions describing state of the network
-	#
-	################################################################################
+    ################################################################################
+    #
+    # Types, relations and functions describing state of the network
+    #
+    ################################################################################
 
-	type client
-	type msg_type #= {lock,grant,unlock}
-	individual lock : msg_type
-	individual grant : msg_type
-	individual unlock : msg_type
-	axiom lock ~= grant & grant ~= unlock & unlock ~= lock 	# NOTE : Here was a bug, found with the IVy tool
-	#interpret msg_type -> {0..2}
-	# epoch are used to order and allow duplicates in pending relations
-	instance cep(C:client): counter # current epoch of a client
-	instance sep: counter
+    type client
+    type msg_type #= {lock,grant,unlock}
+    individual lock : msg_type
+    individual grant : msg_type
+    individual unlock : msg_type
+    axiom lock ~= grant & grant ~= unlock & unlock ~= lock 	# NOTE : Here was a bug, found with the IVy tool
+    #interpret msg_type -> {0..2}
+    # epoch are used to order and allow duplicates in pending relations
+    instance cep(C:client): counter # current epoch of a client
+    instance sep: counter
 
-	relation pending(E:incrementable.t, C:client, M:msg_type)
-	instance q : unbounded_queue(client)
-	function held(C:client) : bool
+    relation pending(E:incrementable.t, C:client, M:msg_type)
+    instance q : unbounded_queue(client)
+    function held(C:client) : bool
 
-	################################################################################
-	#
-	# Protocol description
-	#
-	################################################################################
+    ################################################################################
+    #
+    # Protocol description
+    #
+    ################################################################################
 
-	after init
+    after init
+    {
+	pending(E,C,M) := false ;
+	held(C) := false
+    }
+
+    action send_lock(c:client) =
+    {
+	pending(cep(c).next,c,lock) := true
+    }
+
+    action send_unlock(c:client) =
+    {
+	require held(c) ;
+	held(c) := false ;
+	pending(cep(c).next,c,unlock) := true
+    }
+
+    action receive_grant(e:incrementable.t, c:client) =
+    {
+	require pending(e,c,grant) ;
+	pending(e,c,grant) := false ;
+	held(c) := true
+    }
+
+    action receive_lock(e:incrementable.t, c:client) =
+    {
+	require pending(e,c,lock) ;
+	pending(e,c,lock) := false ;
+
+	if q.empty
 	{
-		pending(E,C,M) := false ;
-		held(C) := false
-	}
+	    pending(sep.next,c,grant) := true
+	} ;
+	#else
+	#{
+	    call q.push(c) # NOTE : Here was a bug, found with the IVy tool
+	    #}
+    }
 
-	action send_lock(c:client) =
-	{
-		pending(cep(c).next,c,lock) := true
-	}
-
-	action send_unlock(c:client) =
-	{
-		require held(c) ;
-		held(c) := false ;
-		pending(cep(c).next,c,unlock) := true
-	}
-
-	action receive_grant(e:incrementable.t, c:client) =
-	{
-		require pending(e,c,grant) ;
-		pending(e,c,grant) := false ;
-		held(c) := true
-	}
-
-	action receive_lock(e:incrementable.t, c:client) =
-	{
-		require pending(e,c,lock) ;
-		pending(e,c,lock) := false ;
-
-		if q.empty
-		{
-			pending(sep.next,c,grant) := true
-		} ;
-		#else
-		#{
-		call q.push(c) # NOTE : Here was a bug, found with the IVy tool
-		#}
-	}
-
-	action receive_unlock(e:incrementable.t, c:client) =
-	{
-		require pending(e,c,unlock) ;
-		pending(e,c,unlock) := false ;
+    action receive_unlock(e:incrementable.t, c:client) =
+    {
+	require pending(e,c,unlock) ;
+	pending(e,c,unlock) := false ;
 	
-		ensure q.pop = c ;
-		if ~q.empty
-		{
-			pending(sep.next,q.first,grant) := true # NOTE : Here was a bug, found with the IVy tool (pop instead of first)
-		}
-	}
-
-	# Safety check
-	action safety_check(c1:client, c2:client) =
+	ensure q.pop = c ;
+	if ~q.empty
 	{
-		require ~ (c1 = c2) ;
-		ensure ~ (held(c1) & held(c2))
+	    pending(sep.next,q.first,grant) := true # NOTE : Here was a bug, found with the IVy tool (pop instead of first)
 	}
+    }
 
-	# TODO : use bounded queue for the implementation
+    # Safety check
+    action safety_check(c1:client, c2:client) =
+    {
+	require ~ (c1 = c2) ;
+	ensure ~ (held(c1) & held(c2))
+    }
 
-	export send_lock
-	export send_unlock
+    # TODO : use bounded queue for the implementation
 
-	export receive_grant
-	export receive_lock
-	export receive_unlock
+    export send_lock
+    export send_unlock
 
-	export safety_check
+    export receive_grant
+    export receive_lock
+    export receive_unlock
 
-	conjecture (held(A) & held(B)) -> (A = B)
-	# NOTE : Conjectures added thanks to the IVy tool
-	conjecture forall A,B,C. pending(A,B,unlock) -> (~q.empty & q.first = B & ~held(C))
-	conjecture forall A,B,C. pending(A,B,grant) -> (~q.empty & q.first = B & ~held(C))
-	conjecture forall A. held(A) -> (~q.empty & q.first = A)
-	conjecture forall A,B,C,D. pending(A,B,unlock) -> (~pending(C,D,grant) & (~pending(C,D,unlock) | (A=C & B=D)))
-	conjecture forall A,B,C,D. pending(A,B,grant) -> (~pending(C,D,unlock) & (~pending(C,D,grant) | (A=C & B=D)))
+    export safety_check
 
-	conjecture q.head >= q.tail
+    conjecture (held(A) & held(B)) -> (A = B)
+    # NOTE : Conjectures added thanks to the IVy tool
+    conjecture forall A,B,C. pending(A,B,unlock) -> (~q.empty & q.first = B & ~held(C))
+    conjecture forall A,B,C. pending(A,B,grant) -> (~q.empty & q.first = B & ~held(C))
+    conjecture forall A. held(A) -> (~q.empty & q.first = A)
+    conjecture forall A,B,C,D. pending(A,B,unlock) -> (~pending(C,D,grant) & (~pending(C,D,unlock) | (A=C & B=D)))
+    conjecture forall A,B,C,D. pending(A,B,grant) -> (~pending(C,D,unlock) & (~pending(C,D,grant) | (A=C & B=D)))
+
+    conjecture q.head >= q.tail
 }
 
 isolate iso_incr = incrementable
