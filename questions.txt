@@ -1,0 +1,14 @@
+difference property/conjecture
+exact semantic isolate ... with ...
+semantic of derived keyword ?
+
+how Ivy differentiate specification and implementation?
+(object impl / object spec)
+How should I do to define a relation and code only for specification purposes (not implementable)?
+
+function definitions:
+(example from collections.ivy)
+ function gap(k:key.iter.t,m:key.iter.t) =
+              forall L. ~(key.iter.ahead(L,k) & key.iter.done(L,m) & contains(L))
+Is this only used to evaluate the function or is this definition also taken into account for specifications?
+If taken into account for spec, why is this example working in collections.ivy (it seems not repl)?
