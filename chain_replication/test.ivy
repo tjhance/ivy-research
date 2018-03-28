@@ -1,0 +1,159 @@
+#lang ivy1.7
+
+#
+# An Ivy model for the chain replication protocol (http://dsrg.pdos.csail.mit.edu/2013/08/08/chain-replication/)
+#
+
+include order
+include collections
+
+module chain_topology = #(t) =
+{
+	#instance t : unbounded_sequence
+	object t =
+	{
+		type this
+		alias t = this
+		interpret t-> int
+		action next(a:t) returns (b:t) = {b := a + 1}
+		relation succ(A:t,B:t) = (A+1 = B)
+	}
+
+	relation succ(A:t, B:t)
+	relation is_in(A:t)
+	individual head:t
+	individual tail:t
+
+	action next (a:t) returns (b:t)
+	action prev (a:t) returns (b:t)
+	action remove (a:t)
+	action add returns (a:t)
+
+	object spec =
+	{
+		relation gap (A:t, B:t) = forall C:t,D:t. A < B & (A < C & C <= B -> C ~= head & C ~= tail & ~succ(C,D) & ~succ(D,C))
+		property gap(A,B) -> A < B #property/conjecture
+		property gap(A,B) & A < C & C <= B -> C ~= head & C ~= tail & ~succ(C,D) & ~succ(D,C)#property/conjecture
+		property t.succ(A,B) & ~succ(A,B) & B ~= head -> gap(A,B)#property/conjecture
+		property gap(A,B) & gap (B,C) -> gap(A,C)#property/conjecture
+
+		after init
+		{
+			#gap(A,B) := B > A #forall C,D. A < B & (A < C & C <= B -> C ~= head & C ~= tail & ~succ(C,D) & ~succ(D,C))
+		}
+
+		after next
+		{
+			ensure succ(a,b) & is_in(b)
+		}
+		after prev
+		{
+			ensure succ (b,a) & is_in(b)
+		}
+		after add
+		{
+			ensure succ(old tail, a) & tail=a & is_in(a) ;
+			#gap(A,B) := gap(A,B) & ~t.succ(A,a) #forall C,D. A < B & (A < C & C <= B -> C ~= head & C ~= tail & ~succ(C,D) & ~succ(D,C))
+		}
+		after remove
+		{
+			ensure ~is_in(a) ;
+			#gap(A,B) := forall C,D. A < B & (A < C & C <= B -> C ~= head & C ~= tail & ~succ(C,D) & ~succ(D,C))
+		}
+
+		conjecture succ(A,B) -> A < B
+		conjecture succ(A,B) & succ(A,C) -> B=C
+		conjecture succ (A,C) & succ (B,C) -> A=B
+		conjecture ~succ(tail, A)
+		conjecture ~succ(A, head)
+		conjecture succ(A,B) -> A ~= B & is_in(A) & is_in(B)
+		conjecture is_in(head) & is_in(tail)
+		conjecture is_in(A) & gap(A,B) & t.succ(B,C) & ~gap(A,C) & A ~= tail -> succ(A,C) 
+	}
+
+	object impl =
+	{
+		after init
+		{
+			head := 0 ;
+			tail := 0 ;
+			is_in(A) := A=head | A=tail ;
+			succ(A,B) := A=head & B=tail & A ~= B
+		}
+
+		implement next
+		{
+			require is_in(a) & a ~= tail ;
+			if some x:t. succ(a,x)
+			{
+				b := x
+			}
+			else { assert false }
+		}
+
+		implement prev
+		{
+			require is_in(a) & a ~= head ;
+			if some x:t. succ(x,a)
+			{
+				b := x
+			}
+			else { assert false }
+		}
+
+		implement add
+		{
+			a := t.next(tail) ;
+			is_in(a) := true ;
+			succ(tail,a) := true ;
+			tail := a
+		}
+
+
+		implement remove
+		{
+			require is_in(a) & (a ~= head | a ~= tail) ;
+
+			if a = head
+			{
+				var n := next(a) ;
+				is_in(a) := false ;
+				succ(a,n) := false ;
+				head := n
+			}
+			else if a = tail
+			{
+				var p := prev(a) ;
+				is_in(a) := false ;
+				succ(p,a) := false ;
+				tail := p
+			}
+			else
+			{
+				var p := prev(a) ;
+				var n := next(a) ;
+
+				is_in(a) := false ;
+				succ(p,a) := false ;
+				succ(a,n) := false ;
+				succ(p,n) := true
+			}
+		}
+	}
+
+	export next
+	export prev
+	export add
+	export remove
+}
+
+object protocol =
+{
+	#type t
+	instance chain: chain_topology#(t)
+
+}
+
+
+isolate iso_chain = protocol.chain
+
