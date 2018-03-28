@@ -31,7 +31,7 @@ module chain_topology = #(t) =
 
 	object spec =
 	{
-		relation gap (A:t, B:t) = forall C,D. A < B & (A < C & C <= B -> C ~= head & C ~= tail & ~succ(C,D) & ~succ(D,C))
+		relation gap (A:t, B:t) = forall C:t,D:t. A < B & (A < C & C <= B -> C ~= head & C ~= tail & ~succ(C,D) & ~succ(D,C))
 		property gap(A,B) -> A < B #property/conjecture
 		property gap(A,B) & A < C & C <= B -> C ~= head & C ~= tail & ~succ(C,D) & ~succ(D,C)#property/conjecture
 		property t.succ(A,B) & ~succ(A,B) & B ~= head -> gap(A,B)#property/conjecture
