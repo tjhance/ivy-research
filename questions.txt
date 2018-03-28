@@ -11,4 +11,4 @@ function definitions:
  function gap(k:key.iter.t,m:key.iter.t) =
               forall L. ~(key.iter.ahead(L,k) & key.iter.done(L,m) & contains(L))
 Is this only used to evaluate the function or is this definition also taken into account for specifications?
-If taken into account for spec, why is this example working in collections.ivy (it seems not repl)?
+If taken into account for spec, why is this example working in collections.ivy (it seems not epr)?
