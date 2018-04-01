@@ -88,13 +88,13 @@ module unbounded_queue(data) =
 	}
     }
 
-	after push (da:data)
+	before push (da:data)
 	{
-	    has_data(old next_e) := exists F. content(F, old next_e)
+	    has_data(next_e) := true #exists F. content(F, old next_e)
 	}
-	after pop
+	before pop
 	{
-		has_data(old first_e) := exists F. content(F, old first_e)
+		has_data(first_e) := false #exists F. content(F, old first_e)
 	}
 
     object spec =
@@ -113,7 +113,9 @@ module unbounded_queue(data) =
 }
 
 type data
+interpret data -> int
 instance q: unbounded_queue(data)
 
 isolate iso_incr = incrementable
 isolate iso_queue = q with incrementable
+extract iso_impl = q, incrementable
