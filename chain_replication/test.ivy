@@ -9,16 +9,16 @@ include collections
 
 module chain_topology = #(t) =
 {
-	#instance t : unbounded_sequence
-	object t =
-	{
-		type this
-		alias t = this
-		interpret t-> int
-		#action prev(a:t) returns (b:t) = {b := a - 1}
-		action next(a:t) returns (b:t) = {b := a + 1}
-		relation succ(A:t,B:t) = (A+1 = B)
-	}
+	instance t : unbounded_sequence
+	#object t =
+	#{
+	#	type this
+	#	alias t = this
+	#	interpret t-> int
+	#	#action prev(a:t) returns (b:t) = {b := a - 1}
+	#	action next(a:t) returns (b:t) = {b := a + 1}
+	#	relation succ(A:t,B:t) = (A+1 = B)
+	#}
 
 	relation succ(A:t, B:t)
 	relation is_in(A:t)
@@ -32,17 +32,17 @@ module chain_topology = #(t) =
 
 	object spec =
 	{
-		relation gap (A:t, B:t) #= forall C:t,D:t. A = B | (A < B & (A <= C & C < B -> C ~= head & C ~= tail & ~succ(C,D) & ~succ(D,C)))
+		relation gap (A:t, B:t) #= forall C:t,D:t. A = B | (A < B & (A <= C & C < B -> ~is_in(C)))
 		property gap(A,B) -> A <= B #property/conjecture
 		property gap(A,A) #property/conjecture
-		property gap(A,B) & A <= C & C < B -> C ~= head & C ~= tail & ~succ(C,D) & ~succ(D,C) #property/conjecture
+		property gap(A,B) & A <= C & C < B -> ~is_in(C) #property/conjecture
 		property gap(A,B) & gap (B,C) -> gap(A,C) #property/conjecture
-		
+		property succ(A,C) & A < B & B < C -> gap(B,C) #property/conjecture
+
 		after init
 		{
 			gap(A,B) := B >= A
 		}
-
 		after next
 		{
 			ensure succ(a,b) & is_in(b)
@@ -53,12 +53,12 @@ module chain_topology = #(t) =
 		}
 		after add
 		{
-			ensure succ(old tail, a) & tail=a & is_in(a) ;
-			gap(A,B) := gap(A,B) & ~t.succ(A,a) # TODO
+			ensure succ(old tail, a) & tail=a & is_in(a);
+			gap(A,B) := gap(A,B) & ~t.succ(A,a)
 		}
 		after remove
 		{
-			ensure ~is_in(a) ;
+			ensure ~is_in(a);
 			var s: t;
 			s := t.next(a) ;
 			gap(A,B) := gap(A,B) | (gap(A,a) & gap(s,B))
@@ -71,7 +71,10 @@ module chain_topology = #(t) =
 		conjecture ~succ(A, head)
 		conjecture succ(A,B) -> A ~= B & is_in(A) & is_in(B)
 		conjecture is_in(head) & is_in(tail)
-		conjecture is_in(A) & tail ~= A & t.succ(A,B) & gap(B,C) & is_in(C) -> succ(A,C)
+		conjecture A < head -> ~is_in(A)
+		conjecture A > tail -> ~is_in(A)
+		conjecture succ(A,C) & A < B & B < C -> ~is_in(B)
+		conjecture is_in(A) & is_in(C) & gap(B,C) & t.succ(A,B) -> succ(A,C)
 	}
 
 	object impl =
