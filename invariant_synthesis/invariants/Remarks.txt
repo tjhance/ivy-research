@@ -1,0 +1,8 @@
+Invariants added manually: form of an implication
+Invariants added with Ivy: less intuitive, longer and use only conjunctions
+--> Can be improved by adding heuristics ? (by analysing the conjecture and the code)
+
+More frequent invariants: injectivity of a function/relation, ... -> A < B, inclusion/equality of two data structures (one from the implementation, one from the specification)
+
+Specifications that can't be expressed with first order logic are checked using a monitor.
+Then a safety property can check that the values of the impl are coherent with the predictions of the monitor.

@@ -1,0 +1,9 @@
+# The safety property:
+conjecture leader(X) & leader(Y) -> X = Y  # at most one leader
+conjecture leader(X) -> le(idn(Y), idn(X)) # leader has highest id
+
+# conjectures obtained via CTI's
+# conjecture ~(le(idn(N1),idn(N0)) & pending(idn(N1),N1) & idn(N1) ~= idn(N0))
+# conjecture ~(le(idn(N2),idn(N0)) & pending(idn(N2),N1) & ring.le(N0,N1) & ring.le(N2,N0) & N0 ~= N2 & N1 ~= N0)
+# conjecture ~(le(idn(N2),idn(N0)) & pending(idn(N2),N1) & ring.le(N0,N1) & ring.le(N1,N2) & N1 ~= N0)
+# conjecture ~(le(idn(N2),idn(N0)) & pending(idn(N2),N1) & ring.le(N1,N2) & ring.le(N2,N0) & N0 ~= N2)

@@ -1,0 +1,26 @@
+net_intf:
+
+	conjecture l.sent(P) -> an.transfer(af.ep(P),af.dst(P))
+
+proto:
+
+	# no two locked at same epoch (as a sanity check)
+	conjecture locked(E, N1) & locked(E, N2) -> N1 = N2
+
+	# epochs transfer to at most one node    
+	conjecture an.transfer(E, N1) & an.transfer(E, N2) -> N1 = N2
+
+	# if a node sent a locked msg, the node's epoch is now higher
+	conjecture locked(E, N) -> (E <= ep(N))
+
+	# holding node's epoch is higher than any other node's epoch (this implies a single node holds the lock)
+	conjecture held(N) & N ~= M -> ~(ep(N) <= ep(M))
+
+	# holding node's epoch is higher than any transfer's epoch
+	conjecture held(N) & an.transfer(E, M) -> (E <= ep(N))
+
+	# pending transfer epoch is higher than any node's epoch
+	conjecture an.transfer(E, N) & ~(E <= ep(N)) -> ~(E <= ep(M))
+
+	# pending transfer epoch is higher than any transfer's epoch
+	conjecture an.transfer(E, N) & ~(E <= ep(N)) & an.transfer(F, M) -> (F <= E) 
