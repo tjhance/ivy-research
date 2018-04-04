@@ -1,11 +1,3 @@
-IVy Bugs:
-
-  - Many runtime exceptions in the model checking tool
-  - Runtime excetpions when using enumerated types
-  - Can't build their sharded ht example (doc/examples/sht)! (python runtime exception) ----> FIXED!
-  - Some bugs with generalization/minimization tool (see custom queue)? Hypothesis: model checker doesn't take some after init procedures into account
-
---
 
 Possible research:
 
@@ -17,7 +9,16 @@ Possible research:
 
 Other Possible Improvements:
 
-  - More (interpreted) types! Sum types, tuples, etc
-  - Way to abstract custom types representation (for instance queue) -> directives to change display (example: transitive flag)
-  - Ivy_to_cpp : store relations using other ways in order to allow more things on non-iterable type (like structs) + permit to use functions if of the form (default value + finite nb of exceptions)
+  - More (interpreted) types if possible! Sum types (~ enumerated types), tuples (~ struct), etc
+  - Adding a way to abstract the representation of custom types in order to have a better representation of counterexamples (for instance when using a queue) -> add directives to change representation (example: transitive flag, how to display values and relations, etc)
+  - Ivy_to_cpp : store relations using other ways in order to allow more things on non-iterable type (like structs) + allow the use of functions if of the form (default value + finite nb of exceptions)
   - Fix some bugs
+
+--
+
+IVy Bugs:
+
+  - Many runtime exceptions in the model checking tool
+  - Runtime exceptions when using enumerated types
+  - Can't build the sht example (doc/examples/sht)! (python runtime exception) ----> FIXED!
+  - Some bugs with generalization/minimization tool (see custom queue)? Hypothesis: model checker doesn't take some "after init" procedures into account
