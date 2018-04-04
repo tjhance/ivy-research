@@ -37,7 +37,7 @@ module chain_topology = #(t) =
 		property gap(A,A) #property/conjecture
 		property gap(A,B) & A <= C & C < B -> ~is_in(C) #property/conjecture
 		property gap(A,B) & gap (B,C) -> gap(A,C) #property/conjecture
-		property succ(A,C) & A < B & B < C -> gap(B,C) #property/conjecture
+		property succ(A,D) & A < B & B < C & C <= D -> gap(B,C) #property/conjecture
 
 		after init
 		{
@@ -54,12 +54,14 @@ module chain_topology = #(t) =
 		after add
 		{
 			ensure succ(old tail, a) & tail=a & is_in(a);
-			gap(A,B) := gap(A,B) & ~t.succ(A,a)
+			var p: t ;
+			p := t.prev(a) ;
+			gap(A,B) := gap(A,B) & A ~= p
 		}
 		after remove
 		{
 			ensure ~is_in(a);
-			var s: t;
+			var s: t ;
 			s := t.next(a) ;
 			gap(A,B) := gap(A,B) | (gap(A,a) & gap(s,B))
 		}
@@ -74,7 +76,7 @@ module chain_topology = #(t) =
 		conjecture A < head -> ~is_in(A)
 		conjecture A > tail -> ~is_in(A)
 		conjecture succ(A,C) & A < B & B < C -> ~is_in(B)
-		conjecture is_in(A) & is_in(C) & gap(B,C) & t.succ(A,B) -> succ(A,C)
+		conjecture is_in(A) & is_in(C) & gap(B,C) & t.succ(A,B) -> succ(A,C) # Not possible because t.succ is not fully characterized...
 	}
 
 	object impl =
