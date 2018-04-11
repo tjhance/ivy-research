@@ -1,11 +1,11 @@
 
 Possible research:
 
-  - Improving invariant synthesis (folder invariant_synthesis)
-  - Semi-automated transformations to avoid some quantifier-alternation cycles by introducing new relations (but already done in the OOPSLA paper)
-  - Semi-automated fragmentation of code to avoid some quantifier-alternation cycles. Each fragment can use a different decidable frgament of 1st order logic
+  - Improving invariant synthesis (https://www.cs.tau.ac.il/~maon/pubs/cav15.pdf)
+  - Semi-automated transformations to avoid some quantifier-alternation cycles by introducing new relations (https://www.cs.tau.ac.il/~odedp/paxos-made-epr-oopsla17.pdf)
+  - Semi-automated fragmentation of code to avoid some quantifier-alternation cycles. Each fragment can use a different decidable frgament of 1st order logic (Modularity for Decidability paper)
+  - Transformation of liveness properties into first order formulas (https://www.cs.tau.ac.il/~odedp/reducing-liveness-to-safety-in-first-order-logic/popl18-reducing-liveness-to-safety-in-first-order-logic.pdf)
 
---
 
 Other Possible Improvements:
 
@@ -14,7 +14,6 @@ Other Possible Improvements:
   - Ivy_to_cpp : store relations using other ways in order to allow more things on non-iterable type (like structs) + allow the use of functions if of the form (default value + finite nb of exceptions)
   - Fix some bugs
 
---
 
 IVy Bugs:
 
