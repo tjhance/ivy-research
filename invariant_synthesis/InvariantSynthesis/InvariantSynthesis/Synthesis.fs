@@ -1,14 +1,14 @@
-﻿namespace IVY
+﻿module Synthesis
 
-    module Synthesis =
+    open AST
 
-        type StructMark = Set<Value * Value>
-        type FunMark = Set<string * List<Value>>
-        type VarMark = Set<string>
+    type EqMarks = Set<ConstValue * ConstValue>
+    type FunMarks = Set<string * List<ConstValue>>
+    type VarMarks = Set<string>
 
-        type Marks = { s: StructMark; f: FunMark; v: VarMark }
+    type Marks = { s: EqMarks; f: FunMarks; v: VarMarks }
 
-        let mark_constraints_for_formula env cs f = ()
+    let mark_constraints_for_formula env cs f = ()
 
-        let update_marks env cs st = ()
+    let update_marks env cs st = ()
 

@@ -1,6 +1,7 @@
-﻿namespace IVY
+﻿namespace AST
 
     (* A VERY BASIC AST FOR IVY *)
+
     type Type =
         | Void
         | Bool
@@ -12,20 +13,20 @@
 
     type ConstValue =
         | ConstVoid // Only used for actions that return nothing
-        | ConstInt of int
         | ConstBool of bool
+        | ConstInt of string * int // Type name, value
 
     (* No side effects *)
     type Value =
-        | ConstValue of ConstValue
-        | Var of string
-        | Fun of string * List<Value>
+        | ValueConst of ConstValue
+        | ValueVar of string
+        | ValueFun of string * List<Value>
 
     (* No side effects *)
     type Formula =
         | Const of bool
         | Equal of Value * Value
-        //| StrictlySmaller of Value * Value // Can be considered as a regular relation
+      //| StrictlySmaller of Value * Value // Can be considered as a regular relation
         | Or of Formula * Formula
         | And of Formula * Formula
         | Not of Formula
@@ -34,8 +35,14 @@
     
     (* With side effects *)
     type Expression =
-        | Value of Value
-        | Action of string * List<Expression>
+        | ExprConst of ConstValue
+        | ExprVar of string
+        | ExprFun of string * List<Expression>
+        | ExprAction of string * List<Expression>
+        | ExprEqual of Expression * Expression
+        | ExprOr of Expression * Expression
+        | ExprAnd of Expression * Expression
+        | ExprNot of Expression * Expression
 
     type Statement =
         | NewBlock of List<VarDecl> * List<Statement>
