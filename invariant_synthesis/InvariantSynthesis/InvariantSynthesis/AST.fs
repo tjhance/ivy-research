@@ -26,7 +26,6 @@
     type Formula =
         | Const of bool
         | Equal of Value * Value
-      //| StrictlySmaller of Value * Value // Can be considered as a regular relation
         | Or of Formula * Formula
         | And of Formula * Formula
         | Not of Formula

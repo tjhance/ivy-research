@@ -4,7 +4,10 @@
     open AST
 
     type BoundConstraint = string * int // For custom types, the number of elements - 1
-    type EqConstraint = ConstValue * ConstValue * bool // Constraint MUST exists if values are equal. Should be symetric.
+    // EqConstraints are used by the synthesis tool to divide a type into multiple isomorphic instances.
+    // If two values of different type are equal, a constraint MUST exists. Should be symetric.
+    // There should be no constraint when values have the same type.
+    type EqConstraint = ConstValue * ConstValue * bool
     type FunConstraint = string * List<ConstValue> * ConstValue
     type VarConstraint = string * ConstValue
 

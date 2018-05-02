@@ -19,7 +19,7 @@
             let lst = List.map (evaluate_value env) lst
             Map.find (str, lst) env.f
     
-    // If no constraint is found, the values are different by default
+    // Two values are equal iff they are structuraly equal or are explicitely declared equal.
     let value_equal (env:Model.Environment) v1 v2 =
         if v1=v2 then true
         else
