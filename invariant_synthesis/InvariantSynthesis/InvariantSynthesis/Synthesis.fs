@@ -2,7 +2,13 @@
 
     module Synthesis =
 
-        type MarkedModel = List<bool * Constraint>
+        type StructMark = Set<Value * Value>
+        type FunMark = Set<string * List<Value>>
+        type VarMark = Set<string>
 
-        let transfer_marks mcs1 cs2 = ()
-        let mark_constraints_for_formula f cs = ()
+        type Marks = { s: StructMark; f: FunMark; v: VarMark }
+
+        let mark_constraints_for_formula env cs f = ()
+
+        let update_marks env cs st = ()
+

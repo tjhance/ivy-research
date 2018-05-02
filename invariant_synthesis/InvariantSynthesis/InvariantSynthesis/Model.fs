@@ -2,27 +2,25 @@
 
     (* TYPES TO DESCRIBE (FINITE) MODELS AND ENVIRONMENTS *)
 
-    type value = string * int // Type, uninterpreted runtime value
+    type Value = IVY.Type * IVY.ConstValue // Type, uninterpreted runtime value
 
     type StructualOperator = Eq | Diff //| SSmaller // '<' can be considered as a regular relation
-    type StructuralConstraint = value * StructualOperator * value
-    type RelationConstraint = string * List<value> * bool
-    type FunctionConstraint = string * List<value> * value
-    type VariableConstraint = string * value
+    type StructConstraint = Value * StructualOperator * Value
+    type FunConstraint = string * List<Value> * Value
+    type VarConstraint = string * Value
 
     type Constraint =
-        | Structural of StructuralConstraint
-        | Relation of RelationConstraint
-        | Function of FunctionConstraint
-        | Variable of VariableConstraint
+        | Structural of StructConstraint
+        | Function of FunConstraint
+        | Variable of VarConstraint
 
-    type Model = List<Constraint>
-    type Model' = { s : List<StructuralConstraint>; r : List<RelationConstraint>; f : List<FunctionConstraint>; v : List<VariableConstraint> }
+    type Model = { s : List<StructConstraint>; f : List<FunConstraint>; v : List<VarConstraint> }
+    type Model' = List<Constraint>
 
-    type RelationEnv = Map<string * List<value>, bool>
-    type FunctionEnv = Map<string * List<value>, value>
-    type VariableEnv = Map<string, value>
+    type StructEnv = Map<Value * Value, StructualOperator>
+    type FunEnv = Map<string * List<Value>, Value>
+    type VarEnv = Map<string, Value>
 
-    type Environment = { s : List<StructuralConstraint>; r : RelationEnv; f : FunctionEnv; v : VariableEnv }
+    type Environment = { s : StructEnv; f : FunEnv; v : VarEnv }
 
 

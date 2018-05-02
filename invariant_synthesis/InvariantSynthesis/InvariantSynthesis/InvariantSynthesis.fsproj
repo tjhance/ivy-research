@@ -6,8 +6,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Model.fs" />
     <Compile Include="AST.fs" />
+    <Compile Include="Model.fs" />
     <Compile Include="Interpreter.fs" />
     <Compile Include="Synthesis.fs" />
     <Compile Include="Program.fs" />
