@@ -12,7 +12,7 @@
     type VarDecl = { Name: string; Type: Type }
 
     type ConstValue =
-        | ConstVoid // Only used for actions that return nothing
+        | ConstVoid // Only used for actions that return nothing (or sometimes for errors)
         | ConstBool of bool
         | ConstInt of string * int // Type name, value
 
@@ -42,7 +42,7 @@
         | ExprEqual of Expression * Expression
         | ExprOr of Expression * Expression
         | ExprAnd of Expression * Expression
-        | ExprNot of Expression * Expression
+        | ExprNot of Expression
 
     type Statement =
         | NewBlock of List<VarDecl> * List<Statement>

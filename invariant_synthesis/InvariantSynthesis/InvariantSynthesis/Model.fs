@@ -4,7 +4,7 @@
     open AST
 
     type BoundConstraint = string * int // For custom types, the number of elements - 1
-    type EqConstraint = ConstValue * ConstValue * bool
+    type EqConstraint = ConstValue * ConstValue * bool // Constraint MUST exists if values are equal. Should be symetric.
     type FunConstraint = string * List<ConstValue> * ConstValue
     type VarConstraint = string * ConstValue
 
@@ -22,6 +22,6 @@
     type FunEnv = Map<string * List<ConstValue>, ConstValue>
     type VarEnv = Map<string, ConstValue>
 
-    type Environment = { b : BoundEnv; s : EqEnv; f : FunEnv; v : VarEnv }
+    type Environment = { b : BoundEnv; e : EqEnv; f : FunEnv; v : VarEnv }
 
 
