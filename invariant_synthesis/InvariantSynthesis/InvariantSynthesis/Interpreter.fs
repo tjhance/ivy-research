@@ -1,13 +1,12 @@
 ﻿module Interpreter
 
     open AST
-    open System.Collections.Generic
 
     let all_values (env:Model.Environment) data_type =
         match data_type with
         | Void -> Seq.singleton ConstVoid
         | Bool -> [ConstBool false; ConstBool true] |> Seq.ofList
-        | Custom s ->
+        | Uninterpreted s ->
             let max = Map.find s env.b
             seq { for x in 0..max -> ConstInt (s, x) }
 
@@ -19,16 +18,7 @@
             let lst = List.map (evaluate_value env) lst
             Map.find (str, lst) env.f
     
-    // Two values are equal iff they are structuraly equal or are explicitely declared equal.
-    let value_equal (env:Model.Environment) v1 v2 =
-        if v1=v2 then true
-        else
-            try
-                Map.find (v1,v2) env.e
-            with :? KeyNotFoundException ->
-                try
-                    Map.find (v2,v1) env.e
-                with :? KeyNotFoundException -> false
+    let value_equal (env:Model.Environment) v1 v2 = v1=v2
 
     let rec evaluate_formula (env:Model.Environment) f =
         match f with
@@ -109,7 +99,16 @@
         (env, List.rev res)
 
     and execute_statement (m:ModuleDecl) (env:Model.Environment) s =
-        () // TODO
+        match s with
+        | NewBlock (decl, ss) ->
+            execute_statements m env ss
+        | _ ->
+            env // TODO
+
+    and execute_statements (m:ModuleDecl) (env:Model.Environment) ss =
+        let aux env s =
+            execute_statement m env s
+        List.fold aux env ss
 
     and execute_action (m:ModuleDecl) (env:Model.Environment) action args =
         (env, ConstVoid) // TODO

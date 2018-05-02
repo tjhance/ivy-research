@@ -5,7 +5,7 @@
     type Type =
         | Void
         | Bool
-        | Custom of string
+        | Uninterpreted of string
 
     type TypeDecl = { Name: string }
     type FunDecl = { Name: string; Input: List<Type>; Output: Type }
@@ -13,7 +13,7 @@
 
     type ConstValue =
         | ConstVoid // Only used for actions that return nothing (or sometimes for errors)
-        | ConstBool of bool
+        | ConstBool of bool // Type name, value
         | ConstInt of string * int // Type name, value
 
     (* No side effects *)
@@ -48,8 +48,7 @@
         | VarAssign of string * Expression
         | FunAssign of string * List<Value> * Expression
         | IfSomeElse of VarDecl * Formula * Statement * Statement
-        | Assume of Formula
         | Assert of Formula
 
-    type ActionDecl = { Name: string; Args: List<VarDecl>; Output: VarDecl; Content: Statement }
+    type ActionDecl = { Name: string; Args: List<VarDecl>; Output: VarDecl; Content: Statement; OutputSpec: List<Formula> }
     type ModuleDecl = { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; Vars: List<VarDecl>; Actions: List<ActionDecl>; Invariants: List<Formula> }
