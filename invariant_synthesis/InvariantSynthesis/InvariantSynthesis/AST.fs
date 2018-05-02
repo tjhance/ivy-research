@@ -45,8 +45,9 @@
 
     type Statement =
         | NewBlock of List<VarDecl> * List<Statement>
+        | Expression of Expression
         | VarAssign of string * Expression
-        | FunAssign of string * List<Value> * Expression
+        | FunAssign of string * List<Expression> * Expression
         | IfSomeElse of VarDecl * Formula * Statement * Statement
         | Assert of Formula
 

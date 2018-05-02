@@ -1,6 +1,7 @@
 ﻿module Interpreter
 
     open AST
+    open System.Collections.Generic
 
     let all_values (env:Model.Environment) data_type =
         match data_type with
@@ -64,6 +65,8 @@
         | ConstBool b -> ConstBool (not b)
         | _ -> ConstVoid
 
+    exception AssertionFailed
+
     let rec evaluate_expression (m:ModuleDecl) (env:Model.Environment) e =
         match e with
         | ExprConst cv -> (env, cv)
@@ -100,15 +103,44 @@
 
     and execute_statement (m:ModuleDecl) (env:Model.Environment) s =
         match s with
-        | NewBlock (decl, ss) ->
+        | NewBlock (_, ss) -> // For now we ignore declarations...
             execute_statements m env ss
-        | _ ->
-            env // TODO
+        | Expression e ->
+            let (env, _) = evaluate_expression m env e
+            env
+        | VarAssign (str, e) -> // For now, we don't check the type
+            let (env, res) = evaluate_expression m env e
+            let v' = Map.add str res env.v
+            { env with v=v' }
+        | FunAssign (str, lst, e) -> // For now, we don't check the type
+            let (env, lst) = evaluate_expressions m env lst
+            let (env, res) = evaluate_expression m env e
+            let f' = Map.add (str, lst) res env.f
+            { env with f=f' }
+        | IfSomeElse (decl, f, sif, selse) ->
+            let eval_with (env:Model.Environment) value =
+                let v' = Map.add decl.Name value env.v
+                evaluate_formula { env with v=v' } f
+            let possible_values = all_values env (decl.Type)
+            try
+                let value = Seq.find (eval_with env) possible_values
+                let v' = Map.add decl.Name value env.v
+                execute_statement m { env with v=v' } sif
+            with :? KeyNotFoundException ->
+                execute_statement m env selse
+        | Assert f ->
+            if evaluate_formula env f then env
+            else raise AssertionFailed
 
     and execute_statements (m:ModuleDecl) (env:Model.Environment) ss =
         let aux env s =
             execute_statement m env s
         List.fold aux env ss
 
-    and execute_action (m:ModuleDecl) (env:Model.Environment) action args =
-        (env, ConstVoid) // TODO
+    and execute_action (m:ModuleDecl) (env:Model.Environment) action args = // For now, we don't check the type of args and output
+        let action_decl = List.find (fun (adecl:ActionDecl) -> adecl.Name = action) m.Actions
+        let v' = List.fold2 (fun acc (var_decl:VarDecl) const_val -> Map.add var_decl.Name const_val acc) env.v action_decl.Args args
+        let env = execute_statement m { env with v=v' } action_decl.Content
+        let res = Map.find action_decl.Output.Name env.v
+        (env, res)
+
