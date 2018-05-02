@@ -3,7 +3,7 @@
     (* TYPES TO DESCRIBE (FINITE) MODELS AND ENVIRONMENTS *)
     open AST
 
-    type BoundConstraint = string * int // For custom types, the number of elements
+    type BoundConstraint = string * int // For custom types, the number of elements - 1
     type EqConstraint = ConstValue * ConstValue * bool
     type FunConstraint = string * List<ConstValue> * ConstValue
     type VarConstraint = string * ConstValue
