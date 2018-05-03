@@ -15,10 +15,12 @@
     type Model = { b : List<BoundConstraint> ; f : List<FunConstraint>; v : List<VarConstraint> }
     type Model' = List<Constraint>
 
-    type BoundEnv = Map<string, int>
+
+    type TypeInfos = Map<string, int> // For now: only contains bounds for each type
+
     type FunEnv = Map<string * List<ConstValue>, ConstValue>
     type VarEnv = Map<string, ConstValue>
 
-    type Environment = { b : BoundEnv; f : FunEnv; v : VarEnv }
+    type Environment = { f : FunEnv; v : VarEnv }
 
 

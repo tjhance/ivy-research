@@ -51,5 +51,8 @@
         | IfSomeElse of VarDecl * Formula * Statement * Statement
         | Assert of Formula
 
-    type ActionDecl = { Name: string; Args: List<VarDecl>; Output: VarDecl; Content: Statement; OutputSpec: List<Formula> }
+    type AbstractModifier = { v: VarDecl -> ConstValue -> ConstValue ; f: FunDecl -> List<ConstValue> -> ConstValue -> ConstValue }
+
+    type ActionDecl = { Name: string; Args: List<VarDecl>; Output: VarDecl; Content: Statement }
+    type AbstractActionDecl = { Name: string; Args: List<VarDecl>; Output: VarDecl; Effect: AbstractModifier; Assume: List<Formula>; Assert: List<Formula> }
     type ModuleDecl = { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; Vars: List<VarDecl>; Actions: List<ActionDecl>; Invariants: List<Formula> }
