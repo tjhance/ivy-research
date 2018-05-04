@@ -14,14 +14,18 @@
     let marks_count m =
         (Set.count m.f) + (Set.count m.v) + (Set.count m.d)
 
-    let marks_union m1 m2 =
-        { f = Set.union m1.f m2.f ; v = Set.union m1.v m2.v ; d = Set.union m1.d m2.d }
-    
-    let marks_union_many ms =
+    let marks_map op1 op2 op3 ms : Marks =
         let fs = Seq.map (fun m -> m.f) ms
         let vs = Seq.map (fun m -> m.v) ms
         let ds = Seq.map (fun m -> m.d) ms
-        { f = Set.unionMany fs ; v = Set.unionMany vs ; d = Set.unionMany ds }
+        { f = op1 fs ; v = op2 vs ; d = op3 ds }
+    
+    let marks_union_many = marks_map Set.unionMany Set.unionMany Set.unionMany    
+    let marks_inter_many = marks_map Set.intersectMany Set.intersectMany Set.intersectMany
+    let marks_union m1 m2 = marks_union_many ([m1;m2] |> List.toSeq)
+    let marks_inter m1 m2 = marks_inter_many ([m1;m2] |> List.toSeq)
+    let marks_diff m1 m2 =
+        { f = Set.difference m1.f m2.f ; v = Set.difference m1.v m2.v ; d = Set.difference m1.d m2.d }
 
     let rec marks_for_value infos env v : ConstValue * Marks =
         match v with
@@ -58,31 +62,42 @@
             | true, true when marks_count um1 > marks_count um2 -> (true, m2, um2)
             | true, true -> (true, m1, um1)
         | And (f1, f2) ->
-            let (b1, m1, um1) = marks_for_formula infos env f1
+            (*let (b1, m1, um1) = marks_for_formula infos env f1
             let (b2, m2, um2) = marks_for_formula infos env f2
             match b1, b2 with
             | false, false when marks_count um1 > marks_count um2 -> (false, m2, um2)
             | false, false -> (false, m1, um1)
             | true, false -> (false, m2, um2)
             | false, true -> (false, m1, um1)
-            | true, true -> (true, marks_union m1 m2, marks_union um1 um2)
+            | true, true -> (true, marks_union m1 m2, marks_union um1 um2)*)
+            marks_for_formula infos env (Not (Or (Not f1, Not f2)))
         | Not f ->
             let (b,m,um) = marks_for_formula infos env f
             (not b, m, um)
         | Forall (decl, f) ->
             let marks_with value =
                 let v' = Map.add decl.Name value env.v
-                marks_for_formula infos { env with v=v' } f
+                let (b, m, um) = marks_for_formula infos { env with v=v' } f
+                let m = { m with v = Set.remove decl.Name m.v }
+                let um = { um with v = Set.remove decl.Name um.v }
+                (b, m, um)
             let values = all_values infos decl.Type
             let all_possibilities = Seq.map marks_with values
             if Seq.forall (fun (b,_,_) -> b) all_possibilities
             then
                 // Important constraints are universally quantified...
-                (true, empty_marks, empty_marks) //TODO
+                // Common properties stay in m, other properties move to um
+                let ms = Seq.map (fun (_,m,_) -> m) all_possibilities
+                let ums = Seq.map (fun (_,_,um) -> um) all_possibilities
+                let m = marks_inter_many ms
+                let um1 = marks_union_many ums
+                let um2 = marks_diff (marks_union_many ms) m
+                (true, m, marks_union um1 um2)
             else
                 // We pick one constraint that breaks the forall
                 let min_count (mb, mm, mum) (b, m, um) = if marks_count um < marks_count mm then (b, m, um) else (mb, mm, mum)
                 let interesting_possibilities = Seq.filter (fun (b, _, _) -> not b) all_possibilities
                 let (_, m, um) = Seq.fold min_count (Seq.head interesting_possibilities) interesting_possibilities
                 (false, m, um)
-        // TODO
+        | Exists (decl, f) ->
+            marks_for_formula infos env (Not (Forall (decl, Not f)))
