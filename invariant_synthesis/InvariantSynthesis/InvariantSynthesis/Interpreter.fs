@@ -70,6 +70,20 @@
 
     exception AssertionFailed
 
+    let enter_new_block infos (env:Model.Environment) lvars lvalues : Model.Environment =
+        let add_decl acc (decl:VarDecl) v =
+            match v with
+            | None -> Map.add decl.Name (pick_value infos decl.Type) acc
+            | Some v -> Map.add decl.Name v acc
+        {env with v=List.fold2 add_decl env.v lvars lvalues }
+
+    let leave_block infos (env:Model.Environment) lvars (old_env:Model.Environment) : Model.Environment =
+        let rollback acc (decl:VarDecl) =
+            match Map.tryFind decl.Name old_env.v with
+            | None -> Map.remove decl.Name acc
+            | Some e -> Map.add decl.Name e acc
+        { env with v=List.fold rollback env.v lvars }
+
     let rec evaluate_expression (m:ModuleDecl) infos (env:Model.Environment) e =
         match e with
         | ExprConst cv -> (env, cv)
@@ -107,16 +121,9 @@
     and execute_statement (m:ModuleDecl) infos (env:Model.Environment) s : Model.Environment =
         match s with
         | NewBlock (decls, ss) ->
-            let add_decl acc (decl:VarDecl) =
-                Map.add decl.Name (pick_value infos decl.Type) acc
-            let env' = {env with v=List.fold add_decl env.v decls }
+            let env' = enter_new_block infos env decls (List.map (fun _ -> None) decls)
             let env' = execute_statements m infos env' ss
-            // Undo changes of new env for local variables
-            let rollback acc (decl:VarDecl) =
-                match Map.tryFind decl.Name env.v with
-                | None -> Map.remove decl.Name acc
-                | Some e -> Map.add decl.Name e acc
-            { env' with v=List.fold rollback env'.v decls }
+            leave_block infos env' decls env
         | Expression e ->
             let (env, _) = evaluate_expression m infos env e
             env
@@ -151,18 +158,11 @@
 
     and execute_action (m:ModuleDecl) infos (env:Model.Environment) action args = // For now, we don't check the types
         let action_decl = List.find (fun (adecl:ActionDecl) -> adecl.Name = action) m.Actions
-        let add_decl acc (decl:VarDecl) v = Map.add decl.Name v acc
-        let env' = { env with v=List.fold2 add_decl env.v action_decl.Args args }
-        let env' = { env' with v=Map.add action_decl.Output.Name (pick_value infos action_decl.Output.Type) env'.v }
+        let env' = enter_new_block infos env (action_decl.Output::action_decl.Args) (None::(List.map (fun a -> Some a) args))
         let env' = execute_statement m infos env' action_decl.Content
         let res =
             match Map.tryFind action_decl.Output.Name env'.v with
             | None -> ConstVoid
             | Some cv -> cv
-        // Undo changes of new env for local variables
-        let rollback acc (decl:VarDecl) =
-            match Map.tryFind decl.Name env.v with
-            | None -> Map.remove decl.Name acc
-            | Some e -> Map.add decl.Name e acc
-        ({ env' with v=List.fold rollback env'.v (action_decl.Output::action_decl.Args) }, res)
+        (leave_block infos env' (action_decl.Output::action_decl.Args) env, res)
         // TODO: Handle abstract actions

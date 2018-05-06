@@ -63,14 +63,6 @@
             | true, true when marks_count um1 > marks_count um2 -> (true, m2, um2)
             | true, true -> (true, m1, um1)
         | And (f1, f2) ->
-            (*let (b1, m1, um1) = marks_for_formula infos env f1
-            let (b2, m2, um2) = marks_for_formula infos env f2
-            match b1, b2 with
-            | false, false when marks_count um1 > marks_count um2 -> (false, m2, um2)
-            | false, false -> (false, m1, um1)
-            | true, false -> (false, m2, um2)
-            | false, true -> (false, m1, um1)
-            | true, true -> (true, marks_union m1 m2, marks_union um1 um2)*)
             marks_for_formula infos env (Not (Or (Not f1, Not f2)))
         | Not f ->
             let (b,m,um) = marks_for_formula infos env f
@@ -131,6 +123,7 @@
                 then marks_union m m'
                 else m
             marks_before_expressions module_decl infos envs es m um mark_value
+       // | ExprAction (str, es) -> 
 
     // envs: every environment before the expression, IN THE REVERSE ORDER
     and marks_before_expressions module_decl infos envs es m um mark_values =
@@ -138,4 +131,8 @@
             marks_before_expression module_decl infos env e m um mark_values
         let (m, um) = List.fold2 aux (m, um) envs (List.rev es)
         (m, um)
+
+    and marks_before_statement module_decl infos env st m um = ()
+
+    and marks_before_action module_decl infos env action args m um mark_value = ()
        
