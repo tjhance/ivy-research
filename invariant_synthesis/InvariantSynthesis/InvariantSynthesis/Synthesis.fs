@@ -96,14 +96,36 @@
             marks_for_formula infos env (Not (Forall (decl, Not f)))
 
     // env: initial environment (before the execution of the expressions)
+    // Returns the final environment
     // Returns the list of each environment before the execution of an expression, IN THE REVERSE ORDER
-    // Also returns the values of the expressions (in the initial order)
+    // Also returns the values of the expressions (in the initial order
     let intermediate_environments module_decl infos env es =
         let aux (envs, vs) e =
             let (h, v) = evaluate_expression module_decl infos (List.head envs) e
             (h::envs, v::vs)
         let (envs, vs) = (List.fold aux ([env], []) es)
-        (List.tail envs, List.rev vs)
+        (List.head envs, List.tail envs, List.rev vs)
+
+    let intermediate_environments_st module_decl infos env sts =
+        let aux envs st =
+            let h = execute_statement module_decl infos (List.head envs) st
+            (h::envs)
+        let envs = (List.fold aux [env] sts)
+        (List.head envs, List.tail envs)
+
+    let marks_leave_block infos m lvars old_m : Marks =
+        let rollback acc (decl:VarDecl) =
+            if Set.contains decl.Name old_m.v
+            then Set.add decl.Name acc
+            else Set.remove decl.Name acc
+        { m with v=List.fold rollback m.v lvars }
+
+    let marks_enter_block infos m lvars : Marks =
+        let rm acc (decl:VarDecl) = Set.remove decl.Name acc
+        { m with v=List.fold rm m.v lvars }
+
+    let is_var_marked infos m um (var_decl:VarDecl) =
+        (Set.contains var_decl.Name m.v) || (Set.contains var_decl.Name um.v)
 
     // env: initial environment (before the execution of the expr)
     // m, um: marks after the execution of the expr
@@ -116,23 +138,40 @@
             let m = if mark_value then marks_union m m' else m
             (m, um)
         | ExprFun (str, es) ->
-            let (envs, vs) = intermediate_environments module_decl infos env es
+            let (env, envs, vs) = intermediate_environments module_decl infos env es
             let (_, m') = marks_for_value infos env (ValueFun (str, List.map (fun v -> ValueConst v) vs))
             let m =
                 if mark_value
                 then marks_union m m'
                 else m
-            marks_before_expressions module_decl infos envs es m um mark_value
-       // | ExprAction (str, es) -> 
+            marks_before_expressions module_decl infos envs (List.rev es) m um (List.map (fun _ -> mark_value) es)
+        | ExprAction (str, es) ->
+            let (env, envs, lst) = intermediate_environments module_decl infos env es
+            let (args_marks, m, um) = marks_before_action module_decl infos env str lst m um mark_value
+            marks_before_expressions module_decl infos envs (List.rev es) m um args_marks
+        // TODO
 
-    // envs: every environment before the expression, IN THE REVERSE ORDER
+    // envs: the env before each expression
     and marks_before_expressions module_decl infos envs es m um mark_values =
-        let aux (m, um) env e =
-            marks_before_expression module_decl infos env e m um mark_values
-        let (m, um) = List.fold2 aux (m, um) envs (List.rev es)
+        let aux (m, um) (env, e) mark =
+            marks_before_expression module_decl infos env e m um mark
+        let (m, um) = List.fold2 aux (m, um) (List.zip envs es) mark_values
         (m, um)
 
-    and marks_before_statement module_decl infos env st m um = ()
+    and marks_before_statement module_decl infos env st m um = (m, um) // TODO
 
-    and marks_before_action module_decl infos env action args m um mark_value = ()
-       
+    and marks_before_action (mdecl:ModuleDecl) infos env action args m um mark_value =
+        let action_decl = List.find (fun (adecl:ActionDecl) -> adecl.Name = action) mdecl.Actions
+        let env' = enter_new_block infos env (action_decl.Output::action_decl.Args) (None::(List.map (fun a -> Some a) args))
+        let m' = marks_enter_block infos m (action_decl.Output::action_decl.Args)
+        let um' = marks_enter_block infos um (action_decl.Output::action_decl.Args)
+        let m' =
+            if mark_value then
+                { m' with v = Set.add action_decl.Output.Name m'.v }
+            else m'
+        let (m', um') = marks_before_statement mdecl infos env' action_decl.Content m' um'
+        let args_marks = List.map (is_var_marked infos m' um') action_decl.Args
+        let m' = marks_leave_block infos m' (action_decl.Output::action_decl.Args) m
+        let um' = marks_leave_block infos um' (action_decl.Output::action_decl.Args) um
+        (args_marks, m', um')
+        // TODO: Handle abstract actions
