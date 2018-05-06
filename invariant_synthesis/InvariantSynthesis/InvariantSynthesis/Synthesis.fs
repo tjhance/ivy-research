@@ -28,6 +28,15 @@
     let marks_diff m1 m2 =
         { f = Set.difference m1.f m2.f ; v = Set.difference m1.v m2.v ; d = Set.difference m1.d m2.d }
 
+    let are_better_marks (m1, um1) (m2, um2) =
+        if marks_count um1 < marks_count um2
+        then true
+        else if marks_count um1 > marks_count um2
+        then false
+        else if marks_count m1 < marks_count m2
+        then true
+        else false
+
     let rec marks_for_value infos env v : ConstValue * Marks =
         match v with
         | ValueConst c -> (c, empty_marks)
@@ -60,7 +69,7 @@
             | false, false -> (false, marks_union m1 m2, marks_union um1 um2)
             | true, false -> (true, m1, um1)
             | false, true -> (true, m2, um2)
-            | true, true when marks_count um1 > marks_count um2 -> (true, m2, um2)
+            | true, true when are_better_marks (m2, um2) (m1, um1) -> (true, m2, um2)
             | true, true -> (true, m1, um1)
         | And (f1, f2) ->
             marks_for_formula infos env (Not (Or (Not f1, Not f2)))
@@ -88,7 +97,7 @@
                 (true, m, marks_union um1 um2)
             else
                 // We pick one constraint that breaks the forall
-                let min_count (mb, mm, mum) (b, m, um) = if marks_count um < marks_count mm then (b, m, um) else (mb, mm, mum)
+                let min_count (mb, mm, mum) (b, m, um) = if are_better_marks (m, um) (mm, mum) then (b, m, um) else (mb, mm, mum)
                 let interesting_possibilities = Seq.filter (fun (b, _, _) -> not b) all_possibilities
                 let (_, m, um) = Seq.fold min_count (Seq.head interesting_possibilities) interesting_possibilities
                 (false, m, um)
@@ -149,6 +158,30 @@
             let (env, envs, lst) = intermediate_environments module_decl infos env es
             let (args_marks, m, um) = marks_before_action module_decl infos env str lst m um mark_value
             marks_before_expressions module_decl infos envs (List.rev es) m um args_marks
+        | ExprEqual (e1, e2) ->
+            let (env1, v1) = evaluate_expression module_decl infos env e1
+            let (env2, v2) = evaluate_expression module_decl infos env1 e2
+            let (_, m', um') = marks_for_formula infos env2 (Equal (ValueConst v1,ValueConst v2))
+            let (m, um) =
+                if mark_value
+                then (marks_union m m', marks_union um um')
+                else (m, um)
+            let (m, um) = marks_before_expression module_decl infos env1 e2 m um mark_value
+            marks_before_expression module_decl infos env e1 m um mark_value
+        | ExprOr (e1, e2) ->
+            let (env1, v1) = evaluate_expression module_decl infos env e1
+            let (_, v2) = evaluate_expression module_decl infos env1 e2
+            let aux mark1 mark2 =
+                let (m, um) = marks_before_expression module_decl infos env1 e2 m um (mark_value && mark2)
+                marks_before_expression module_decl infos env e1 m um (mark_value && mark1)
+            match v1, v2 with
+            | ConstBool true, ConstBool false -> aux true false
+            | ConstBool false, ConstBool true -> aux false true
+            | ConstBool true, ConstBool true -> 
+                let (m1, um1) = aux true false
+                let (m2, um2) = aux false true
+                if are_better_marks (m2, um2) (m1, um1) then (m2, um2) else (m1, um1)
+            | ConstBool false, ConstBool false | _, _ -> aux true true
         // TODO
 
     // envs: the env before each expression
