@@ -2,6 +2,7 @@
 
     open AST
     open Interpreter
+    open System.Data.SqlTypes
 
     type FunMarks = Set<string * List<ConstValue>>
     type VarMarks = Set<string>
@@ -101,3 +102,40 @@
                 (false, m, um)
         | Exists (decl, f) ->
             marks_for_formula infos env (Not (Forall (decl, Not f)))
+
+    // env: initial environment (before the execution of the expressions)
+    // Returns the list of each environment before the execution of an expression, IN THE REVERSE ORDER
+    // Also returns the values of the expressions (in the initial order)
+    let intermediate_environments module_decl infos env es =
+        let aux (envs, vs) e =
+            let (h, v) = evaluate_expression module_decl infos (List.head envs) e
+            (h::envs, v::vs)
+        let (envs, vs) = (List.fold aux ([env], []) es)
+        (List.tail envs, List.rev vs)
+
+    // env: initial environment (before the execution of the expr)
+    // m, um: marks after the execution of the expr
+    // Return type : (important elements, universally quantified important elements)
+    let rec marks_before_expression module_decl infos env expr m um mark_value =
+        match expr with
+        | ExprConst _ -> (m, um)
+        | ExprVar str ->
+            let (_, m') = marks_for_value infos env (ValueVar str)
+            let m = if mark_value then marks_union m m' else m
+            (m, um)
+        | ExprFun (str, es) ->
+            let (envs, vs) = intermediate_environments module_decl infos env es
+            let (_, m') = marks_for_value infos env (ValueFun (str, List.map (fun v -> ValueConst v) vs))
+            let m =
+                if mark_value
+                then marks_union m m'
+                else m
+            marks_before_expressions module_decl infos envs es m um mark_value
+
+    // envs: every environment before the expression, IN THE REVERSE ORDER
+    and marks_before_expressions module_decl infos envs es m um mark_values =
+        let aux (m, um) env e =
+            marks_before_expression module_decl infos env e m um mark_values
+        let (m, um) = List.fold2 aux (m, um) envs (List.rev es)
+        (m, um)
+       
