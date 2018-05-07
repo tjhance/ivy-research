@@ -37,6 +37,11 @@
         then true
         else false
 
+    let add_diff_constraint infos m cv1 cv2 =
+        let d' = Set.add (cv1, cv2) m.d
+        let d' = Set.add (cv2, cv1) d'
+        { m with d=d' }
+
     let rec marks_for_value infos env v : ConstValue * Marks =
         match v with
         | ValueConst c -> (c, empty_marks)
@@ -58,10 +63,7 @@
             let m = marks_union m1 m2
             if value_equal infos cv1 cv2 then (true, m, empty_marks)
             else
-                let d' =
-                    if Set.contains (cv1, cv2) m.d || Set.contains (cv2, cv1) m.d
-                    then m.d else Set.add (cv1, cv2) m.d
-                (false, { m with d = d' }, empty_marks)
+                (false, add_diff_constraint infos m cv1 cv2, empty_marks)
         | Or (f1, f2) ->
             let (b1, m1, um1) = marks_for_formula infos env f1
             let (b2, m2, um2) = marks_for_formula infos env f2
@@ -139,6 +141,26 @@
     let remove_var_marks infos m um var : Marks * Marks =
         ({m with v = Set.remove var m.v}, {um with v = Set.remove var um.v})
 
+    let is_fun_marked infos m um str vs =
+        (Set.contains (str, vs) m.f) || (Set.contains (str, vs) um.f)
+    
+    let remove_fun_marks infos m um str vs : Marks * Marks =
+        ({m with f = Set.remove (str,vs) m.f}, {um with f = Set.remove (str,vs) um.f})
+
+    let fun_marks_matching infos m str ovs : FunMarks =
+        let value_match v dv =
+            match dv with
+            | None -> true
+            | Some dv -> value_equal infos v dv
+        let match_pattern fm =
+            match fm with
+            | (s, _) when s<>str -> false
+            | (_, lst) -> List.forall2 value_match lst ovs
+        (Set.filter match_pattern m.f)
+
+    let fun_marks_matching2 infos m um str ovs =
+        Set.union (fun_marks_matching infos m str ovs) (fun_marks_matching infos um str ovs)
+
     // env: initial environment (before the execution of the expr)
     // m, um: marks after the execution of the expr
     // Return type : (important elements, universally quantified important elements)
@@ -160,7 +182,7 @@
         | ExprAction (str, es) ->
             let (env, envs, lst) = intermediate_environments module_decl infos env es
             let (args_marks, m, um) = marks_before_action module_decl infos env str lst m um mark_value
-            marks_before_expressions module_decl infos envs (List.rev es) m um args_marks
+            marks_before_expressions module_decl infos envs (List.rev es) m um (List.rev args_marks)
         | ExprEqual (e1, e2) ->
             let (env1, v1) = evaluate_expression module_decl infos env e1
             let (env2, v2) = evaluate_expression module_decl infos env1 e2
@@ -211,7 +233,24 @@
             let marked = is_var_marked infos m um str
             let (m, um) = remove_var_marks infos m um str
             marks_before_expression module_decl infos env e m um marked
+        | FunAssign (str, es, e) ->
+            let (env', v) = evaluate_expression module_decl infos env e
+            let (env', envs, vs) = intermediate_environments module_decl infos env' es
+            let marked = is_fun_marked infos m um str vs
+            let (m, um) = remove_fun_marks infos m um str vs
+            let compute_neighbors i =
+                let pattern = List.init (List.length vs) (fun j -> if j = i then None else Some (List.item j vs))
+                fun_marks_matching2 infos m um str pattern
+            let neighbors = List.init (List.length vs) compute_neighbors
+            let marks =
+                if marked
+                then List.map (fun _ -> true) es
+                else List.map (fun lst -> not (Set.isEmpty lst)) neighbors
+            // TODO : Inequalities with neighbors
 
+            let (m, um) = marks_before_expressions module_decl infos envs (List.rev es) m um (List.rev marks)
+            marks_before_expression module_decl infos env e m um marked
+            
     // envs: the env before each statement
     and marks_before_statements module_decl infos envs sts m um =
         let aux (m, um) env st =
