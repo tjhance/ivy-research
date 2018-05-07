@@ -182,7 +182,8 @@
                 let (m2, um2) = aux false true
                 if are_better_marks (m2, um2) (m1, um1) then (m2, um2) else (m1, um1)
             | ConstBool false, ConstBool false | _, _ -> aux true true
-        // TODO
+        | ExprAnd (e1, e2) -> marks_before_expression module_decl infos env (ExprNot (ExprOr (ExprNot e1, ExprNot e2))) m um mark_value
+        | ExprNot e -> marks_before_expression module_decl infos env e m um mark_value
 
     // envs: the env before each expression
     and marks_before_expressions module_decl infos envs es m um mark_values =
