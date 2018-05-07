@@ -132,8 +132,8 @@
             let v' = Map.add str res env.v
             { env with v=v' }
         | FunAssign (str, lst, e) -> // For now, we don't check the types
-            let (env, lst) = evaluate_expressions m infos env lst
             let (env, res) = evaluate_expression m infos env e
+            let (env, lst) = evaluate_expressions m infos env lst
             let f' = Map.add (str, lst) res env.f
             { env with f=f' }
         | IfSomeElse (decl, f, sif, selse) ->

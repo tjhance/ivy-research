@@ -107,7 +107,7 @@
     // env: initial environment (before the execution of the expressions)
     // Returns the final environment
     // Returns the list of each environment before the execution of an expression, IN THE REVERSE ORDER
-    // Also returns the values of the expressions (in the initial order
+    // Also returns the values of the expressions (in the expressions order)
     let intermediate_environments module_decl infos env es =
         let aux (envs, vs) e =
             let (h, v) = evaluate_expression module_decl infos (List.head envs) e
@@ -133,8 +133,11 @@
         let rm acc (decl:VarDecl) = Set.remove decl.Name acc
         { m with v=List.fold rm m.v lvars }
 
-    let is_var_marked infos m um (var_decl:VarDecl) =
-        (Set.contains var_decl.Name m.v) || (Set.contains var_decl.Name um.v)
+    let is_var_marked infos m um var =
+        (Set.contains var m.v) || (Set.contains var um.v)
+    
+    let remove_var_marks infos m um var : Marks * Marks =
+        ({m with v = Set.remove var m.v}, {um with v = Set.remove var um.v})
 
     // env: initial environment (before the execution of the expr)
     // m, um: marks after the execution of the expr
@@ -192,7 +195,28 @@
         let (m, um) = List.fold2 aux (m, um) (List.zip envs es) mark_values
         (m, um)
 
-    and marks_before_statement module_decl infos env st m um = (m, um) // TODO
+    and marks_before_statement module_decl infos env st m um =
+        match st with
+        | NewBlock (decls, sts) ->
+            let env' = enter_new_block infos env decls (List.map (fun _ -> None) decls)
+            let m' = marks_enter_block infos m decls
+            let um' = marks_enter_block infos um decls
+            let (_, envs) = intermediate_environments_st module_decl infos env' sts
+            let (m', um') = marks_before_statements module_decl infos envs (List.rev sts) m' um'
+            let m' = marks_leave_block infos m' decls m
+            let um' = marks_leave_block infos um' decls um
+            (m', um')
+        | Expression e -> marks_before_expression module_decl infos env e m um false
+        | VarAssign (str, e) ->
+            let marked = is_var_marked infos m um str
+            let (m, um) = remove_var_marks infos m um str
+            marks_before_expression module_decl infos env e m um marked
+
+    // envs: the env before each statement
+    and marks_before_statements module_decl infos envs sts m um =
+        let aux (m, um) env st =
+            marks_before_statement module_decl infos env st m um
+        List.fold2 aux (m, um) envs sts
 
     and marks_before_action (mdecl:ModuleDecl) infos env action args m um mark_value =
         let action_decl = List.find (fun (adecl:ActionDecl) -> adecl.Name = action) mdecl.Actions
@@ -204,7 +228,7 @@
                 { m' with v = Set.add action_decl.Output.Name m'.v }
             else m'
         let (m', um') = marks_before_statement mdecl infos env' action_decl.Content m' um'
-        let args_marks = List.map (is_var_marked infos m' um') action_decl.Args
+        let args_marks = List.map (is_var_marked infos m' um') (List.map (fun (decl:VarDecl) -> decl.Name) action_decl.Args)
         let m' = marks_leave_block infos m' (action_decl.Output::action_decl.Args) m
         let um' = marks_leave_block infos um' (action_decl.Output::action_decl.Args) um
         (args_marks, m', um')
