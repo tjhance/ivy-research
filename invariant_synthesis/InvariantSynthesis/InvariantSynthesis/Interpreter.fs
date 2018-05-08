@@ -146,6 +146,11 @@
             let (env, lst) = evaluate_expressions m infos env lst
             let f' = Map.add (str, lst) res env.f
             { env with f=f' }
+        | IfElse (e, sif, selse) ->
+            let (env, v) = evaluate_expression m infos env e
+            match v with
+            | ConstBool true -> execute_statement m infos env sif
+            | ConstBool false | _ -> execute_statement m infos env selse
         | IfSomeElse (decl, f, sif, selse) ->
             match if_some_value infos env decl f with
             | Some value ->

@@ -265,12 +265,19 @@
                 if marked
                 then List.map (fun _ -> true) es
                 else List.map (fun lst -> not (Set.isEmpty lst)) neighbors
-            // Inequalities with neighbors (distinguish m and um)
+            // Inequalities with neighbors
             let add_ineq_for ad cv cvs =
                 Set.fold (fun ad cv' -> add_diff_constraint infos ad cv cv') ad cvs
             let ad = List.fold2 add_ineq_for ad vs neighbors
             let (m, um, ad) = marks_before_expressions module_decl infos envs (List.rev es) m um ad (List.rev marks)
             marks_before_expression module_decl infos env e m um ad marked
+        | IfElse (e, sif, selse) ->
+            let (env', v) = evaluate_expression module_decl infos env e
+            let (m, um, ad) =
+                match v with
+                | ConstBool true -> marks_before_statement module_decl infos env' sif m um ad
+                | ConstBool false | _ -> marks_before_statement module_decl infos env' selse m um ad
+            marks_before_expression module_decl infos env e m um ad true
         | IfSomeElse (decl, f, sif, selse) ->
             match if_some_value infos env decl f with
             | Some value ->
