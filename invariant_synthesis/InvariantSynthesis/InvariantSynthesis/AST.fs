@@ -53,8 +53,7 @@
         | Assert of Formula
     // TODO: Add possibility to quantify universally on some arguments for FunAssign (expr should be pure)
 
-    type AbstractModifier = { v: VarDecl -> ConstValue -> ConstValue ; f: FunDecl -> List<ConstValue> -> ConstValue -> ConstValue }
-
     type ActionDecl = { Name: string; Args: List<VarDecl>; Output: VarDecl; Content: Statement }
-    type AbstractActionDecl = { Name: string; Args: List<VarDecl>; Output: VarDecl; Effect: AbstractModifier; Assume: List<Formula>; Assert: List<Formula> }
-    type ModuleDecl = { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; Vars: List<VarDecl>; Actions: List<ActionDecl>; Invariants: List<Formula> }
+    type AbstractModifier<'a,'b> = 'a -> 'b -> 'b
+    type AbstractActionDecl<'a,'b> = { Name: string; Args: List<VarDecl>; Output: VarDecl; Effect: AbstractModifier<'a,'b>; Assume: List<Formula>; Assert: List<Formula> }
+    type ModuleDecl<'a,'b> = { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; Vars: List<VarDecl>; Actions: List<ActionDecl>; AActions: List<AbstractActionDecl<'a,'b>>; Invariants: List<Formula> }

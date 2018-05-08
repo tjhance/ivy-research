@@ -3,6 +3,10 @@
     open AST
     open System.Collections.Generic
 
+    type ModuleDecl = ModuleDecl<Model.TypeInfos, Model.Environment>
+    type AbstractActionDecl = AbstractActionDecl<Model.TypeInfos, Model.Environment>
+    type AbstractModifier = AbstractModifier<Model.TypeInfos, Model.Environment>
+
     let all_values infos data_type =
         match data_type with
         | Void -> Seq.singleton ConstVoid
@@ -167,14 +171,21 @@
         let aux env s =
             execute_statement m infos env s
         List.fold aux env ss
-
-    and execute_action (m:ModuleDecl) infos (env:Model.Environment) action args = // For now, we don't check the types
-        let action_decl = List.find (fun (adecl:ActionDecl) -> adecl.Name = action) m.Actions
-        let env' = enter_new_block infos env (action_decl.Output::action_decl.Args) (None::(List.map (fun a -> Some a) args))
-        let env' = execute_statement m infos env' action_decl.Content
+    
+    and execute_inline_action infos (env:Model.Environment) input output (modifier:AbstractModifier) args =
+        let env' = enter_new_block infos env (output::input) (None::(List.map (fun a -> Some a) args))
+        let env' = modifier infos env'
         let res =
-            match Map.tryFind action_decl.Output.Name env'.v with
+            match Map.tryFind output.Name env'.v with
             | None -> ConstVoid
             | Some cv -> cv
-        (leave_block infos env' (action_decl.Output::action_decl.Args) env, res)
-        // TODO: Handle abstract actions
+        (leave_block infos env' (output::input) env, res)
+
+    and execute_action (m:ModuleDecl) infos (env:Model.Environment) action args = // For now, we don't check the types
+        try // Concrete Action
+            let action_decl = List.find (fun (adecl:ActionDecl) -> adecl.Name = action) m.Actions
+            let modifier infos env = execute_statement m infos env action_decl.Content
+            execute_inline_action infos env action_decl.Args action_decl.Output modifier args
+        with :? KeyNotFoundException -> // Abstract Action
+            let action_decl = List.find (fun (adecl:AbstractActionDecl) -> adecl.Name = action) m.AActions
+            execute_inline_action infos env action_decl.Args action_decl.Output action_decl.Effect args
