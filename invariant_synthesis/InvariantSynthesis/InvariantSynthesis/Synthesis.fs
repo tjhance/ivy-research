@@ -276,7 +276,7 @@
             | Some value ->
                 let env' = enter_new_block infos env [decl] [Some value]
                 let (m', um') = marks_enter_block2 infos m um [decl]
-                let (m', um', ad) = marks_before_statement module_decl infos env' sif m um ad
+                let (m', um', ad) = marks_before_statement module_decl infos env' sif m' um' ad
                 let (_, m2, um2, ad2) =
                     if is_var_marked infos m' um' decl.Name
                     then marks_for_formula infos env' f
