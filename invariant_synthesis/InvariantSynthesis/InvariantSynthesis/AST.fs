@@ -21,8 +21,8 @@
         | ValueConst of ConstValue
         | ValueVar of string
         | ValueFun of string * List<Value>
+    // TODO: Add equal, or, and, not
 
-    (* No side effects *)
     type Formula =
         | Const of bool
         | Equal of Value * Value
