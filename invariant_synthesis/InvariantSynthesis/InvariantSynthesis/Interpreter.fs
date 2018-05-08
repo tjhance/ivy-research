@@ -85,6 +85,15 @@
             | Some e -> Map.add decl.Name e acc
         { env with v=List.fold rollback env.v lvars }
 
+    let if_some_value infos (env:Model.Environment) (decl:VarDecl) f : option<ConstValue> =
+        let eval_with (env:Model.Environment) value =
+            let v' = Map.add decl.Name value env.v
+            evaluate_formula infos { env with v=v' } f
+        let possible_values = all_values infos (decl.Type)
+        try
+            Some (Seq.find (eval_with env) possible_values)
+        with :? KeyNotFoundException -> None
+
     let rec evaluate_expression (m:ModuleDecl) infos (env:Model.Environment) e =
         match e with
         | ExprConst cv -> (env, cv)
@@ -138,15 +147,12 @@
             let f' = Map.add (str, lst) res env.f
             { env with f=f' }
         | IfSomeElse (decl, f, sif, selse) ->
-            let eval_with (env:Model.Environment) value =
-                let v' = Map.add decl.Name value env.v
-                evaluate_formula infos { env with v=v' } f
-            let possible_values = all_values infos (decl.Type)
-            try
-                let value = Seq.find (eval_with env) possible_values
-                let v' = Map.add decl.Name value env.v
-                execute_statement m infos { env with v=v' } sif
-            with :? KeyNotFoundException ->
+            match if_some_value infos env decl f with
+            | Some value ->
+                let env' = enter_new_block infos env [decl] [Some value]
+                let env' = execute_statement m infos env' sif
+                leave_block infos env' [decl] env
+            | None ->
                 execute_statement m infos env selse
         | Assert f ->
             if evaluate_formula infos env f then env
