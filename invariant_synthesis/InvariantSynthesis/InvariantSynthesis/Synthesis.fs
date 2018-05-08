@@ -305,16 +305,30 @@
             marks_before_statement module_decl infos env st m um ad
         List.fold2 aux (m, um, ad) envs sts
 
-    and marks_before_action (mdecl:ModuleDecl) infos env action args m um ad mark_value =
-        let action_decl = List.find (fun (adecl:ActionDecl) -> adecl.Name = action) mdecl.Actions
-        let env' = enter_new_block infos env (action_decl.Output::action_decl.Args) (None::(List.map (fun a -> Some a) args))
-        let (m', um') = marks_enter_block2 infos m um (action_decl.Output::action_decl.Args)
+    and marks_before_inline_action infos (env:Model.Environment) input output modifier args m um ad mark_value =
+        let env' = enter_new_block infos env (output::input) (None::(List.map (fun a -> Some a) args))
+        let (m', um') = marks_enter_block2 infos m um (output::input)
         let m' =
             if mark_value then
-                { m' with v = Set.add action_decl.Output.Name m'.v }
+                { m' with v = Set.add output.Name m'.v }
             else m'
-        let (m', um', ad) = marks_before_statement mdecl infos env' action_decl.Content m' um' ad
-        let args_marks = List.map (is_var_marked infos m' um') (List.map (fun (decl:VarDecl) -> decl.Name) action_decl.Args)
-        let (m', um') = marks_leave_block2 infos m' um' (action_decl.Output::action_decl.Args) m um
+        let (m', um', ad) = modifier infos env' m' um' ad
+        let args_marks = List.map (is_var_marked infos m' um') (List.map (fun (decl:VarDecl) -> decl.Name) input)
+        let (m', um') = marks_leave_block2 infos m' um' (output::input) m um
         (args_marks, m', um', ad)
-        // TODO: Handle abstract actions
+
+    and marks_before_action (mdecl:ModuleDecl) infos env action args m um ad mark_value =
+        try // Concrete Action
+            let action_decl = List.find (fun (adecl:ActionDecl) -> adecl.Name = action) mdecl.Actions
+            let modifier infos env m um ad = marks_before_statement mdecl infos env action_decl.Content m um ad
+            marks_before_inline_action infos env action_decl.Args action_decl.Output modifier args m um ad mark_value
+        with :? System.Collections.Generic.KeyNotFoundException -> // Abstract Action
+            let action_decl = List.find (fun (adecl:AbstractActionDecl) -> adecl.Name = action) mdecl.AActions
+            let modifier infos env m um ad =
+                // Note: Here we assume that assert statements don't change the environment
+                let env' = action_decl.Effect infos env
+                let assert_sts = List.rev (List.map (fun f -> Assert f) action_decl.Assert)
+                let (m,um,ad) = marks_before_statements mdecl infos (List.map (fun _ -> env') action_decl.Assert) assert_sts m um ad
+                let assume_sts = List.rev (List.map (fun f -> Assert f) action_decl.Assume)
+                marks_before_statements mdecl infos (List.map (fun _ -> env) action_decl.Assume) assume_sts m um ad
+            marks_before_inline_action infos env action_decl.Args action_decl.Output modifier args m um ad mark_value

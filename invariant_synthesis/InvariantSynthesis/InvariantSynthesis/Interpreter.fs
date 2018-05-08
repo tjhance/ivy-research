@@ -1,7 +1,6 @@
 ﻿module Interpreter
 
     open AST
-    open System.Collections.Generic
 
     type ModuleDecl = ModuleDecl<Model.TypeInfos, Model.Environment>
     type AbstractActionDecl = AbstractActionDecl<Model.TypeInfos, Model.Environment>
@@ -96,7 +95,7 @@
         let possible_values = all_values infos (decl.Type)
         try
             Some (Seq.find (eval_with env) possible_values)
-        with :? KeyNotFoundException -> None
+        with :? System.Collections.Generic.KeyNotFoundException -> None
 
     let rec evaluate_expression (m:ModuleDecl) infos (env:Model.Environment) e =
         match e with
@@ -186,6 +185,10 @@
             let action_decl = List.find (fun (adecl:ActionDecl) -> adecl.Name = action) m.Actions
             let modifier infos env = execute_statement m infos env action_decl.Content
             execute_inline_action infos env action_decl.Args action_decl.Output modifier args
-        with :? KeyNotFoundException -> // Abstract Action
+        with :? System.Collections.Generic.KeyNotFoundException -> // Abstract Action
             let action_decl = List.find (fun (adecl:AbstractActionDecl) -> adecl.Name = action) m.AActions
-            execute_inline_action infos env action_decl.Args action_decl.Output action_decl.Effect args
+            let modifier infos env =
+                let env = execute_statements m infos env (List.map (fun f -> Assert f) action_decl.Assume)
+                let env = action_decl.Effect infos env
+                execute_statements m infos env (List.map (fun f -> Assert f) action_decl.Assert)
+            execute_inline_action infos env action_decl.Args action_decl.Output modifier args
