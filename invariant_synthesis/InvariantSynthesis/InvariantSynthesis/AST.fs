@@ -50,7 +50,8 @@
         | FunAssign of string * List<Expression> * Expression
         | IfSomeElse of VarDecl * Formula * Statement * Statement
         | Assert of Formula
-    // TODO: Add possibility to quantify universally on some arguments for FunAssign
+    // TODO: Add regular 'if else'
+    // TODO: Add possibility to quantify universally on some arguments for FunAssign (expr should be pure)
 
     type AbstractModifier = { v: VarDecl -> ConstValue -> ConstValue ; f: FunDecl -> List<ConstValue> -> ConstValue -> ConstValue }
 

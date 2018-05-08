@@ -234,20 +234,24 @@
             let (m, um) = remove_var_marks infos m um str
             marks_before_expression module_decl infos env e m um marked
         | FunAssign (str, es, e) ->
-            let (env', v) = evaluate_expression module_decl infos env e
-            let (env', envs, vs) = intermediate_environments module_decl infos env' es
+            let (env', _) = evaluate_expression module_decl infos env e
+            let (_, envs, vs) = intermediate_environments module_decl infos env' es
             let marked = is_fun_marked infos m um str vs
             let (m, um) = remove_fun_marks infos m um str vs
-            let compute_neighbors i =
-                let pattern = List.init (List.length vs) (fun j -> if j = i then None else Some (List.item j vs))
-                fun_marks_matching2 infos m um str pattern
-            let neighbors = List.init (List.length vs) compute_neighbors
+            let neighbors = fun_marks_matching2 infos m um str (List.map (fun _ -> None) vs)
+            let neighbors = List.mapi (fun i _ -> Set.map (fun (_, l) -> List.item i l) neighbors) vs
+            let neighbors = List.mapi (fun i s -> Set.remove (List.item i vs) s) neighbors
+            // Important values
             let marks =
                 if marked
                 then List.map (fun _ -> true) es
                 else List.map (fun lst -> not (Set.isEmpty lst)) neighbors
-            // TODO : Inequalities with neighbors
-
+            // Inequalities with neighbors (distinguish m and um)
+            let add_ineq_for m cv cvs =
+                Set.fold (fun m cv' -> add_diff_constraint infos m cv cv') m cvs
+            // Note: We put all inequalities in m (nothing in um), it is quite arbitrary...
+            let m = List.fold2 add_ineq_for m vs neighbors
+            // TODO: Change marks structure to a more natural one (where inequalities are common to m and um)
             let (m, um) = marks_before_expressions module_decl infos envs (List.rev es) m um (List.rev marks)
             marks_before_expression module_decl infos env e m um marked
             

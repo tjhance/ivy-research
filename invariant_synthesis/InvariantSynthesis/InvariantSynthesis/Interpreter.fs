@@ -22,6 +22,7 @@
             let lst = List.map (evaluate_value env) lst
             Map.find (str, lst) env.f
     
+    // Note: In synthesis.fs, operations like Set.contains or Set.remove doesn't take value_equal into account.
     let value_equal infos v1 v2 = v1=v2
 
     let rec evaluate_formula infos (env:Model.Environment) f =
