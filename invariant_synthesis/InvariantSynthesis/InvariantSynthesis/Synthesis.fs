@@ -100,8 +100,8 @@
             (not b, m, um, ad)
         | Forall (decl, f) ->
             let marks_with value =
-                let v' = Map.add decl.Name value env.v
-                let (b, m, um, ad) = marks_for_formula infos { env with v=v' } f
+                let env' = { env with v=Map.add decl.Name value env.v }
+                let (b, m, um, ad) = marks_for_formula infos env' f
                 let m = { m with v = Set.remove decl.Name m.v }
                 let um = { um with v = Set.remove decl.Name um.v }
                 (b, m, um, ad)
@@ -288,7 +288,9 @@
                  let (m, um, ad) = marks_before_statement module_decl infos env selse m um ad
                  let (_, m2, um2, ad2) = marks_for_formula infos env (Exists (decl, f))
                  (marks_union m m2, marks_union um um2, ad_union ad ad2)
-        // TODO
+        | Assert f ->
+            let (_, m2, um2, ad2) = marks_for_formula infos env f
+            (marks_union m m2, marks_union um um2, ad_union ad ad2)
             
     // envs: the env before each statement
     and marks_before_statements module_decl infos envs sts m um ad =
