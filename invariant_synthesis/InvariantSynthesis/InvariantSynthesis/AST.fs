@@ -21,7 +21,10 @@
         | ValueConst of ConstValue
         | ValueVar of string
         | ValueFun of string * List<Value>
-    // TODO: Add equal, or, and, not
+        | ValueEqual of Value * Value
+        | ValueOr of Value * Value
+        | ValueAnd of Value * Value
+        | ValueNot of Value
 
     type Formula =
         | Const of bool

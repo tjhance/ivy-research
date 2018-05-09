@@ -17,6 +17,24 @@
     let pick_value infos data_type =
         Seq.head (all_values infos data_type)
 
+    // Note: In synthesis.fs, operations like Set.contains or Set.remove doesn't take value_equal into account.
+    let value_equal infos v1 v2 = v1=v2
+
+    let value_or v1 v2 =
+        match v1, v2 with
+        | ConstBool b1, ConstBool b2 -> ConstBool (b1 || b2)
+        | _ -> ConstVoid
+
+    let value_and v1 v2 =
+        match v1, v2 with
+        | ConstBool b1, ConstBool b2 -> ConstBool (b1 && b2)
+        | _ -> ConstVoid
+
+    let value_not v =
+        match v with
+        | ConstBool b -> ConstBool (not b)
+        | _ -> ConstVoid
+
     let rec evaluate_value (env:Model.Environment) v =
         match v with
         | ValueConst cv -> cv
@@ -24,9 +42,21 @@
         | ValueFun (str, lst) ->
             let lst = List.map (evaluate_value env) lst
             Map.find (str, lst) env.f
-    
-    // Note: In synthesis.fs, operations like Set.contains or Set.remove doesn't take value_equal into account.
-    let value_equal infos v1 v2 = v1=v2
+        | ValueEqual (v1, v2) ->
+            let cv1 = evaluate_value env v1
+            let cv2 = evaluate_value env v2
+            ConstBool (value_equal env cv1 cv2)
+        | ValueOr (v1, v2) -> 
+            let cv1 = evaluate_value env v1
+            let cv2 = evaluate_value env v2
+            value_or cv1 cv2
+        | ValueAnd (v1, v2) -> 
+            let cv1 = evaluate_value env v1
+            let cv2 = evaluate_value env v2
+            value_and cv1 cv2
+        | ValueNot v -> 
+            let cv = evaluate_value env v
+            value_not cv
 
     let rec evaluate_formula infos (env:Model.Environment) f =
         match f with
@@ -56,21 +86,6 @@
                 evaluate_formula infos { env with v=v' } f
             let possible_values = all_values infos d.Type
             Seq.exists eval_with possible_values
-    
-    let value_or v1 v2 =
-        match v1, v2 with
-        | ConstBool b1, ConstBool b2 -> ConstBool (b1 || b2)
-        | _ -> ConstVoid
-
-    let value_and v1 v2 =
-        match v1, v2 with
-        | ConstBool b1, ConstBool b2 -> ConstBool (b1 && b2)
-        | _ -> ConstVoid
-
-    let value_not v =
-        match v with
-        | ConstBool b -> ConstBool (not b)
-        | _ -> ConstVoid
 
     exception AssertionFailed
 

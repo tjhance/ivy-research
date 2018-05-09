@@ -16,6 +16,12 @@
 
     let empty_ad = { d = Set.empty }
 
+    let is_model_dependent_type t =
+        match t with
+        | Void -> false
+        | Bool -> false
+        | Uninterpreted _ -> true
+
     let marks_count m =
         (Set.count m.f) + (Set.count m.v)
 
@@ -78,6 +84,35 @@
                 (evaluate_value env (ValueFun (str, vs)), m, { um with f = Set.add (str, cvs) um.f }, ad_union_many ads)
             else
                 (evaluate_value env (ValueFun (str, vs)), { m with f = Set.add (str, cvs) m.f }, um, ad_union_many ads)
+        | ValueEqual (v1, v2) ->
+            let (cv1, m1, um1, ad1) = marks_for_value infos env uvar v1
+            let (cv2, m2, um2, ad2) = marks_for_value infos env uvar v2
+            let m = marks_union m1 m2
+            let um = marks_union um1 um2
+            let ad = ad_union ad1 ad2
+            if value_equal infos cv1 cv2 then (ConstBool true, m, um, ad)
+            else (ConstBool false, m, um, add_diff_constraint infos ad cv1 cv2)
+        | ValueOr (v1, v2) ->
+            let (cv1, m1, um1, ad1) = marks_for_value infos env uvar v1
+            let (cv2, m2, um2, ad2) = marks_for_value infos env uvar v2
+            match cv1, cv2 with
+            | ConstBool false, ConstBool false -> (ConstBool false, marks_union m1 m2, marks_union um1 um2, ad_union ad1 ad2)
+            | ConstBool true, ConstBool false -> (ConstBool true, m1, um1, ad1)
+            | ConstBool false, ConstBool true -> (ConstBool true, m2, um2, ad2)
+            | ConstBool true, ConstBool true when are_better_marks (m2, um2) (m1, um1) -> (ConstBool true, m2, um2, ad2)
+            | ConstBool true, ConstBool true -> (ConstBool true, m1, um1, ad1)
+            | _, _ -> (ConstVoid, marks_union m1 m2, marks_union um1 um2, ad_union ad1 ad2)
+        | ValueAnd (v1, v2) ->
+            marks_for_value infos env uvar (ValueNot (ValueOr (ValueNot v1, ValueNot v2)))
+        | ValueNot v ->
+            let (cv,m,um,ad) = marks_for_value infos env uvar v
+            (value_not cv, m, um, ad)
+
+    exception InvalidOperation
+    let bool_of_cv cv =
+        match cv with
+        | ConstBool b -> b
+        | _ -> raise InvalidOperation
     
     // uvar: variables that can browse an arbitrary large range (depending on the model)
     // Return type : (formula value, important elements, universally quantified important elements (depend on the model) )
@@ -85,13 +120,8 @@
         match f with
         | Const  b -> (b, empty_marks, empty_marks, empty_ad)
         | Equal (v1, v2) ->
-            let (cv1, m1, um1, ad1) = marks_for_value infos env uvar v1
-            let (cv2, m2, um2, ad2) = marks_for_value infos env uvar v2
-            let m = marks_union m1 m2
-            let um = marks_union um1 um2
-            let ad = ad_union ad1 ad2
-            if value_equal infos cv1 cv2 then (true, m, um, ad)
-            else (false, m, um, add_diff_constraint infos ad cv1 cv2)
+            let (cv, m, um, ad) = marks_for_value infos env uvar (ValueEqual (v1, v2))
+            (bool_of_cv cv, m, um, ad)
         | Or (f1, f2) ->
             let (b1, m1, um1, ad1) = marks_for_formula infos env uvar f1
             let (b2, m2, um2, ad2) = marks_for_formula infos env uvar f2
@@ -107,7 +137,9 @@
             let (b,m,um,ad) = marks_for_formula infos env uvar f
             (not b, m, um, ad)
         | Forall (decl, f) ->
-            let is_uvar = not (Set.isEmpty uvar) || evaluate_formula infos env (Forall (decl, f))
+            let is_uvar = 
+                is_model_dependent_type decl.Type && 
+                (not (Set.isEmpty uvar) || evaluate_formula infos env (Forall (decl, f)))
             let uvar = if is_uvar then Set.add decl.Name uvar else uvar
             let marks_with value =
                 let env' = { env with v=Map.add decl.Name value env.v }
