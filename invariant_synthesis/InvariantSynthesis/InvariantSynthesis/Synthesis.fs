@@ -291,6 +291,14 @@
             let (m, um) = remove_var_marks infos m um str
             marks_before_expression module_decl infos env e m um ad marked
         | FunAssign (str, es, e) ->
+            (*
+            fun(ei)=e
+            ei ---eval---> vi
+            Two cases:
+            fun(vi) is marked ->    We mark all ei, we add necessary inequalities, we mark e
+            otherwise ->    We mark all ei s.t. there exists v different from ei with fun(...v...) marked, 
+                            we add necessary inequalities
+            *)
             let (env', _) = evaluate_expression module_decl infos env e
             let (_, envs, vs) = intermediate_environments module_decl infos env' es
             let marked = is_fun_marked infos m um str vs
@@ -325,6 +333,7 @@
                 let (_, m2, um2, ad2) =
                     if is_var_marked infos m' um' decl.Name
                     then marks_for_formula infos env' Set.empty f
+                    // TODO: In the case above, we should also ensure that every other value doesn't satisfy the predicate
                     else marks_for_formula infos env Set.empty (Exists (decl, f))
                 let (m', um', ad) = (marks_union m' m2, marks_union um' um2, ad_union ad ad2)
                 let (m', um') = marks_leave_block2 infos m' um' [decl] m um

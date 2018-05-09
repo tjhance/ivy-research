@@ -46,15 +46,36 @@
         | ExprAnd of Expression * Expression
         | ExprNot of Expression
 
+    type HoleExpression =
+        | Hole of VarDecl
+        | Expr of Expression
+
     type Statement =
         | NewBlock of List<VarDecl> * List<Statement>
         | Expression of Expression
         | VarAssign of string * Expression
         | FunAssign of string * List<Expression> * Expression
+        | ForallFunAssign of string * List<HoleExpression> * Expression
         | IfElse of Expression * Statement * Statement
         | IfSomeElse of VarDecl * Formula * Statement * Statement
         | Assert of Formula
-    // TODO: Add possibility to quantify universally on some arguments for FunAssign (expr should be pure)
+    // TODO: Implement ForallFunAssign
+(*
+fun (ei,Xi) = V(Xi)
+
+3 cases:
+
+Nothing marked:
+restrict ei as usual
+
+Some values marked in m, no value marked in um:
+restrict all ei
+restrict V(Xi) for corresponding values of Xi (no uvar)
+
+Some values marked in um:
+restrict all ei
+restrict V(Xi) for corresponding values of Xi (with X in uvar)
+*)
 
     type ActionDecl = { Name: string; Args: List<VarDecl>; Output: VarDecl; Content: Statement }
     type AbstractModifier<'a,'b> = 'a -> 'b -> 'b
