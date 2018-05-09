@@ -59,34 +59,42 @@
             | (h1,h2,h3,h4)::lst -> aux lst (h1::acc1,h2::acc2,h3::acc3,h4::acc4)
         aux lst ([],[],[],[])
 
-    let rec marks_for_value infos env v : ConstValue * Marks * Marks * AdditionalData =
+    // uvar: variables that can browse an arbitrary large range (depending on the model)
+    let rec marks_for_value infos env uvar v : ConstValue * Marks * Marks * AdditionalData =
         match v with
         | ValueConst c -> (c, empty_marks, empty_marks, empty_ad)
-        | ValueVar str -> (evaluate_value env (ValueVar str), { empty_marks with v=Set.singleton str }, empty_marks, empty_ad)
+        | ValueVar str ->
+            if Set.contains str uvar
+            then (evaluate_value env (ValueVar str), empty_marks, { empty_marks with v=Set.singleton str }, empty_ad)
+            else (evaluate_value env (ValueVar str), { empty_marks with v=Set.singleton str }, empty_marks, empty_ad)
         | ValueFun (str, values) ->
-            let res = List.map (marks_for_value infos env) values
+            let res = List.map (marks_for_value infos env uvar) values
             let (cvs, ms, ums, ads) = unzip4 res
             let m = marks_union_many ms
             let um = marks_union_many ums
             let vs = List.map (fun cv -> ValueConst cv) cvs
-            (evaluate_value env (ValueFun (str, vs)), { m with f = Set.add (str, cvs) m.f }, um, ad_union_many ads)
-
-    // Return type : (formula value, important elements, universally quantified important elements)
-    let rec marks_for_formula infos env f : bool * Marks * Marks * AdditionalData =
+            if marks_count um > 0
+            then
+                (evaluate_value env (ValueFun (str, vs)), m, { um with f = Set.add (str, cvs) um.f }, ad_union_many ads)
+            else
+                (evaluate_value env (ValueFun (str, vs)), { m with f = Set.add (str, cvs) m.f }, um, ad_union_many ads)
+    
+    // uvar: variables that can browse an arbitrary large range (depending on the model)
+    // Return type : (formula value, important elements, universally quantified important elements (depend on the model) )
+    let rec marks_for_formula infos env uvar f : bool * Marks * Marks * AdditionalData =
         match f with
         | Const  b -> (b, empty_marks, empty_marks, empty_ad)
         | Equal (v1, v2) ->
-            let (cv1, m1, um1, ad1) = marks_for_value infos env v1
-            let (cv2, m2, um2, ad2) = marks_for_value infos env v2
+            let (cv1, m1, um1, ad1) = marks_for_value infos env uvar v1
+            let (cv2, m2, um2, ad2) = marks_for_value infos env uvar v2
             let m = marks_union m1 m2
             let um = marks_union um1 um2
             let ad = ad_union ad1 ad2
             if value_equal infos cv1 cv2 then (true, m, um, ad)
-            else
-                (false, m, um, add_diff_constraint infos ad cv1 cv2)
+            else (false, m, um, add_diff_constraint infos ad cv1 cv2)
         | Or (f1, f2) ->
-            let (b1, m1, um1, ad1) = marks_for_formula infos env f1
-            let (b2, m2, um2, ad2) = marks_for_formula infos env f2
+            let (b1, m1, um1, ad1) = marks_for_formula infos env uvar f1
+            let (b2, m2, um2, ad2) = marks_for_formula infos env uvar f2
             match b1, b2 with
             | false, false -> (false, marks_union m1 m2, marks_union um1 um2, ad_union ad1 ad2)
             | true, false -> (true, m1, um1, ad1)
@@ -94,14 +102,16 @@
             | true, true when are_better_marks (m2, um2) (m1, um1) -> (true, m2, um2, ad2)
             | true, true -> (true, m1, um1, ad1)
         | And (f1, f2) ->
-            marks_for_formula infos env (Not (Or (Not f1, Not f2)))
+            marks_for_formula infos env uvar (Not (Or (Not f1, Not f2)))
         | Not f ->
-            let (b,m,um,ad) = marks_for_formula infos env f
+            let (b,m,um,ad) = marks_for_formula infos env uvar f
             (not b, m, um, ad)
         | Forall (decl, f) ->
+            let is_uvar = not (Set.isEmpty uvar) || evaluate_formula infos env (Forall (decl, f))
+            let uvar = if is_uvar then Set.add decl.Name uvar else uvar
             let marks_with value =
                 let env' = { env with v=Map.add decl.Name value env.v }
-                let (b, m, um, ad) = marks_for_formula infos env' f
+                let (b, m, um, ad) = marks_for_formula infos env' uvar f
                 let m = { m with v = Set.remove decl.Name m.v }
                 let um = { um with v = Set.remove decl.Name um.v }
                 (b, m, um, ad)
@@ -109,15 +119,11 @@
             let all_possibilities = Seq.map marks_with values
             if Seq.forall (fun (b,_,_,_) -> b) all_possibilities
             then
-                // Important constraints are universally quantified...
-                // Common properties stay in m, other properties move to um
+                // We mix all contraints (some will probably be model-dependent)
                 let ms = Seq.map (fun (_,m,_,_) -> m) all_possibilities
                 let ums = Seq.map (fun (_,_,um,_) -> um) all_possibilities
                 let ads = Seq.map (fun (_,_,_,ad) -> ad) all_possibilities
-                let m = marks_inter_many ms
-                let um1 = marks_union_many ums
-                let um2 = marks_diff (marks_union_many ms) m
-                (true, m, marks_union um1 um2, ad_union_many ads)
+                (true, marks_union_many ms, marks_union_many ums, ad_union_many ads)
             else
                 // We pick one constraint that breaks the forall
                 let possibilities = Seq.filter (fun (b, _, _, _) -> not b) all_possibilities
@@ -126,7 +132,7 @@
                 let (m, um, ad) = Seq.fold min_count (Seq.head possibilities) possibilities
                 (false, m, um, ad)
         | Exists (decl, f) ->
-            marks_for_formula infos env (Not (Forall (decl, Not f)))
+            marks_for_formula infos env uvar (Not (Forall (decl, Not f)))
 
     // env: initial environment (before the execution of the expressions)
     // Returns the final environment
@@ -191,16 +197,16 @@
 
     // env: initial environment (before the execution of the expr)
     // m, um: marks after the execution of the expr
-    // Return type : (important elements, universally quantified important elements)
+    // Return type : (important elements, universally quantified important elements (depend on the model))
     let rec marks_before_expression module_decl infos env expr m um ad mark_value =
         match expr with
         | ExprConst _ -> (m, um, ad)
         | ExprVar str ->
-            let (_, m',um',ad') = marks_for_value infos env (ValueVar str)
+            let (_, m',um',ad') = marks_for_value infos env Set.empty (ValueVar str)
             if mark_value then (marks_union m m', marks_union um um', ad_union ad ad') else (m,um,ad)
         | ExprFun (str, es) ->
             let (env, envs, vs) = intermediate_environments module_decl infos env es
-            let (_, m',um',ad') = marks_for_value infos env (ValueFun (str, List.map (fun v -> ValueConst v) vs))
+            let (_, m',um',ad') = marks_for_value infos env Set.empty (ValueFun (str, List.map (fun v -> ValueConst v) vs))
             let (m,um,ad) = if mark_value then (marks_union m m', marks_union um um', ad_union ad ad') else (m,um,ad)
             marks_before_expressions module_decl infos envs (List.rev es) m um ad (List.map (fun _ -> mark_value) es)
         | ExprAction (str, es) ->
@@ -210,7 +216,7 @@
         | ExprEqual (e1, e2) ->
             let (env1, v1) = evaluate_expression module_decl infos env e1
             let (env2, v2) = evaluate_expression module_decl infos env1 e2
-            let (_, m', um', ad') = marks_for_formula infos env2 (Equal (ValueConst v1,ValueConst v2))
+            let (_, m', um', ad') = marks_for_formula infos env2 Set.empty (Equal (ValueConst v1,ValueConst v2))
             let (m, um, ad) = if mark_value then (marks_union m m', marks_union um um', ad_union ad ad') else (m, um, ad)
             let (m, um, ad) = marks_before_expression module_decl infos env1 e2 m um ad mark_value
             marks_before_expression module_decl infos env e1 m um ad mark_value
@@ -286,17 +292,17 @@
                 let (m', um', ad) = marks_before_statement module_decl infos env' sif m' um' ad
                 let (_, m2, um2, ad2) =
                     if is_var_marked infos m' um' decl.Name
-                    then marks_for_formula infos env' f
-                    else marks_for_formula infos env (Exists (decl, f))
+                    then marks_for_formula infos env' Set.empty f
+                    else marks_for_formula infos env Set.empty (Exists (decl, f))
                 let (m', um', ad) = (marks_union m' m2, marks_union um' um2, ad_union ad ad2)
                 let (m', um') = marks_leave_block2 infos m' um' [decl] m um
                 (m', um', ad)
             | None ->
                  let (m, um, ad) = marks_before_statement module_decl infos env selse m um ad
-                 let (_, m2, um2, ad2) = marks_for_formula infos env (Exists (decl, f))
+                 let (_, m2, um2, ad2) = marks_for_formula infos env Set.empty (Exists (decl, f))
                  (marks_union m m2, marks_union um um2, ad_union ad ad2)
         | Assert f ->
-            let (_, m2, um2, ad2) = marks_for_formula infos env f
+            let (_, m2, um2, ad2) = marks_for_formula infos env Set.empty f
             (marks_union m m2, marks_union um um2, ad_union ad ad2)
             
     // envs: the env before each statement
