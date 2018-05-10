@@ -51,10 +51,10 @@
         |>> (fun i -> [Model.Variable(i,ConstBool false)])
 
     let parse_var_constraints =
-        parse_var_constraints_uninterpreted
-        <|> parse_var_constraints_bool_true
-        <|> parse_var_constraints_bool_false
-        <|> parse_var_constraints_unused
+        attempt parse_var_constraints_uninterpreted
+        <|> attempt parse_var_constraints_bool_true
+        <|> attempt parse_var_constraints_bool_false
+        <|> attempt parse_var_constraints_unused
 
     ///////////////////////////////////////////////////////////////////////
 
@@ -102,10 +102,10 @@
             )
 
     let parse_fun_constraints (m:ModuleDecl) =
-        parse_fun_constraints_uninterpreted m
-        <|> parse_fun_constraints_bool_true m
-        <|> parse_fun_constraints_bool_false m
-        <|> parse_fun_constraints_unused
+        attempt (parse_fun_constraints_uninterpreted m)
+        <|> attempt (parse_fun_constraints_bool_true m)
+        <|> attempt (parse_fun_constraints_bool_false m)
+        <|> attempt parse_fun_constraints_unused
 
     ///////////////////////////////////////////////////////////////////////
 
@@ -127,7 +127,12 @@
     ///////////////////////////////////////////////////////////////////////
 
     let parse_constraints (m:ModuleDecl) =
-        many (parse_var_constraints <|> parse_fun_constraints m <|> parse_constraints_infix_special)
+        many
+            (
+                attempt parse_var_constraints
+                <|> attempt (parse_fun_constraints m)
+                <|> attempt parse_constraints_infix_special
+            )
         |>> List.concat
 
     let parse_from_str (m:ModuleDecl) str =
