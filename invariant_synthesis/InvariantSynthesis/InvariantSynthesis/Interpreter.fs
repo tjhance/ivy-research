@@ -6,17 +6,6 @@
     type AbstractActionDecl = AbstractActionDecl<Model.TypeInfos, Model.Environment>
     type AbstractModifier = AbstractModifier<Model.TypeInfos, Model.Environment>
 
-    let all_values infos data_type =
-        match data_type with
-        | Void -> Seq.singleton ConstVoid
-        | Bool -> [ConstBool false; ConstBool true] |> Seq.ofList
-        | Uninterpreted s ->
-            let max = Map.find s infos
-            seq { for x in 0..max -> ConstInt (s, x) }
-
-    let pick_value infos data_type =
-        Seq.head (all_values infos data_type)
-
     // Note: In synthesis.fs, operations like Set.contains or Set.remove doesn't take value_equal into account.
     let value_equal infos v1 v2 = v1=v2
 
@@ -78,13 +67,13 @@
             let eval_with value =
                 let v' = Map.add d.Name value env.v
                 evaluate_formula infos { env with v=v' } f
-            let possible_values = all_values infos d.Type
+            let possible_values = Model.all_values infos d.Type
             Seq.forall eval_with possible_values
         | Exists (d,f) ->
             let eval_with value =
                 let v' = Map.add d.Name value env.v
                 evaluate_formula infos { env with v=v' } f
-            let possible_values = all_values infos d.Type
+            let possible_values = Model.all_values infos d.Type
             Seq.exists eval_with possible_values
 
     exception AssertionFailed
@@ -92,7 +81,7 @@
     let enter_new_block infos (env:Model.Environment) lvars lvalues : Model.Environment =
         let add_decl acc (decl:VarDecl) v =
             match v with
-            | None -> Map.add decl.Name (pick_value infos decl.Type) acc
+            | None -> Map.add decl.Name (Model.pick_value infos decl.Type) acc
             | Some v -> Map.add decl.Name v acc
         {env with v=List.fold2 add_decl env.v lvars lvalues }
 
@@ -107,7 +96,7 @@
         let eval_with (env:Model.Environment) value =
             let v' = Map.add decl.Name value env.v
             evaluate_formula infos { env with v=v' } f
-        let possible_values = all_values infos (decl.Type)
+        let possible_values = Model.all_values infos (decl.Type)
         try
             Some (Seq.find (eval_with env) possible_values)
         with :? System.Collections.Generic.KeyNotFoundException -> None

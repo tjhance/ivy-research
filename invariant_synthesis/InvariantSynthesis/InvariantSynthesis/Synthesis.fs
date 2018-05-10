@@ -147,7 +147,7 @@
                 let m = { m with v = Set.remove decl.Name m.v }
                 let um = { um with v = Set.remove decl.Name um.v }
                 (b, m, um, ad)
-            let values = all_values infos decl.Type
+            let values = Model.all_values infos decl.Type
             let all_possibilities = Seq.map marks_with values
             if Seq.forall (fun (b,_,_,_) -> b) all_possibilities
             then
