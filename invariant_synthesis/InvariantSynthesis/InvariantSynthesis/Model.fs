@@ -22,5 +22,3 @@
     type VarEnv = Map<string, ConstValue>
 
     type Environment = { f : FunEnv; v : VarEnv }
-
-

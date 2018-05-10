@@ -10,7 +10,12 @@
     <Compile Include="Model.fs" />
     <Compile Include="Interpreter.fs" />
     <Compile Include="Synthesis.fs" />
+    <Compile Include="ConstraintsParser.fs" />
     <Compile Include="Program.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FParsec" Version="1.0.3" />
   </ItemGroup>
 
   <ItemGroup>

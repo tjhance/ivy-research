@@ -55,27 +55,27 @@
         | Expression of Expression
         | VarAssign of string * Expression
         | FunAssign of string * List<Expression> * Expression
-        | ForallFunAssign of string * List<HoleExpression> * Expression
+        | ForallFunAssign of string * List<HoleExpression> * Value
         | IfElse of Expression * Statement * Statement
         | IfSomeElse of VarDecl * Formula * Statement * Statement
         | Assert of Formula
     // TODO: Implement ForallFunAssign
-(*
-fun (ei,Xi) = V(Xi)
+    (*
+    fun (ei,Xi) = V(Xi)
 
-3 cases:
+    3 cases:
 
-Nothing marked:
-restrict ei as usual
+    Nothing marked:
+    restrict ei as usual
 
-Some values marked in m, no value marked in um:
-restrict all ei
-restrict V(Xi) for corresponding values of Xi (no uvar)
+    Some values marked in m, no value marked in um:
+    restrict all ei
+    restrict V(Xi) for corresponding values of Xi (no uvar)
 
-Some values marked in um:
-restrict all ei
-restrict V(Xi) for corresponding values of Xi (with X in uvar)
-*)
+    Some values marked in um:
+    restrict all ei
+    restrict V(Xi) for corresponding values of Xi (with X in uvar)
+    *)
 
     type ActionDecl = { Name: string; Args: List<VarDecl>; Output: VarDecl; Content: Statement }
     type AbstractModifier<'a,'b> = 'a -> 'b -> 'b
