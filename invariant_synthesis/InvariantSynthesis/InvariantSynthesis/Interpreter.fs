@@ -186,11 +186,11 @@
 
     and execute_action (m:ModuleDecl) infos (env:Model.Environment) action args = // For now, we don't check the types
         try // Concrete Action
-            let action_decl = List.find (fun (adecl:ActionDecl) -> adecl.Name = action) m.Actions
+            let action_decl = find_action m action
             let modifier infos env = execute_statement m infos env action_decl.Content
             execute_inline_action infos env action_decl.Args action_decl.Output modifier args
         with :? System.Collections.Generic.KeyNotFoundException -> // Abstract Action
-            let action_decl = List.find (fun (adecl:AbstractActionDecl) -> adecl.Name = action) m.AActions
+            let action_decl = find_aaction m action
             let modifier infos env =
                 let env = execute_statements m infos env (List.map (fun f -> Assert f) action_decl.Assume)
                 let env = action_decl.Effect infos env

@@ -366,11 +366,11 @@
 
     and marks_before_action (mdecl:ModuleDecl) infos env action args m um ad mark_value =
         try // Concrete Action
-            let action_decl = List.find (fun (adecl:ActionDecl) -> adecl.Name = action) mdecl.Actions
+            let action_decl = find_action mdecl action
             let modifier infos env m um ad = marks_before_statement mdecl infos env action_decl.Content m um ad
             marks_before_inline_action infos env action_decl.Args action_decl.Output modifier args m um ad mark_value
         with :? System.Collections.Generic.KeyNotFoundException -> // Abstract Action
-            let action_decl = List.find (fun (adecl:AbstractActionDecl) -> adecl.Name = action) mdecl.AActions
+            let action_decl = find_aaction mdecl action
             let modifier infos env m um ad =
                 // Note: Here we assume that assert statements don't change the environment
                 let env' = action_decl.Effect infos env

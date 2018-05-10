@@ -1,4 +1,4 @@
-﻿namespace AST
+﻿module AST
 
     (* A VERY BASIC AST FOR IVY *)
 
@@ -87,3 +87,16 @@
     type AbstractModifier<'a,'b> = 'a -> 'b -> 'b
     type AbstractActionDecl<'a,'b> = { Name: string; Args: List<VarDecl>; Output: VarDecl; Effect: AbstractModifier<'a,'b>; Assume: List<Formula>; Assert: List<Formula> }
     type ModuleDecl<'a,'b> = { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; Vars: List<VarDecl>; Actions: List<ActionDecl>; AActions: List<AbstractActionDecl<'a,'b>>; Invariants: List<Formula> }
+
+
+    let find_relation<'a,'b> (m:ModuleDecl<'a,'b>) str =
+        List.find (fun (decl:FunDecl) -> decl.Name = str) m.Funs
+    
+    let find_variable<'a,'b> (m:ModuleDecl<'a,'b>) str =
+        List.find (fun (decl:VarDecl) -> decl.Name = str) m.Vars
+
+    let find_action<'a,'b> (m:ModuleDecl<'a,'b>) str =
+        List.find (fun (decl:ActionDecl) -> decl.Name = str) m.Actions
+
+    let find_aaction<'a,'b> (m:ModuleDecl<'a,'b>) str =
+        List.find (fun (decl:AbstractActionDecl<'a,'b>) -> decl.Name = str) m.AActions

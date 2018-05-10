@@ -1,5 +1,6 @@
 ﻿open System.Text
 open System
+open AST
 
 let read_until_line_jump () =
     let str = new StringBuilder()
@@ -11,14 +12,53 @@ let read_until_line_jump () =
 
 [<EntryPoint>]
 let main argv =
-    let m = TestModule.Queue.queue_module
+    let verbose = Array.contains "-v" argv
+    let md = TestModule.Queue.queue_module
     printfn "Please enter constraints:"
     let str = read_until_line_jump ()
     printfn "Loading constraints..."
-    let cs = ConstraintsParser.parse_from_str m str
+    let cs = ConstraintsParser.parse_from_str md str
     printfn "Building environment from constraints..."
-    let (infos, env) = Model.constraints_to_env m cs
+    let (infos, env) = Model.constraints_to_env md cs
     printfn "Success !"
+    if verbose
+    then
+        printfn "%A" infos
+        printfn "%A" env
+    printfn "Please enter the index of the invariant to analyze:"
+    let nb = Convert.ToInt32 (Console.ReadLine())
+    let formula = List.item nb md.Invariants
+    printfn "Generating marks for the formula (pre execution)..."
+    let (b,m,um,ad) = Synthesis.marks_for_formula infos env Set.empty formula
+    printfn "Success !"
+    if verbose
+    then
+        printfn "%A" b
+        printfn "%A" m
+        printfn "%A" um
+        printfn "%A" ad
+    printfn "Please enter the name of the (concrete) action to execute:"
+    let name = Console.ReadLine()
+    let args =
+        List.map
+            (
+                fun vd ->
+                    printfn "Please enter next arg:"
+                    let a = Console.ReadLine()
+                    match vd.Type with
+                    | Void -> ConstVoid
+                    | Bool -> ConstBool (Convert.ToBoolean a)
+                    | Uninterpreted str -> ConstInt (str, Convert.ToInt32 a)
+            )
+            (find_action md name).Args
+    printfn "Executing..."
+    let (env',ret) = Interpreter.execute_action md infos env name args
+    printfn "Success !"
+    if verbose
+    then
+        printfn "%A" ret
+        printfn "%A" env'
+    
     ignore (Console.ReadLine())
     0
 

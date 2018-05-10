@@ -18,9 +18,6 @@
 
     let nl  : Parser<unit> = (newline |>> ignore) <|> eof
 
-    let find_relation (m:ModuleDecl) str =
-        List.find (fun (decl:FunDecl) -> decl.Name = str) m.Funs
-
     let string_of_type t =
         match t with
         | Uninterpreted str -> str
