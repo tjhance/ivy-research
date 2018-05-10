@@ -70,10 +70,16 @@
 
     Some values marked in m, no value marked in um:
     restrict all ei
-    restrict V(Xi) for corresponding values of Xi (no uvar)
 
     Some values marked in um:
     restrict all ei
+
+    Then:
+
+    Foreach value marked in m:
+    restrict V(Xi) for corresponding values of Xi (no uvar)
+
+    Foreach value marked in um:
     restrict V(Xi) for corresponding values of Xi (with X in uvar)
     *)
 

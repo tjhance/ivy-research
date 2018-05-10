@@ -120,7 +120,7 @@
                 | ['='] | ['~';'='] ->
                     [Model.Bound(t,v1);Model.Bound(t,v2)]
                 | ['<'] ->
-                    [Model.Function ("<", [ConstInt(t,v1);ConstInt(t,v2)], ConstBool true)]
+                    [Model.Function (t + ".<", [ConstInt(t,v1);ConstInt(t,v2)], ConstBool true)]
                 | _ -> failwith "Undefined infix operator"
             )
 
