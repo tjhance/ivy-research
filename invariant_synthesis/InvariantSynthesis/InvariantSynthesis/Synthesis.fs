@@ -295,7 +295,8 @@
             fun(ei)=e
             ei ---eval---> vi
             Two cases:
-            fun(vi) is marked ->    We mark all ei, we add necessary inequalities, we mark e
+            fun(vi) is marked ->    We mark all ei, we add necessary inequalities, we mark e.
+                                    We remove mark on fun(vi)
             otherwise ->    We mark all ei s.t. there exists v different from ei with fun(...v...) marked, 
                             we add necessary inequalities
             *)

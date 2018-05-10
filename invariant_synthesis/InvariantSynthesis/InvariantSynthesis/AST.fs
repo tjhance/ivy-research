@@ -77,9 +77,11 @@
     Then:
 
     Foreach value marked in m:
+    remove mark for value in m
     restrict V(Xi) for corresponding values of Xi (no uvar)
 
     Foreach value marked in um:
+    remove mark for value in um
     restrict V(Xi) for corresponding values of Xi (with X in uvar)
     *)
 

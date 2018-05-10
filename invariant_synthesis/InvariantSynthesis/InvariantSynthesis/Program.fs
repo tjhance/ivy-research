@@ -25,6 +25,7 @@ let main argv =
     then
         printfn "%A" infos
         printfn "%A" env
+
     printfn "Please enter the index of the invariant to analyze:"
     let nb = Convert.ToInt32 (Console.ReadLine())
     let formula = List.item nb md.Invariants
@@ -37,6 +38,7 @@ let main argv =
         printfn "%A" m
         printfn "%A" um
         printfn "%A" ad
+
     printfn "Please enter the name of the (concrete) action to execute:"
     let name = Console.ReadLine()
     let args =
@@ -58,6 +60,32 @@ let main argv =
     then
         printfn "%A" ret
         printfn "%A" env'
+
+    printfn "Press enter to proceed to computation..."
+    ignore (Console.ReadLine())
+
+    printfn "Generating marks for the formula (post execution)..."
+    let (b,m,um,ad) = Synthesis.marks_for_formula infos env' Set.empty formula
+    printfn "Success !"
+    if verbose
+    then
+        printfn "%A" b
+        printfn "%A" m
+        printfn "%A" um
+        printfn "%A" ad
+
+    printfn "Press enter to resume computation..."
+    ignore (Console.ReadLine())
+
+    printfn "Going back through the action..."
+    let (_, m, um, ad) = Synthesis.marks_before_action md infos env name args m um ad false
+    printfn "Success !"
+    if verbose
+    then
+        printfn "%A" b
+        printfn "%A" m
+        printfn "%A" um
+        printfn "%A" ad
     
     ignore (Console.ReadLine())
     0
