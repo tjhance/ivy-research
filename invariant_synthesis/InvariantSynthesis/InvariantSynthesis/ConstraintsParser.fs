@@ -129,3 +129,8 @@
     let parse_constraints (m:ModuleDecl) =
         many (parse_var_constraints <|> parse_fun_constraints m <|> parse_constraints_infix_special)
         |>> List.concat
+
+    let parse_from_str (m:ModuleDecl) str =
+        match runParserOnString (parse_constraints m) () "Input String" str with
+        | Failure (err,_,_) -> failwith err
+        | Success (res,_,_) -> res
