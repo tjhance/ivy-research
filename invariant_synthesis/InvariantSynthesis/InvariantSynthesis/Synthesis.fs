@@ -10,11 +10,11 @@
 
     type DiffConstraint = Set<ConstValue * ConstValue> // Small improvement of the result: we don't impose inequality if (we are sure) it is unecessary
 
-    type AdditionalData = { d : DiffConstraint }
+    type AdditionalData = { d : DiffConstraint; md : bool } // md means model-dependent
 
     let empty_marks = { f = Set.empty; v = Set.empty }
 
-    let empty_ad = { d = Set.empty }
+    let empty_ad = { d = Set.empty; md = false }
 
     let is_model_dependent_type t =
         match t with
@@ -36,9 +36,10 @@
         let vs = Seq.map (fun m -> m.v) ms
         { f = op1 fs ; v = op2 vs }
 
-    let ad_map op1 ads : AdditionalData =
+    let ad_map op1 op2 ads : AdditionalData =
         let ds = Seq.map (fun ad -> ad.d) ads
-        { d = op1 ds}
+        let mds = Seq.map (fun ad -> ad.md) ads
+        { d = op1 ds ; md = op2 mds }
     
     let marks_union_many = marks_map Set.unionMany Set.unionMany    
     let marks_inter_many = marks_map Set.intersectMany Set.intersectMany
@@ -61,7 +62,7 @@
         let d' = Set.add (cv2, cv1) d'
         { ad with d=d' }
 
-    let ad_union_many = ad_map Set.unionMany
+    let ad_union_many = ad_map Set.unionMany (Seq.fold (fun acc e -> acc || e) false)
     let ad_union ad1 ad2 = ad_union_many ([ad1;ad2] |> List.toSeq)
 
     let unzip4 lst =
@@ -77,19 +78,20 @@
         | ValueConst c -> (c, empty_marks, empty_marks, empty_ad)
         | ValueVar str ->
             if Set.contains str uvar
-            then (evaluate_value env (ValueVar str), empty_marks, { empty_marks with v=Set.singleton str }, empty_ad)
+            then (evaluate_value env (ValueVar str), empty_marks, { empty_marks with v=Set.singleton str }, { empty_ad with md=true })
             else (evaluate_value env (ValueVar str), { empty_marks with v=Set.singleton str }, empty_marks, empty_ad)
         | ValueFun (str, values) ->
             let res = List.map (marks_for_value infos env uvar) values
             let (cvs, ms, ums, ads) = unzip4 res
             let m = marks_union_many ms
             let um = marks_union_many ums
+            let ad = ad_union_many ads
             let vs = List.map (fun cv -> ValueConst cv) cvs
-            if marks_count um > 0
+            if ad.md
             then
-                (evaluate_value env (ValueFun (str, vs)), m, { um with f = Set.add (str, cvs) um.f }, ad_union_many ads)
+                (evaluate_value env (ValueFun (str, vs)), m, { um with f = Set.add (str, cvs) um.f }, ad)
             else
-                (evaluate_value env (ValueFun (str, vs)), { m with f = Set.add (str, cvs) m.f }, um, ad_union_many ads)
+                (evaluate_value env (ValueFun (str, vs)), { m with f = Set.add (str, cvs) m.f }, um, ad)
         | ValueEqual (v1, v2) ->
             let (cv1, m1, um1, ad1) = marks_for_value infos env uvar v1
             let (cv2, m2, um2, ad2) = marks_for_value infos env uvar v2
@@ -295,7 +297,6 @@
         | VarAssign (str, e) ->
             let marked = is_var_marked infos m um str
             let (m, um) = remove_var_marks infos m um str
-            // TODO: removing a mark in um can wrongly suggest that there is no model-dependency anymore
             marks_before_expression module_decl infos env e m um ad marked
         | FunAssign (str, es, e) ->
             (*
@@ -312,7 +313,6 @@
             let (_, envs, vs) = intermediate_environments module_decl infos env' es
             let marked = is_fun_marked infos m um str vs
             let (m, um) = remove_fun_marks infos m um str vs
-            // TODO: removing a mark in um can wrongly suggest that there is no model-dependency anymore
             let neighbors = fun_marks_matching2 infos m um str (List.map (fun _ -> None) vs)
             let neighbors = List.mapi (fun i _ -> Set.map (fun (_, l) -> List.item i l) neighbors) vs
             let neighbors = List.mapi (fun i s -> Set.remove (List.item i vs) s) neighbors

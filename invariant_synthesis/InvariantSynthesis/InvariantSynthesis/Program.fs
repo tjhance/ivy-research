@@ -92,9 +92,9 @@ let main argv =
 
     let f = Formula.formula_from_marks env m ad
     printfn "%s" (Formula.formula_to_string f 0)
-    if Synthesis.marks_count um = 0
-    then printfn "These conditions are sufficient to satisfy/break the invariant!"
-    else printfn "These conditions may not be sufficient to satisfy/break the invariant!"
+    if ad.md
+    then printfn "These conditions may not be sufficient to satisfy/break the invariant!"
+    else printfn "These conditions are sufficient to satisfy/break the invariant!"
     
     ignore (Console.ReadLine())
     0
