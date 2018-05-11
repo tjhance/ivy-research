@@ -76,7 +76,7 @@
             let possible_values = Model.all_values infos d.Type
             Seq.exists eval_with possible_values
 
-    exception AssertionFailed
+    exception AssertionFailed of Model.Environment * Formula
 
     let enter_new_block infos (env:Model.Environment) lvars lvalues : Model.Environment =
         let add_decl acc (decl:VarDecl) v =
@@ -168,7 +168,7 @@
                 execute_statement m infos env selse
         | Assert f ->
             if evaluate_formula infos env f then env
-            else raise AssertionFailed
+            else raise (AssertionFailed (env, f))
 
     and execute_statements (m:ModuleDecl) infos (env:Model.Environment) ss =
         let aux env s =

@@ -120,7 +120,7 @@
     let bool_of_cv cv =
         match cv with
         | ConstBool b -> b
-        | _ -> raise InvalidOperation
+        | _ -> failwith "Boolean value expected."
     
     // uvar: variables that can browse an arbitrary large range (depending on the model)
     // Return type : (formula value, important elements, universally quantified important elements (depend on the model) )
