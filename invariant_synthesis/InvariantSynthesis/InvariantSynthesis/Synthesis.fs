@@ -22,6 +22,12 @@
         | Bool -> false
         | Uninterpreted _ -> true
 
+    let is_model_dependent_value cv =
+        match cv with
+        | ConstVoid -> false
+        | ConstBool _ -> false
+        | ConstInt _ -> true
+
     let marks_count m =
         (Set.count m.f) + (Set.count m.v)
 

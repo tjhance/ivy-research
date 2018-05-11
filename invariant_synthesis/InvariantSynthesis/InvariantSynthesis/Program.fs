@@ -90,7 +90,7 @@ let main argv =
     printfn "Press enter to compute formula."
     ignore (Console.ReadLine())
 
-    let f = Formula.formula_from_marks env m
+    let f = Formula.formula_from_marks env m ad
     printfn "%s" (Formula.formula_to_string f)
     if Synthesis.marks_count um = 0
     then printfn "These conditions are sufficient to satisfy/break the invariant!"
