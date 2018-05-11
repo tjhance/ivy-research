@@ -20,15 +20,23 @@
             c.ToString()
 
         let vars_map = ref Map.empty
+
+        // Associates an existing var to a value if the constraint allows it
+        let associate_existing_var str =
+            let cv = Map.find str env.v
+            vars_map := Map.add cv (str, false) !vars_map
+
+        // Return the associated var or CREATES a new existentially quantified var
         let value2var cv =
             match cv with
             | cv when not (Synthesis.is_model_dependent_value cv) -> ValueConst cv
             | cv ->
                 try
-                    ValueVar (Map.find cv !vars_map)
+                    let (str, _) = Map.find cv !vars_map
+                    ValueVar (str)
                 with :? System.Collections.Generic.KeyNotFoundException ->
                     let name = new_var_name ()
-                    vars_map := Map.add cv name !vars_map
+                    vars_map := Map.add cv (name, true) !vars_map
                     ValueVar name
 
         let value_assigned cv =
@@ -36,9 +44,21 @@
             | cv when not (Synthesis.is_model_dependent_value cv) -> false
             | cv -> Map.containsKey cv !vars_map
 
-        let all_vars_decl_assigned () : List<VarDecl> =
+        let all_new_vars_decl_assigned () : List<VarDecl> =
             let content = (Map.toList !vars_map)
-            List.map (fun (cv,v) -> { Name=v ; Type=type_of_const_value cv }) content
+            let content = List.filter (fun (_,(_,b)) -> b) content
+            List.map (fun (cv,(v,_)) -> { Name=v ; Type=type_of_const_value cv }) content
+
+        // Browse the constraints to associate an existing var to values when possible
+        Set.iter (associate_existing_var) m.v
+        let v' = // We remove trivial equalities
+            Set.filter
+                (
+                    fun str ->
+                        let cv = Map.find str env.v
+                        value2var cv <> ValueVar str
+                ) m.v
+        let m = {m with v=v'}
 
         // Replace value by var in each var/fun marked constraint
         let constraints_var =
@@ -76,11 +96,8 @@
         | [] -> Const true
         | h::constraints ->
             let formula = List.fold (fun acc c -> And (acc,c)) h constraints
-            let vars = all_vars_decl_assigned ()
+            let vars = all_new_vars_decl_assigned ()
             List.fold (fun acc vd -> Exists (vd, acc)) formula vars
-
-        // TODO: Simplify formula (don't quantify on variable equal to a value/function)
-        // TODO: Improve printing (consider conjonctions as a list, etc)
 
     ////////////////////////////////////////////////////////////////////////
 
