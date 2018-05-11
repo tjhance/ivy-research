@@ -108,17 +108,44 @@
         | ValueConst cv -> const_value_to_string cv
         | ValueVar str -> str
         | ValueFun (str, vs) -> sprintf "%s%s" str (list_to_args_str (List.map value_to_string vs))
-        | ValueEqual (v1,v2) -> sprintf "%s == %s" (value_to_string v1) (value_to_string v2)
+        | ValueEqual (v1,v2) -> sprintf "(%s == %s)" (value_to_string v1) (value_to_string v2)
         | ValueOr (v1,v2) -> sprintf "(%s || %s)" (value_to_string v1) (value_to_string v2)
         | ValueAnd (v1,v2) -> sprintf "(%s && %s)" (value_to_string v1) (value_to_string v2)
-        | ValueNot v -> sprintf "not(%s)" (value_to_string v)
+        | ValueNot v -> sprintf "not %s" (value_to_string v)
 
-    let rec formula_to_string f =
+    let add_parenthesis_if_needed str prec env_prec =
+        if prec < env_prec
+        then sprintf "(%s)" str
+        else str
+
+    let rec formula_to_string f prec =
         match f with
         | Const b -> sprintf "%b" b
-        | Equal (v1, v2) -> sprintf "%s = %s" (value_to_string v1) (value_to_string v2)
-        | Or (f1,f2) -> sprintf "(%s | %s)" (formula_to_string f1) (formula_to_string f2)
-        | And (f1,f2) -> sprintf "(%s & %s)" (formula_to_string f1) (formula_to_string f2)
-        | Not f -> sprintf "~(%s)" (formula_to_string f)
-        | Forall (vd, f) -> sprintf "F %s. %s" (var_decl_to_string vd) (formula_to_string f)
-        | Exists (vd, f) -> sprintf "E %s. %s" (var_decl_to_string vd) (formula_to_string f)
+        | Equal (v1, v2) ->
+            let str = sprintf "%s = %s" (value_to_string v1) (value_to_string v2)
+            add_parenthesis_if_needed str 4 prec
+        | Or (f1,f2) ->
+            let str = sprintf "%s | %s" (formula_to_string f1 2) (formula_to_string f2 2)
+            add_parenthesis_if_needed str 2 prec
+        | And (f1,f2) ->
+            let str = sprintf "%s & %s" (formula_to_string f1 3) (formula_to_string f2 3)
+            add_parenthesis_if_needed str 3 prec
+        | Not f ->
+            let str = sprintf "~%s" (formula_to_string f 5)
+            add_parenthesis_if_needed str 5 prec
+        | Forall (vd, f) ->
+            let str = sprintf "F %s. %s" (var_decl_to_string vd) (formula_to_string f 1)
+            add_parenthesis_if_needed str 1 prec
+        | Exists (vd, f) ->
+            let str = sprintf "E %s. %s" (var_decl_to_string vd) (formula_to_string f 1)
+            add_parenthesis_if_needed str 1 prec
+
+(*
+Precedence:
+value : oo
+~ : 5
+= : 4
+& : 3
+| : 2
+F E : 1
+*)

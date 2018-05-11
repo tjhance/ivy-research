@@ -2,6 +2,8 @@
 
     (* A VERY BASIC AST FOR IVY *)
 
+    // TODO: Adapt the Interpreter/Synthesis in order to be able to also analyze assertion fails
+
     type Type =
         | Void
         | Bool

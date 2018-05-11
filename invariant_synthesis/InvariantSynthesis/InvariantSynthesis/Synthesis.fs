@@ -343,14 +343,18 @@
                 let (_, m2, um2, ad2) =
                     if is_var_marked infos m' um' decl.Name
                     then marks_for_formula infos env' Set.empty f
-                    // TODO: In the case above, we should also ensure that every other value doesn't satisfy the predicate
+                    (* NOTE: In the case above, we may also ensure that every other value doesn't satisfy the predicate.
+                       However, it is a different problem than garanteeing the invariant value,
+                       since we are bound to an execution (maybe there is no uniqueness in this execution).
+                       Therefore, we suppose that the choice made is always the value we choose here (if it satisfies the condition).
+                       An assertion can also be added by the user to ensure this uniqueness. *)
                     else marks_for_formula infos env Set.empty (Exists (decl, f))
                 let (m', um', ad) = (marks_union m' m2, marks_union um' um2, ad_union ad ad2)
                 let (m', um') = marks_leave_block2 infos m' um' [decl] m um
                 (m', um', ad)
             | None ->
                  let (m, um, ad) = marks_before_statement module_decl infos env selse m um ad
-                 let (_, m2, um2, ad2) = marks_for_formula infos env Set.empty (Exists (decl, f))
+                 let (_, m2, um2, ad2) = marks_for_formula infos env Set.empty (Not (Exists (decl, f)))
                  (marks_union m m2, marks_union um um2, ad_union ad ad2)
         | Assert f ->
             let (_, m2, um2, ad2) = marks_for_formula infos env Set.empty f
