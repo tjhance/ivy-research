@@ -289,6 +289,7 @@
         | VarAssign (str, e) ->
             let marked = is_var_marked infos m um str
             let (m, um) = remove_var_marks infos m um str
+            // TODO: removing a mark in um can wrongly suggest that there is no model-dependency anymore
             marks_before_expression module_decl infos env e m um ad marked
         | FunAssign (str, es, e) ->
             (*
@@ -297,13 +298,15 @@
             Two cases:
             fun(vi) is marked ->    We mark all ei, we add necessary inequalities, we mark e.
                                     We remove mark on fun(vi)
-            otherwise ->    We mark all ei s.t. there exists v different from ei with fun(...v...) marked, 
+            otherwise ->    We mark all ei s.t. there exists wi different from ei with fun(...wi...) marked, 
                             we add necessary inequalities
+            TODO: the second case can be improved (marking the value of some ei can allow us to not mark some others ei)
             *)
             let (env', _) = evaluate_expression module_decl infos env e
             let (_, envs, vs) = intermediate_environments module_decl infos env' es
             let marked = is_fun_marked infos m um str vs
             let (m, um) = remove_fun_marks infos m um str vs
+            // TODO: removing a mark in um can wrongly suggest that there is no model-dependency anymore
             let neighbors = fun_marks_matching2 infos m um str (List.map (fun _ -> None) vs)
             let neighbors = List.mapi (fun i _ -> Set.map (fun (_, l) -> List.item i l) neighbors) vs
             let neighbors = List.mapi (fun i s -> Set.remove (List.item i vs) s) neighbors

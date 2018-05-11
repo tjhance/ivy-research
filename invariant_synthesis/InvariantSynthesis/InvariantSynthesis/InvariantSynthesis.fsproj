@@ -10,6 +10,7 @@
     <Compile Include="Model.fs" />
     <Compile Include="Interpreter.fs" />
     <Compile Include="Synthesis.fs" />
+    <Compile Include="Formula.fs" />
     <Compile Include="ConstraintsParser.fs" />
     <Compile Include="TestModule.fs" />
     <Compile Include="Program.fs" />

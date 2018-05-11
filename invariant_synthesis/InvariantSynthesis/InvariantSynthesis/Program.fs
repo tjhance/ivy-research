@@ -61,7 +61,7 @@ let main argv =
         printfn "%A" ret
         printfn "%A" env'
 
-    printfn "Press enter to proceed to computation..."
+    printfn "Press enter to proceed to computation."
     ignore (Console.ReadLine())
 
     printfn "Generating marks for the formula (post execution)..."
@@ -74,7 +74,7 @@ let main argv =
         printfn "%A" um
         printfn "%A" ad
 
-    printfn "Press enter to resume computation..."
+    printfn "Press enter to resume computation."
     ignore (Console.ReadLine())
 
     printfn "Going back through the action..."
@@ -86,6 +86,15 @@ let main argv =
         printfn "%A" m
         printfn "%A" um
         printfn "%A" ad
+
+    printfn "Press enter to compute formula."
+    ignore (Console.ReadLine())
+
+    let f = Formula.formula_from_marks env m
+    printfn "%s" (Formula.formula_to_string f)
+    if Synthesis.marks_count um = 0
+    then printfn "These conditions are sufficient to satisfy/break the invariant!"
+    else printfn "These conditions may not be sufficient to satisfy/break the invariant!"
     
     ignore (Console.ReadLine())
     0
