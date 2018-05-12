@@ -8,6 +8,7 @@
   <ItemGroup>
     <Compile Include="AST.fs" />
     <Compile Include="Model.fs" />
+    <Compile Include="Trace.fs" />
     <Compile Include="Interpreter.fs" />
     <Compile Include="Synthesis.fs" />
     <Compile Include="Formula.fs" />

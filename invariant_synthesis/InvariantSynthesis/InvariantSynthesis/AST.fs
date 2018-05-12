@@ -2,6 +2,8 @@
 
     (* A VERY BASIC AST FOR IVY *)
 
+    // TODO: AST modification : remove AbstractActions and add AbstractExpression instead
+    // TODO: Recode Interpreter/Synthesis with a trace system
     // TODO: Adapt the Interpreter/Synthesis in order to be able to also analyze assertion fails
 
     type Type =
