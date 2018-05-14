@@ -20,7 +20,13 @@
         | ConstBool b -> ConstBool (not b)
         | _ -> ConstVoid
 
-    let rec evaluate_value infos (env:Model.Environment) v =
+    let rec if_some_value infos (env:Model.Environment) (decl:VarDecl) f : option<ConstValue> =
+        let possible_values = Model.all_values infos (decl.Type)
+        try
+            Some (Seq.find (eval_formula_with infos env f decl.Name) possible_values)
+        with :? System.Collections.Generic.KeyNotFoundException -> None
+
+    and evaluate_value infos (env:Model.Environment) v =
         match v with
         | ValueConst cv -> cv
         | ValueVar str -> Map.find str env.v
@@ -43,11 +49,9 @@
             let cv = evaluate_value infos env v
             value_not cv
         | ValueSomeElse (d,f,v) ->
-            let possible = Model.all_values infos d.Type
-            try
-                Seq.find (eval_formula_with infos env f d.Name) possible
-            with :? System.Collections.Generic.KeyNotFoundException ->
-                evaluate_value infos env v
+            match if_some_value infos env d f with
+            | Some v -> v
+            | None -> evaluate_value infos env v
 
     and eval_formula_with infos (env:Model.Environment) f name v =
         let v' = Map.add name v env.v
@@ -92,12 +96,6 @@
             | Some e -> Map.add decl.Name e acc
         { env with v=List.fold rollback env.v lvars }
 
-    let if_some_value infos (env:Model.Environment) (decl:VarDecl) f : option<ConstValue> =
-        let possible_values = Model.all_values infos (decl.Type)
-        try
-            Some (Seq.find (eval_formula_with infos env f decl.Name) possible_values)
-        with :? System.Collections.Generic.KeyNotFoundException -> None
-
     let rec evaluate_expression (m:ModuleDecl) infos (env:Model.Environment) e =
         match e with
         | ExprConst cv -> (env, cv)
@@ -124,6 +122,10 @@
         | ExprNot e -> 
             let (env, v) = evaluate_expression m infos env e
             (env, value_not v)
+        | ExprSomeElse (d,f,e) ->
+            match if_some_value infos env d f with
+            | Some v -> (env, v)
+            | None -> evaluate_expression m infos env e
 
     and evaluate_expressions (m:ModuleDecl) infos (env:Model.Environment) es =
         let aux (env, res) e =

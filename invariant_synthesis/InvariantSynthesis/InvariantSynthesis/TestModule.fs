@@ -56,8 +56,16 @@
                                 (
                                     [],
                                     [
-                                        // TODO
-                                        // [relation_formula "incrementable.succ" [ValueVar "x"; ValueVar "y"]]
+                                        VarAssign
+                                            (
+                                                "y",
+                                                ExprSomeElse
+                                                    (
+                                                        {Name="y";Type=Uninterpreted("incrementable.t")},
+                                                        relation_formula "incrementable.succ" [ValueVar "x"; ValueVar "y"],
+                                                        ExprConst ConstVoid
+                                                    )
+                                            )
                                     ]
                                 )
                         )

@@ -29,7 +29,6 @@
         | ValueAnd of Value * Value
         | ValueNot of Value
         | ValueSomeElse of VarDecl * Formula * Value
-        // TODO: Implement ValueSomeElse in Synthesis
 
     and Formula =
         | Const of bool
@@ -50,6 +49,7 @@
         | ExprOr of Expression * Expression
         | ExprAnd of Expression * Expression
         | ExprNot of Expression
+        | ExprSomeElse of VarDecl * Formula * Expression
 
     type HoleExpression =
         | Hole of VarDecl

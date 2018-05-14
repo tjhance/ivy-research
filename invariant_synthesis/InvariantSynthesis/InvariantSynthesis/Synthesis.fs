@@ -72,6 +72,12 @@
             | (h1,h2,h3,h4)::lst -> aux lst (h1::acc1,h2::acc2,h3::acc3,h4::acc4)
         aux lst ([],[],[],[])
 
+    exception InvalidOperation
+    let bool_of_cv cv =
+        match cv with
+        | ConstBool b -> b
+        | _ -> failwith "Boolean value expected."
+
     // uvar: variables that can browse an arbitrary large range (depending on the model)
     let rec marks_for_value infos env uvar v : ConstValue * Marks * Marks * AdditionalData =
         match v with
@@ -115,16 +121,22 @@
         | ValueNot v ->
             let (cv,m,um,ad) = marks_for_value infos env uvar v
             (value_not cv, m, um, ad)
-
-    exception InvalidOperation
-    let bool_of_cv cv =
-        match cv with
-        | ConstBool b -> b
-        | _ -> failwith "Boolean value expected."
+        | ValueSomeElse (d,f,v) ->
+            match if_some_value infos env d f with
+            | Some v ->
+                (* NOTE: See note for IfSomeElse statement. *)
+                let is_uvar = is_model_dependent_type d.Type && not (Set.isEmpty uvar) 
+                let uvar = if is_uvar then Set.add d.Name uvar else uvar
+                let (_,m,um,ad) = marks_for_formula_with infos env uvar f d.Name v
+                (v,m,um,ad)
+            | None -> 
+                let (_,m,um,ad) = marks_for_formula infos env uvar (Not (Exists (d,f)))
+                let (v,m2,um2,ad2) = marks_for_value infos env uvar v
+                (v, marks_union m m2, marks_union um um2, ad_union ad ad2)
     
     // uvar: variables that can browse an arbitrary large range (depending on the model)
     // Return type : (formula value, important elements, universally quantified important elements (depend on the model) )
-    let rec marks_for_formula infos env uvar f : bool * Marks * Marks * AdditionalData =
+    and marks_for_formula infos env uvar f : bool * Marks * Marks * AdditionalData =
         match f with
         | Const  b -> (b, empty_marks, empty_marks, empty_ad)
         | Equal (v1, v2) ->
@@ -149,14 +161,8 @@
                 is_model_dependent_type decl.Type && 
                 (not (Set.isEmpty uvar) || evaluate_formula infos env (Forall (decl, f)))
             let uvar = if is_uvar then Set.add decl.Name uvar else uvar
-            let marks_with value =
-                let env' = { env with v=Map.add decl.Name value env.v }
-                let (b, m, um, ad) = marks_for_formula infos env' uvar f
-                let m = { m with v = Set.remove decl.Name m.v }
-                let um = { um with v = Set.remove decl.Name um.v }
-                (b, m, um, ad)
             let values = Model.all_values infos decl.Type
-            let all_possibilities = Seq.map marks_with values
+            let all_possibilities = Seq.map (marks_for_formula_with infos env uvar f decl.Name) values
             if Seq.forall (fun (b,_,_,_) -> b) all_possibilities
             then
                 // We mix all contraints (some will probably be model-dependent)
@@ -173,6 +179,13 @@
                 (false, m, um, ad)
         | Exists (decl, f) ->
             marks_for_formula infos env uvar (Not (Forall (decl, Not f)))
+
+    and marks_for_formula_with infos (env:Model.Environment) uvar f name value =
+        let env' = { env with v=Map.add name value env.v }
+        let (b, m, um, ad) = marks_for_formula infos env' uvar f
+        let m = { m with v = Set.remove name m.v }
+        let um = { um with v = Set.remove name um.v }
+        (b, m, um, ad)
 
     // env: initial environment (before the execution of the expressions)
     // Returns the final environment
@@ -276,6 +289,23 @@
             | ConstBool false, ConstBool false | _, _ -> aux true true
         | ExprAnd (e1, e2) -> marks_before_expression module_decl infos env (ExprNot (ExprOr (ExprNot e1, ExprNot e2))) m um ad mark_value
         | ExprNot e -> marks_before_expression module_decl infos env e m um ad mark_value
+        | ExprSomeElse (d,f,e) ->
+            match if_some_value infos env d f with
+            | Some _ ->
+                (* NOTE: See note for IfSomeElse statement. *)
+                let (m2,um2,ad2) =
+                    if mark_value
+                    then
+                        let (_,m2,um2,ad2) = marks_for_value infos env Set.empty (ValueSomeElse (d,f,ValueConst ConstVoid))
+                        (m2,um2,ad2)
+                    else
+                        let (_,m2,um2,ad2) = marks_for_formula infos env Set.empty (Exists (d,f))
+                        (m2,um2,ad2)
+                (marks_union m m2, marks_union um um2, ad_union ad ad2)
+            | None -> 
+                let (_,m2,um2,ad2) = marks_for_formula infos env Set.empty (Not (Exists (d,f)))
+                let (m,um,ad) = marks_before_expression module_decl infos env e m um ad mark_value
+                (marks_union m m2, marks_union um um2, ad_union ad ad2)
 
     // envs: the env before each expression
     and marks_before_expressions module_decl infos envs es m um ad mark_values =

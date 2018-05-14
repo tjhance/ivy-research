@@ -120,6 +120,11 @@
         | [] -> "()"
         | h::lst -> sprintf "(%s)" (List.fold (sprintf "%s, %s") h lst)
 
+    let add_parenthesis_if_needed str prec env_prec =
+        if prec < env_prec
+        then sprintf "(%s)" str
+        else str
+
     let rec value_to_string v =
         match v with
         | ValueConst cv -> const_value_to_string cv
@@ -129,13 +134,9 @@
         | ValueOr (v1,v2) -> sprintf "(%s || %s)" (value_to_string v1) (value_to_string v2)
         | ValueAnd (v1,v2) -> sprintf "(%s && %s)" (value_to_string v1) (value_to_string v2)
         | ValueNot v -> sprintf "not %s" (value_to_string v)
+        | ValueSomeElse (d,f,v) -> sprintf "some %s s.t. %s or %s" (var_decl_to_string d) (formula_to_string f 10) (value_to_string v)
 
-    let add_parenthesis_if_needed str prec env_prec =
-        if prec < env_prec
-        then sprintf "(%s)" str
-        else str
-
-    let rec formula_to_string f prec =
+    and formula_to_string f prec =
         match f with
         | Const b -> sprintf "%b" b
         | Equal (v1, v2) ->
