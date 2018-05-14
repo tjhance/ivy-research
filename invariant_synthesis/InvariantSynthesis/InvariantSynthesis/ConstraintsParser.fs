@@ -6,8 +6,6 @@
     type UserState = unit
     type Parser<'t> = Parser<'t, UserState>
 
-    type ModuleDecl = ModuleDecl<Model.TypeInfos, Model.Environment>
-
     let identifier : Parser<string> =
         let isIdentifierFirstChar c = isLetter c || c = '_'
         let isIdentifierChar c = isLetter c || isDigit c || c = '_' || c = '.'

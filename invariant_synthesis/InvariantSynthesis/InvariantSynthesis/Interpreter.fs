@@ -2,10 +2,6 @@
 
     open AST
 
-    type ModuleDecl = ModuleDecl<Model.TypeInfos, Model.Environment>
-    type AbstractActionDecl = AbstractActionDecl<Model.TypeInfos, Model.Environment>
-    type AbstractModifier = AbstractModifier<Model.TypeInfos, Model.Environment>
-
     // Note: In synthesis.fs, operations like Set.contains or Set.remove doesn't take value_equal into account.
     let value_equal infos v1 v2 = v1=v2
 
@@ -24,35 +20,45 @@
         | ConstBool b -> ConstBool (not b)
         | _ -> ConstVoid
 
-    let rec evaluate_value (env:Model.Environment) v =
+    let rec evaluate_value infos (env:Model.Environment) v =
         match v with
         | ValueConst cv -> cv
         | ValueVar str -> Map.find str env.v
         | ValueFun (str, lst) ->
-            let lst = List.map (evaluate_value env) lst
+            let lst = List.map (evaluate_value infos env) lst
             Map.find (str, lst) env.f
         | ValueEqual (v1, v2) ->
-            let cv1 = evaluate_value env v1
-            let cv2 = evaluate_value env v2
+            let cv1 = evaluate_value infos env v1
+            let cv2 = evaluate_value infos env v2
             ConstBool (value_equal env cv1 cv2)
         | ValueOr (v1, v2) -> 
-            let cv1 = evaluate_value env v1
-            let cv2 = evaluate_value env v2
+            let cv1 = evaluate_value infos env v1
+            let cv2 = evaluate_value infos env v2
             value_or cv1 cv2
         | ValueAnd (v1, v2) -> 
-            let cv1 = evaluate_value env v1
-            let cv2 = evaluate_value env v2
+            let cv1 = evaluate_value infos env v1
+            let cv2 = evaluate_value infos env v2
             value_and cv1 cv2
         | ValueNot v -> 
-            let cv = evaluate_value env v
+            let cv = evaluate_value infos env v
             value_not cv
+        | ValueSomeElse (d,f,v) ->
+            let possible = Model.all_values infos d.Type
+            try
+                Seq.find (eval_formula_with infos env f d.Name) possible
+            with :? System.Collections.Generic.KeyNotFoundException ->
+                evaluate_value infos env v
 
-    let rec evaluate_formula infos (env:Model.Environment) f =
+    and eval_formula_with infos (env:Model.Environment) f name v =
+        let v' = Map.add name v env.v
+        evaluate_formula infos { env with v=v' } f
+
+    and evaluate_formula infos (env:Model.Environment) f =
         match f with
         | Const b -> b
         | Equal (v1,v2) ->
-            let v1 = evaluate_value env v1
-            let v2 = evaluate_value env v2
+            let v1 = evaluate_value infos env v1
+            let v2 = evaluate_value infos env v2
             value_equal env v1 v2
         | Or (f1,f2) ->
             let f1 = evaluate_formula infos env f1
@@ -64,17 +70,11 @@
             f1 && f2
         | Not f -> not (evaluate_formula infos env f)
         | Forall (d,f) ->
-            let eval_with value =
-                let v' = Map.add d.Name value env.v
-                evaluate_formula infos { env with v=v' } f
             let possible_values = Model.all_values infos d.Type
-            Seq.forall eval_with possible_values
+            Seq.forall (eval_formula_with infos env f d.Name) possible_values
         | Exists (d,f) ->
-            let eval_with value =
-                let v' = Map.add d.Name value env.v
-                evaluate_formula infos { env with v=v' } f
             let possible_values = Model.all_values infos d.Type
-            Seq.exists eval_with possible_values
+            Seq.exists (eval_formula_with infos env f d.Name) possible_values
 
     exception AssertionFailed of Model.Environment * Formula
 
@@ -93,22 +93,19 @@
         { env with v=List.fold rollback env.v lvars }
 
     let if_some_value infos (env:Model.Environment) (decl:VarDecl) f : option<ConstValue> =
-        let eval_with (env:Model.Environment) value =
-            let v' = Map.add decl.Name value env.v
-            evaluate_formula infos { env with v=v' } f
         let possible_values = Model.all_values infos (decl.Type)
         try
-            Some (Seq.find (eval_with env) possible_values)
+            Some (Seq.find (eval_formula_with infos env f decl.Name) possible_values)
         with :? System.Collections.Generic.KeyNotFoundException -> None
 
     let rec evaluate_expression (m:ModuleDecl) infos (env:Model.Environment) e =
         match e with
         | ExprConst cv -> (env, cv)
-        | ExprVar v -> (env, evaluate_value env (ValueVar v))
+        | ExprVar v -> (env, evaluate_value infos env (ValueVar v))
         | ExprFun (str, lst) ->
             let (env, lst) = evaluate_expressions m infos env lst
             let lst = List.map (fun cv -> ValueConst cv) lst
-            (env, evaluate_value env (ValueFun (str, lst)))
+            (env, evaluate_value infos env (ValueFun (str, lst)))
         | ExprAction (str, lst) ->
             let (env, lst) = evaluate_expressions m infos env lst
             execute_action m infos env str lst
@@ -175,9 +172,9 @@
             execute_statement m infos env s
         List.fold aux env ss
     
-    and execute_inline_action infos (env:Model.Environment) input output (modifier:AbstractModifier) args =
+    and execute_inline_action infos (env:Model.Environment) input output (effect:Model.Environment->Model.Environment) args =
         let env' = enter_new_block infos env (output::input) (None::(List.map (fun a -> Some a) args))
-        let env' = modifier infos env'
+        let env' = effect env'
         let res =
             match Map.tryFind output.Name env'.v with
             | None -> ConstVoid
@@ -185,14 +182,6 @@
         (leave_block infos env' (output::input) env, res)
 
     and execute_action (m:ModuleDecl) infos (env:Model.Environment) action args = // For now, we don't check the types
-        try // Concrete Action
-            let action_decl = find_action m action
-            let modifier infos env = execute_statement m infos env action_decl.Content
-            execute_inline_action infos env action_decl.Args action_decl.Output modifier args
-        with :? System.Collections.Generic.KeyNotFoundException -> // Abstract Action
-            let action_decl = find_aaction m action
-            let modifier infos env =
-                let env = execute_statements m infos env (List.map (fun f -> Assert f) action_decl.Assume)
-                let env = action_decl.Effect infos env
-                execute_statements m infos env (List.map (fun f -> Assert f) action_decl.Assert)
-            execute_inline_action infos env action_decl.Args action_decl.Output modifier args
+        let action_decl = find_action m action
+        let effect env = execute_statement m infos env action_decl.Content
+        execute_inline_action infos env action_decl.Args action_decl.Output effect args

@@ -2,9 +2,6 @@
 
     open AST
 
-    type AbstractActionDecl = AbstractActionDecl<Model.TypeInfos, Model.Environment>
-    type ModuleDecl = ModuleDecl<Model.TypeInfos, Model.Environment>
-
     module Queue =
 
         // AST for ivy-research/queue/queue.ivy
@@ -38,27 +35,6 @@
         let relation_formula name vars =
             Equal (ValueFun(name,vars), ValueConst (ConstBool true)) ;
 
-        let aactions : List<AbstractActionDecl> =
-            [
-                {
-                    Name="incrementable.next" ;
-                    Args=[{Name="x";Type=Uninterpreted("incrementable.t")}] ;
-                    Output={Name="y";Type=Uninterpreted("incrementable.t")} ;
-                    Effect=
-                        (
-                            fun _ env ->
-                                let x = Map.find "x" env.v
-                                let y =
-                                    match x with
-                                    | ConstInt (str, i) -> ConstInt (str, i+1)
-                                    | _ -> failwith "Invalid environment"
-                                { env with v = Map.add "y" y env.v }
-                        ) ;
-                    Assume = [] ;
-                    Assert = [relation_formula "incrementable.succ" [ValueVar "x"; ValueVar "y"]] ;
-                }
-            ]
-
         let empty_formula =
             Or
                 (
@@ -70,6 +46,22 @@
 
         let actions : List<ActionDecl> =
             [
+                {
+                    Name="incrementable.next" ;
+                    Args=[{Name="x";Type=Uninterpreted("incrementable.t")}] ;
+                    Output={Name="y";Type=Uninterpreted("incrementable.t")} ;
+                    Content=
+                        (
+                            NewBlock
+                                (
+                                    [],
+                                    [
+                                        // TODO
+                                        // [relation_formula "incrementable.succ" [ValueVar "x"; ValueVar "y"]]
+                                    ]
+                                )
+                        )
+                } ;
                 {
                     Name="q.pop" ;
                     Args=[] ;
@@ -109,6 +101,6 @@
         let queue_module : ModuleDecl =
             {
                 Name=name; Types=types; Funs=funs; Vars=vars;
-                AActions=aactions; Actions=actions;
+                Actions=actions;
                 Invariants=invariants
             }

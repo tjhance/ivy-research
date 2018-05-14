@@ -49,7 +49,7 @@
             let res = Seq.map (fun lst -> Seq.map (fun v -> v::lst) pos) res
             Seq.concat res
 
-    let constraints_to_env (m:ModuleDecl<TypeInfos, Environment>) cs =
+    let constraints_to_env (m:ModuleDecl) cs =
         // Type infos
         // Init
         let type_infos = List.fold (fun acc (tdecl:TypeDecl) -> Map.add tdecl.Name 0 acc) Map.empty m.Types

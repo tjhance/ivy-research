@@ -2,7 +2,6 @@
 
     (* A VERY BASIC AST FOR IVY *)
 
-    // TODO: AST modification : remove AbstractActions and add AbstractExpression instead
     // TODO: Recode Interpreter/Synthesis with a trace system
     // TODO: Adapt the Interpreter/Synthesis in order to be able to also analyze assertion fails
 
@@ -29,8 +28,10 @@
         | ValueOr of Value * Value
         | ValueAnd of Value * Value
         | ValueNot of Value
+        | ValueSomeElse of VarDecl * Formula * Value
+        // TODO: Implement ValueSomeElse in Synthesis
 
-    type Formula =
+    and Formula =
         | Const of bool
         | Equal of Value * Value
         | Or of Formula * Formula
@@ -38,7 +39,7 @@
         | Not of Formula
         | Forall of VarDecl * Formula
         | Exists of VarDecl * Formula
-    
+
     (* With side effects *)
     type Expression =
         | ExprConst of ConstValue
@@ -90,19 +91,14 @@
     *)
 
     type ActionDecl = { Name: string; Args: List<VarDecl>; Output: VarDecl; Content: Statement }
-    type AbstractModifier<'a,'b> = 'a -> 'b -> 'b
-    type AbstractActionDecl<'a,'b> = { Name: string; Args: List<VarDecl>; Output: VarDecl; Effect: AbstractModifier<'a,'b>; Assume: List<Formula>; Assert: List<Formula> }
-    type ModuleDecl<'a,'b> = { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; Vars: List<VarDecl>; Actions: List<ActionDecl>; AActions: List<AbstractActionDecl<'a,'b>>; Invariants: List<Formula> }
+    type ModuleDecl = { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; Vars: List<VarDecl>; Actions: List<ActionDecl>; Invariants: List<Formula> }
 
 
-    let find_relation<'a,'b> (m:ModuleDecl<'a,'b>) str =
+    let find_relation<'a,'b> (m:ModuleDecl) str =
         List.find (fun (decl:FunDecl) -> decl.Name = str) m.Funs
     
-    let find_variable<'a,'b> (m:ModuleDecl<'a,'b>) str =
+    let find_variable<'a,'b> (m:ModuleDecl) str =
         List.find (fun (decl:VarDecl) -> decl.Name = str) m.Vars
 
-    let find_action<'a,'b> (m:ModuleDecl<'a,'b>) str =
+    let find_action<'a,'b> (m:ModuleDecl) str =
         List.find (fun (decl:ActionDecl) -> decl.Name = str) m.Actions
-
-    let find_aaction<'a,'b> (m:ModuleDecl<'a,'b>) str =
-        List.find (fun (decl:AbstractActionDecl<'a,'b>) -> decl.Name = str) m.AActions

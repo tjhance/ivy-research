@@ -78,8 +78,8 @@
         | ValueConst c -> (c, empty_marks, empty_marks, empty_ad)
         | ValueVar str ->
             if Set.contains str uvar
-            then (evaluate_value env (ValueVar str), empty_marks, { empty_marks with v=Set.singleton str }, { empty_ad with md=true })
-            else (evaluate_value env (ValueVar str), { empty_marks with v=Set.singleton str }, empty_marks, empty_ad)
+            then (evaluate_value infos env (ValueVar str), empty_marks, { empty_marks with v=Set.singleton str }, { empty_ad with md=true })
+            else (evaluate_value infos env (ValueVar str), { empty_marks with v=Set.singleton str }, empty_marks, empty_ad)
         | ValueFun (str, values) ->
             let res = List.map (marks_for_value infos env uvar) values
             let (cvs, ms, ums, ads) = unzip4 res
@@ -89,9 +89,9 @@
             let vs = List.map (fun cv -> ValueConst cv) cvs
             if ad.md
             then
-                (evaluate_value env (ValueFun (str, vs)), m, { um with f = Set.add (str, cvs) um.f }, ad)
+                (evaluate_value infos env (ValueFun (str, vs)), m, { um with f = Set.add (str, cvs) um.f }, ad)
             else
-                (evaluate_value env (ValueFun (str, vs)), { m with f = Set.add (str, cvs) m.f }, um, ad)
+                (evaluate_value infos env (ValueFun (str, vs)), { m with f = Set.add (str, cvs) m.f }, um, ad)
         | ValueEqual (v1, v2) ->
             let (cv1, m1, um1, ad1) = marks_for_value infos env uvar v1
             let (cv2, m2, um2, ad2) = marks_for_value infos env uvar v2
@@ -366,30 +366,19 @@
             marks_before_statement module_decl infos env st m um ad
         List.fold2 aux (m, um, ad) envs sts
 
-    and marks_before_inline_action infos (env:Model.Environment) input output modifier args m um ad mark_value =
+    and marks_before_inline_action infos (env:Model.Environment) input output effect args m um ad mark_value =
         let env' = enter_new_block infos env (output::input) (None::(List.map (fun a -> Some a) args))
         let (m', um') = marks_enter_block2 infos m um (output::input)
         let m' =
             if mark_value then
                 { m' with v = Set.add output.Name m'.v }
             else m'
-        let (m', um', ad) = modifier infos env' m' um' ad
+        let (m', um', ad) = effect env' m' um' ad
         let args_marks = List.map (is_var_marked infos m' um') (List.map (fun (decl:VarDecl) -> decl.Name) input)
         let (m', um') = marks_leave_block2 infos m' um' (output::input) m um
         (args_marks, m', um', ad)
 
     and marks_before_action (mdecl:ModuleDecl) infos env action args m um ad mark_value =
-        try // Concrete Action
-            let action_decl = find_action mdecl action
-            let modifier infos env m um ad = marks_before_statement mdecl infos env action_decl.Content m um ad
-            marks_before_inline_action infos env action_decl.Args action_decl.Output modifier args m um ad mark_value
-        with :? System.Collections.Generic.KeyNotFoundException -> // Abstract Action
-            let action_decl = find_aaction mdecl action
-            let modifier infos env m um ad =
-                // Note: Here we assume that assert statements don't change the environment
-                let env' = action_decl.Effect infos env
-                let assert_sts = List.rev (List.map (fun f -> Assert f) action_decl.Assert)
-                let (m,um,ad) = marks_before_statements mdecl infos (List.map (fun _ -> env') action_decl.Assert) assert_sts m um ad
-                let assume_sts = List.rev (List.map (fun f -> Assert f) action_decl.Assume)
-                marks_before_statements mdecl infos (List.map (fun _ -> env) action_decl.Assume) assume_sts m um ad
-            marks_before_inline_action infos env action_decl.Args action_decl.Output modifier args m um ad mark_value
+        let action_decl = find_action mdecl action
+        let effect env m um ad = marks_before_statement mdecl infos env action_decl.Content m um ad
+        marks_before_inline_action infos env action_decl.Args action_decl.Output effect args m um ad mark_value
