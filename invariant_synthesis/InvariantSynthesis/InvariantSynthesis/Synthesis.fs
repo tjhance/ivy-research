@@ -364,39 +364,26 @@
                     let new_nlist = Helper.list_set real_i neighbors nlist
                     (i+1, new_constraints, new_nlist)
                 let (_,cs,ns) = List.fold aux (0, List.init n (fun _ -> None), List.init n (fun _ -> Set.empty)) vs
-                List.zip (List.map (fun c -> c <> None) cs) ns
-
-            let compute_best_neighbors m um marked str vs =
-                let are_better_neighbors lst1 lst2 = // TODO: tests should be on final result because some marks can be already present
-                    let (m1,n1) = List.unzip lst1
-                    let (m2,n2) = List.unzip lst2
-                    let nb1 = List.length (List.filter (fun b -> b) m1)
-                    let nb2 = List.length (List.filter (fun b -> b) m2)
-                    if nb1 < nb2
-                    then true
-                    else if nb2 < nb1
-                    then false
-                    else
-                        let nb1 = List.sum (List.map Set.count n1)
-                        let nb2 = List.sum (List.map Set.count n2)
-                        nb1 < nb2
-
-                let n = List.length vs
-                let permutations = Helper.all_permutations n
-                let possibilities = Seq.map (compute_neighbors_with_perm m um marked str vs) permutations
-                Helper.seq_min are_better_neighbors possibilities
+                (List.map (fun c -> c <> None) cs, ns)
 
             let (env', _) = evaluate_expression module_decl infos env e
             let (_, envs, vs) = intermediate_environments module_decl infos env' es
             let marked = is_fun_marked infos m um str vs
             let (m, um) = remove_fun_marks infos m um str vs
-            let (marks, neighbors) = List.unzip (compute_best_neighbors m um marked str vs)
-            // Inequalities with neighbors
+
+            let n = List.length vs
+            let permutations = Helper.all_permutations n
+            let possibilities = Seq.map (compute_neighbors_with_perm m um marked str vs) permutations
+
             let add_ineq_for ad cv cvs =
                 Set.fold (fun ad cv' -> add_diff_constraint infos ad cv cv') ad cvs
-            let ad = List.fold2 add_ineq_for ad vs neighbors
-            let (m, um, ad) = marks_before_expressions module_decl infos envs (List.rev es) m um ad (List.rev marks)
-            marks_before_expression module_decl infos env e m um ad marked
+            let treat_possibility (marks, neighbors) =
+                let ad = List.fold2 add_ineq_for ad vs neighbors
+                let (m, um, ad) = marks_before_expressions module_decl infos envs (List.rev es) m um ad (List.rev marks)
+                marks_before_expression module_decl infos env e m um ad marked
+
+            let results = Seq.map treat_possibility possibilities
+            Helper.seq_min is_better_config results
         | IfElse (e, sif, selse) ->
             let (env', v) = evaluate_expression module_decl infos env e
             let (m, um, ad) =

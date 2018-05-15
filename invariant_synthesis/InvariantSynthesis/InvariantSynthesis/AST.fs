@@ -68,15 +68,12 @@
     (*
     fun (ei,Xi) = V(Xi)
 
-    3 cases:
+    2 cases:
 
     Nothing marked:
     restrict ei as usual
 
-    Some values marked in m, no value marked in um:
-    restrict all ei
-
-    Some values marked in um:
+    Some values marked in m or um:
     restrict all ei
 
     Then:
