@@ -48,12 +48,20 @@
     let marks_diff m1 m2 =
         { f = Set.difference m1.f m2.f ; v = Set.difference m1.v m2.v }
 
-    let are_better_marks (m1, um1) (m2, um2) =
-        if marks_count um1 < marks_count um2
+    let is_better_config (m1, um1, ad1) (m2, um2, ad2) =
+        if not ad1.md && ad2.md
+        then true
+        else if ad1.md && not ad2.md
+        then false
+        else if marks_count um1 < marks_count um2
         then true
         else if marks_count um1 > marks_count um2
         then false
         else if marks_count m1 < marks_count m2
+        then true
+        else if marks_count m1 > marks_count m2
+        then false
+        else if Set.count ad1.d < Set.count ad2.d
         then true
         else false
 
@@ -113,7 +121,7 @@
             | ConstBool false, ConstBool false -> (ConstBool false, marks_union m1 m2, marks_union um1 um2, ad_union ad1 ad2)
             | ConstBool true, ConstBool false -> (ConstBool true, m1, um1, ad1)
             | ConstBool false, ConstBool true -> (ConstBool true, m2, um2, ad2)
-            | ConstBool true, ConstBool true when are_better_marks (m2, um2) (m1, um1) -> (ConstBool true, m2, um2, ad2)
+            | ConstBool true, ConstBool true when is_better_config (m2, um2, ad2) (m1, um1, ad1) -> (ConstBool true, m2, um2, ad2)
             | ConstBool true, ConstBool true -> (ConstBool true, m1, um1, ad1)
             | _, _ -> (ConstVoid, marks_union m1 m2, marks_union um1 um2, ad_union ad1 ad2)
         | ValueAnd (v1, v2) ->
@@ -149,7 +157,7 @@
             | false, false -> (false, marks_union m1 m2, marks_union um1 um2, ad_union ad1 ad2)
             | true, false -> (true, m1, um1, ad1)
             | false, true -> (true, m2, um2, ad2)
-            | true, true when are_better_marks (m2, um2) (m1, um1) -> (true, m2, um2, ad2)
+            | true, true when is_better_config (m2, um2, ad2) (m1, um1, ad1) -> (true, m2, um2, ad2)
             | true, true -> (true, m1, um1, ad1)
         | And (f1, f2) ->
             marks_for_formula infos env uvar (Not (Or (Not f1, Not f2)))
@@ -174,8 +182,7 @@
                 // We pick one constraint that breaks the forall
                 let possibilities = Seq.filter (fun (b, _, _, _) -> not b) all_possibilities
                 let possibilities = Seq.map (fun (_,a,b,c) -> (a,b,c)) possibilities
-                let min_count (mm, mum, mad) (m, um, ad) = if are_better_marks (m, um) (mm, mum) then (m, um, ad) else (mm, mum, mad)
-                let (m, um, ad) = Seq.fold min_count (Seq.head possibilities) possibilities
+                let (m, um, ad) = Helper.seq_min is_better_config possibilities
                 (false, m, um, ad)
         | Exists (decl, f) ->
             marks_for_formula infos env uvar (Not (Forall (decl, Not f)))
@@ -285,7 +292,7 @@
             | ConstBool true, ConstBool true -> 
                 let (m1, um1, ad1) = aux true false
                 let (m2, um2, ad2) = aux false true
-                if are_better_marks (m2, um2) (m1, um1) then (m2, um2, ad2) else (m1, um1, ad1)
+                if is_better_config (m2, um2, ad2) (m1, um1, ad1) then (m2, um2, ad2) else (m1, um1, ad1)
             | ConstBool false, ConstBool false | _, _ -> aux true true
         | ExprAnd (e1, e2) -> marks_before_expression module_decl infos env (ExprNot (ExprOr (ExprNot e1, ExprNot e2))) m um ad mark_value
         | ExprNot e -> marks_before_expression module_decl infos env e m um ad mark_value
@@ -337,20 +344,53 @@
                                     We remove mark on fun(vi)
             otherwise ->    We mark all ei s.t. there exists wi different from ei with fun(...wi...) marked, 
                             we add necessary inequalities
-            TODO: the second case can be improved (marking the value of some ei can allow us to not mark some others ei)
             *)
+            // Returns: list of (marked, neighbors)
+            let compute_neighbors_with_perm m um marked str vs p =
+                let f = Helper.permutation_to_fun p
+                let inv_f = Helper.permutation_to_fun (Helper.inv_permutation p)
+                let n = List.length vs
+                let vs = List.permute f vs
+                // acc: i, constraints, neighbors list
+                let aux (i, prev_constraints, nlist) v =
+                    let real_i = inv_f i
+                    let neighbors = fun_marks_matching2 infos m um str prev_constraints
+                    let neighbors = Set.map (fun (_, l) -> List.item real_i l) neighbors
+                    let neighbors = Set.remove v neighbors
+                    let marked = marked || not (Set.isEmpty neighbors)
+
+                    let constr = if marked then Some v else None
+                    let new_constraints = Helper.list_set real_i constr prev_constraints
+                    let new_nlist = Helper.list_set real_i neighbors nlist
+                    (i+1, new_constraints, new_nlist)
+                let (_,cs,ns) = List.fold aux (0, List.init n (fun _ -> None), List.init n (fun _ -> Set.empty)) vs
+                List.zip (List.map (fun c -> c <> None) cs) ns
+
+            let compute_best_neighbors m um marked str vs =
+                let are_better_neighbors lst1 lst2 = // TODO: tests should be on final result because some marks can be already present
+                    let (m1,n1) = List.unzip lst1
+                    let (m2,n2) = List.unzip lst2
+                    let nb1 = List.length (List.filter (fun b -> b) m1)
+                    let nb2 = List.length (List.filter (fun b -> b) m2)
+                    if nb1 < nb2
+                    then true
+                    else if nb2 < nb1
+                    then false
+                    else
+                        let nb1 = List.sum (List.map Set.count n1)
+                        let nb2 = List.sum (List.map Set.count n2)
+                        nb1 < nb2
+
+                let n = List.length vs
+                let permutations = Helper.all_permutations n
+                let possibilities = Seq.map (compute_neighbors_with_perm m um marked str vs) permutations
+                Helper.seq_min are_better_neighbors possibilities
+
             let (env', _) = evaluate_expression module_decl infos env e
             let (_, envs, vs) = intermediate_environments module_decl infos env' es
             let marked = is_fun_marked infos m um str vs
             let (m, um) = remove_fun_marks infos m um str vs
-            let neighbors = fun_marks_matching2 infos m um str (List.map (fun _ -> None) vs)
-            let neighbors = List.mapi (fun i _ -> Set.map (fun (_, l) -> List.item i l) neighbors) vs
-            let neighbors = List.mapi (fun i s -> Set.remove (List.item i vs) s) neighbors
-            // Important values
-            let marks =
-                if marked
-                then List.map (fun _ -> true) es
-                else List.map (fun lst -> not (Set.isEmpty lst)) neighbors
+            let (marks, neighbors) = List.unzip (compute_best_neighbors m um marked str vs)
             // Inequalities with neighbors
             let add_ineq_for ad cv cvs =
                 Set.fold (fun ad cv' -> add_diff_constraint infos ad cv cv') ad cvs
