@@ -96,6 +96,33 @@
             | Some e -> Map.add decl.Name e acc
         { env with v=List.fold rollback env.v lvars }
 
+    let rec reconstruct_hexpression hes vs uvs =
+        match hes with
+        | [] -> []
+        | (Hole _)::hes -> (List.head uvs)::(reconstruct_hexpression hes vs (List.tail uvs))
+        | (Expr _)::hes -> (List.head vs)::(reconstruct_hexpression hes (List.tail vs) uvs)
+
+    let rec reconstruct_hexpression_opt hes vs =
+        match hes with
+        | [] -> []
+        | (Hole _)::hes -> None::(reconstruct_hexpression_opt hes vs)
+        | (Expr _)::hes -> (Some (List.head vs))::(reconstruct_hexpression_opt hes (List.tail vs))
+
+    let rec reconstruct_hexpression_opt2 hes vs =
+        match hes with
+        | [] -> []
+        | (Hole _)::hes -> None::(reconstruct_hexpression_opt2 hes vs)
+        | (Expr _)::hes -> (List.head vs)::(reconstruct_hexpression_opt2 hes (List.tail vs))
+
+    let separate_hexpression hes =
+        // Fixed expressions
+        let exprs = List.filter (fun he -> match he with Hole _ -> false | Expr _ -> true) hes
+        let exprs = List.map (fun he -> match he with Hole _ -> failwith "" | Expr e -> e) exprs
+        // Universally quantified vars
+        let uvars = List.filter (fun he -> match he with Hole _ -> true | Expr _ -> false) hes
+        let uvars = List.map (fun he -> match he with Hole d -> d | Expr _ -> failwith "") uvars
+        (exprs, uvars)
+
     let rec evaluate_expression (m:ModuleDecl) infos (env:Model.Environment) e =
         match e with
         | ExprConst cv -> (env, cv)
@@ -153,26 +180,15 @@
             let f' = Map.add (str, lst) res env.f
             { env with f=f' }
         | ForallFunAssign (str, hes, v) -> // For now, we don't check the types
-            let rec reconstruct_args hes vs uvs =
-                match hes with
-                | [] -> []
-                | (Hole _)::hes -> (List.head uvs)::(reconstruct_args hes vs (List.tail uvs))
-                | (Expr _)::hes -> (List.head vs)::(reconstruct_args hes (List.tail vs) uvs)
             let compute_value_for (env:Model.Environment) exprs uvars acc inst =
                 let v' = List.fold2 (fun acc (d:VarDecl) cv -> Map.add d.Name cv acc) env.v uvars inst
                 let value = evaluate_value infos { env with v=v' } v
-                let args = reconstruct_args hes exprs inst
+                let args = reconstruct_hexpression hes exprs inst
                 Map.add (str,args) value acc
-            // Fixed expressions
-            let exprs = List.filter (fun he -> match he with Hole _ -> false | Expr _ -> true) hes
-            let exprs = List.map (fun he -> match he with Hole _ -> failwith "" | Expr e -> e) exprs
+            let (exprs, uvars) = separate_hexpression hes
             let (env, exprs) = evaluate_expressions m infos env exprs
-            // Universally quantified vars
-            let uvars = List.filter (fun he -> match he with Hole _ -> true | Expr _ -> false) hes
-            let uvars = List.map (fun he -> match he with Hole d -> d | Expr _ -> failwith "") uvars
             let possibilities = List.map (fun d -> d.Type) uvars
             let possibilities = Model.all_values_ext infos possibilities
-            // Assignment
             let res = Seq.fold (compute_value_for env exprs uvars) Map.empty possibilities
             let f' = Map.fold (fun acc k v -> Map.add k v acc) env.f res
             { env with f=f' }

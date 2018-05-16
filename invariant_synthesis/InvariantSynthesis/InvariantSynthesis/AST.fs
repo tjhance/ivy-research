@@ -64,28 +64,6 @@
         | IfElse of Expression * Statement * Statement
         | IfSomeElse of VarDecl * Formula * Statement * Statement
         | Assert of Formula
-    // TODO: Implement ForallFunAssign in Synthesis.fs
-    (*
-    fun (ei,Xi) = V(Xi)
-
-    2 cases:
-
-    Nothing marked:
-    restrict ei as usual
-
-    Some values marked in m or um:
-    restrict all ei
-
-    Then:
-
-    Foreach value marked in m:
-    remove mark for value in m
-    restrict V(Xi) for corresponding values of Xi (no uvar)
-
-    Foreach value marked in um:
-    remove mark for value in um
-    restrict V(Xi) for corresponding values of Xi (with X in uvar)
-    *)
 
     type ActionDecl = { Name: string; Args: List<VarDecl>; Output: VarDecl; Content: Statement }
     type ModuleDecl = { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; Vars: List<VarDecl>; Actions: List<ActionDecl>; Invariants: List<Formula> }
