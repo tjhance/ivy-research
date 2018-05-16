@@ -64,7 +64,7 @@
         | IfElse of Expression * Statement * Statement
         | IfSomeElse of VarDecl * Formula * Statement * Statement
         | Assert of Formula
-    // TODO: Implement ForallFunAssign
+    // TODO: Implement ForallFunAssign in Synthesis.fs
     (*
     fun (ei,Xi) = V(Xi)
 

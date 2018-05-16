@@ -170,6 +170,19 @@
 
     and formula_to_string f prec =
         match f with
+        // ----- Syntaxic sugars -----
+        | Not (Equal (v1,v2)) ->
+            let str = sprintf "%s ~= %s" (value_to_string v1) (value_to_string v2)
+            add_parenthesis_if_needed str 4 prec
+        | Equal (v, ValueConst (ConstBool true))
+        | Equal (ValueConst (ConstBool true), v) ->
+            let str = sprintf "%s" (value_to_string v)
+            add_parenthesis_if_needed str 10 prec
+        | Equal (v, ValueConst (ConstBool false))
+        | Equal (ValueConst (ConstBool false), v) ->
+            let str = sprintf "~%s" (value_to_string v)
+            add_parenthesis_if_needed str 5 prec
+        // ---------------------------
         | Const b -> sprintf "%b" b
         | Equal (v1, v2) ->
             let str = sprintf "%s = %s" (value_to_string v1) (value_to_string v2)
@@ -192,7 +205,7 @@
 
 (*
 Precedence:
-value : oo
+value : oo (=10)
 ~ : 5
 = : 4
 & : 3
