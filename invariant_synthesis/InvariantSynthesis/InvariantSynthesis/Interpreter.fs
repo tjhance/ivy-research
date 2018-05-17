@@ -23,7 +23,7 @@
     let rec if_some_value infos (env:Model.Environment) (decl:VarDecl) f : option<ConstValue> =
         let possible_values = Model.all_values infos (decl.Type)
         try
-            Some (Seq.find (eval_formula_with infos env f decl.Name) possible_values)
+            Some (Seq.find (fun v -> eval_formula_with infos env f [decl.Name] [v]) possible_values)
         with :? System.Collections.Generic.KeyNotFoundException -> None
 
     and evaluate_value infos (env:Model.Environment) v =
@@ -53,8 +53,8 @@
             | Some v -> v
             | None -> evaluate_value infos env v
 
-    and eval_formula_with infos (env:Model.Environment) f name v =
-        let v' = Map.add name v env.v
+    and eval_formula_with infos (env:Model.Environment) f names values =
+        let v' = List.fold2 (fun acc n v -> Map.add n v acc) env.v names values
         evaluate_formula infos { env with v=v' } f
 
     and evaluate_formula infos (env:Model.Environment) f =
@@ -75,10 +75,10 @@
         | Not f -> not (evaluate_formula infos env f)
         | Forall (d,f) ->
             let possible_values = Model.all_values infos d.Type
-            Seq.forall (eval_formula_with infos env f d.Name) possible_values
+            Seq.forall (fun v -> eval_formula_with infos env f [d.Name] [v]) possible_values
         | Exists (d,f) ->
             let possible_values = Model.all_values infos d.Type
-            Seq.exists (eval_formula_with infos env f d.Name) possible_values
+            Seq.exists (fun v -> eval_formula_with infos env f [d.Name] [v]) possible_values
 
     exception AssertionFailed of Model.Environment * Formula
 
@@ -162,9 +162,7 @@
             let (env, v) = evaluate_expression m infos env e
             (env, value_not v)
         | ExprSomeElse (d,f,e) ->
-            match if_some_value infos env d f with
-            | Some v -> (env, v)
-            | None -> evaluate_expression m infos env e
+            (env, evaluate_value infos env (ValueSomeElse (d,f,e)))
 
     and evaluate_expressions (m:ModuleDecl) infos (env:Model.Environment) es =
         let aux (env, res) e =

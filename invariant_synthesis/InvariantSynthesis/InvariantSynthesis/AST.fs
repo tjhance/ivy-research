@@ -4,6 +4,7 @@
 
     // TODO: Recode Interpreter/Synthesis with a trace system
     // TODO: Adapt the Interpreter/Synthesis in order to be able to also analyze assertion fails
+    // TODO: Parse Ivy code
 
     type Type =
         | Void
@@ -49,7 +50,7 @@
         | ExprOr of Expression * Expression
         | ExprAnd of Expression * Expression
         | ExprNot of Expression
-        | ExprSomeElse of VarDecl * Formula * Expression
+        | ExprSomeElse of VarDecl * Formula * Value
 
     type HoleExpression =
         | Hole of VarDecl

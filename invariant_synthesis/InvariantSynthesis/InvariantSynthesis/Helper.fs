@@ -31,6 +31,13 @@
     let list_set i e lst =
         List.mapi (fun i' e' -> if i = i' then e else e') lst
 
+    let unzip4 lst =
+        let rec aux lst (acc1,acc2,acc3,acc4) =
+            match lst with
+            | [] -> (List.rev acc1,List.rev acc2,List.rev acc3,List.rev acc4)
+            | (h1,h2,h3,h4)::lst -> aux lst (h1::acc1,h2::acc2,h3::acc3,h4::acc4)
+        aux lst ([],[],[],[])
+
     // Misc
 
     let identity a = a
