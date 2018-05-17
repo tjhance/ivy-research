@@ -53,6 +53,10 @@
             | Some v -> v
             | None -> evaluate_value infos env v
 
+    and eval_value_with infos (env:Model.Environment) v names values =
+        let v' = List.fold2 (fun acc n v -> Map.add n v acc) env.v names values
+        evaluate_value infos { env with v=v' } v
+
     and eval_formula_with infos (env:Model.Environment) f names values =
         let v' = List.fold2 (fun acc n v -> Map.add n v acc) env.v names values
         evaluate_formula infos { env with v=v' } f
@@ -89,7 +93,7 @@
             | Some v -> Map.add decl.Name v acc
         {env with v=List.fold2 add_decl env.v lvars lvalues }
 
-    let leave_block infos (env:Model.Environment) lvars (old_env:Model.Environment) : Model.Environment =
+    let leave_block _ (env:Model.Environment) lvars (old_env:Model.Environment) : Model.Environment =
         let rollback acc (decl:VarDecl) =
             match Map.tryFind decl.Name old_env.v with
             | None -> Map.remove decl.Name acc
@@ -191,8 +195,7 @@
             { env with f=f' }
         | ForallFunAssign (str, hes, v) -> // For now, we don't check the types
             let compute_value_for (env:Model.Environment) exprs uvars acc inst =
-                let v' = List.fold2 (fun acc (d:VarDecl) cv -> Map.add d.Name cv acc) env.v uvars inst
-                let value = evaluate_value infos { env with v=v' } v
+                let value = eval_value_with infos env v (List.map (fun (v:VarDecl) -> v.Name) uvars) inst
                 let args = reconstruct_hexpression hes exprs inst
                 Map.add (str,args) value acc
             let (exprs, uvars) = separate_hexpression hes

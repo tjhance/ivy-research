@@ -187,9 +187,9 @@
         | Exists (decl, f) ->
             marks_for_formula infos env uvar (Not (Forall (decl, Not f)))
 
-    and marks_for_value_with infos (env:Model.Environment) uvar f names values =
+    and marks_for_value_with infos (env:Model.Environment) uvar v names values =
         let v' = List.fold2 (fun acc n v -> Map.add n v acc) env.v names values
-        let (v, cfg) = marks_for_value infos {env with v=v'} uvar f
+        let (v, cfg) = marks_for_value infos {env with v=v'} uvar v
         (v, List.fold (remove_var_marks infos) cfg names)
 
     and marks_for_formula_with infos (env:Model.Environment) uvar f names values =
