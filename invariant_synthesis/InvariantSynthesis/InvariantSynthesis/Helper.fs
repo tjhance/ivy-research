@@ -30,3 +30,7 @@
 
     let list_set i e lst =
         List.mapi (fun i' e' -> if i = i' then e else e') lst
+
+    // Misc
+
+    let identity a = a

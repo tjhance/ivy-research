@@ -123,6 +123,18 @@
         let uvars = List.map (fun he -> match he with Hole d -> d | Expr _ -> failwith "") uvars
         (exprs, uvars)
 
+    let rec keep_only_expr_hexpression hes res =
+        match hes with
+        | [] -> []
+        | (Hole _)::hes -> keep_only_expr_hexpression hes (List.tail res)
+        | (Expr _)::hes -> (List.head res)::(keep_only_expr_hexpression hes (List.tail res))
+
+    let rec keep_only_hole_hexpression hes res =
+        match hes with
+        | [] -> []
+        | (Hole _)::hes -> (List.head res)::(keep_only_hole_hexpression hes (List.tail res))
+        | (Expr _)::hes -> keep_only_hole_hexpression hes (List.tail res)
+
     let rec evaluate_expression (m:ModuleDecl) infos (env:Model.Environment) e =
         match e with
         | ExprConst cv -> (env, cv)

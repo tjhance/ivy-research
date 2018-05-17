@@ -3,6 +3,8 @@
     open AST
     open Interpreter
 
+    // TODO: simplify code by adding a config_union function
+
     type FunMarks = Set<string * List<ConstValue>>
     type VarMarks = Set<string>
 
@@ -235,8 +237,11 @@
     let remove_var_marks infos m um var : Marks * Marks =
         ({m with v = Set.remove var m.v}, {um with v = Set.remove var um.v})
 
-    let is_fun_marked infos m um str vs =
-        (Set.contains (str, vs) m.f) || (Set.contains (str, vs) um.f)
+    let is_fun_marked infos m str vs =
+        Set.contains (str, vs) m.f
+
+    let is_fun_marked2 infos m um str vs =
+        (is_fun_marked infos m str vs) || (is_fun_marked infos um str vs)
     
     let remove_fun_marks infos m um str vs : Marks * Marks =
         ({m with f = Set.remove (str,vs) m.f}, {um with f = Set.remove (str,vs) um.f})
@@ -257,7 +262,7 @@
 
     // Used in fun assign statements
     // Returns: list of (marked, neighbors)
-    let compute_neighbors_with_perm infos m um marked str vs transform permut =
+    let compute_neighbors_with_perm infos m um marked str vs transform inv_trans permut =
         let f = Helper.permutation_to_fun permut
         let inv_f = Helper.permutation_to_fun (Helper.inv_permutation permut)
         let n = List.length vs
@@ -266,7 +271,7 @@
         let aux (i, prev_constraints, nlist) v =
             let real_i = inv_f i
             let neighbors = fun_marks_matching2 infos m um str (transform prev_constraints)
-            let neighbors = Set.map (fun (_, l) -> List.item real_i l) neighbors
+            let neighbors = Set.map (fun (_, l) -> List.item real_i (inv_trans l)) neighbors
             let neighbors = Set.remove v neighbors
             let marked = marked || not (Set.isEmpty neighbors)
 
@@ -375,12 +380,12 @@
             *)
             let (env', _) = evaluate_expression module_decl infos env e
             let (_, envs, vs) = intermediate_environments module_decl infos env' es
-            let marked = is_fun_marked infos m um str vs
+            let marked = is_fun_marked2 infos m um str vs
             let (m, um) = remove_fun_marks infos m um str vs
 
             let n = List.length vs
             let permutations = Helper.all_permutations n
-            let possibilities = Seq.map (compute_neighbors_with_perm infos m um marked str vs (fun a -> a)) permutations
+            let possibilities = Seq.map (compute_neighbors_with_perm infos m um marked str vs Helper.identity Helper.identity) permutations
 
             let treat_possibility (marks, neighbors) =
                 let ad = Seq.fold2 (fun ad v ns -> add_ineq_between infos ad (Set.singleton v) ns) ad vs neighbors
@@ -404,20 +409,43 @@
             Foreach value marked in um:
                 remove mark for value in um
                 restrict V(Xi) for corresponding values of Xi (with X in uvar)
+
+            We add necessary inequalities.
             *)
             let (es, uvars) = separate_hexpression hes
             let (_, envs, vs) = intermediate_environments module_decl infos env es
-            let candidates = fun_marks_matching2 infos m um str (reconstruct_hexpression_opt hes vs)
-            let marked = Set.exists (fun (_,vs) -> is_fun_marked infos m um str vs) candidates
-            let (m, um) = Set.fold (fun (m, um) (_,vs) -> remove_fun_marks infos m um str vs) (m, um) candidates
+            let m_marks = fun_marks_matching infos m str (reconstruct_hexpression_opt hes vs)
+            let um_marks = fun_marks_matching infos um str (reconstruct_hexpression_opt hes vs)
+            let all_marks = Set.union m_marks um_marks
+            let marked = Set.exists (fun (_,vs) -> is_fun_marked2 infos m um str vs) all_marks
+            let (m, um) = Set.fold (fun (m, um) (_,vs) -> remove_fun_marks infos m um str vs) (m, um) all_marks
 
             let n = List.length vs
             let permutations = Helper.all_permutations n
-            let expr_possibilities = Seq.map (compute_neighbors_with_perm infos m um marked str vs (reconstruct_hexpression_opt2 hes)) permutations
-
+            let transform = reconstruct_hexpression_opt2 hes
+            let inv_trans = keep_only_expr_hexpression hes
+            let expr_possibilities = Seq.map (compute_neighbors_with_perm infos m um marked str vs transform inv_trans) permutations
             
             let treat_possibility (marks, neighbors) =
-                // TODO
+                let compute_marks_for (env:Model.Environment) v uvars model_dependent hole_vs =
+                    let v' = List.fold2 (fun acc (decl:VarDecl) value -> Map.add decl.Name value acc) env.v uvars hole_vs
+                    let env = { env with v=v' }
+                    let uvars = if model_dependent then Set.map (fun (d:VarDecl) -> d.Name) (Set.ofList uvars) else Set.empty
+                    marks_for_value infos env uvars v
+                let add_marks_for_all (env:Model.Environment) v uvars model_dependent hole_vss m um ad =
+                    let aux (m,um,ad) hole_vs =
+                        let (_,m',um',ad') = compute_marks_for env v uvars model_dependent hole_vs
+                        (marks_union m m', marks_union um um', ad_union ad ad')
+                    Set.fold aux (m,um,ad) hole_vss
+
+                let ad = Seq.fold2 (fun ad v ns -> add_ineq_between infos ad (Set.singleton v) ns) ad vs neighbors
+                let (m, um, ad) = marks_before_expressions module_decl infos envs (List.rev es) m um ad (List.rev marks)
+                // m_marks
+                let m_marks = Set.map (fun (_,vs) -> keep_only_hole_hexpression hes vs) m_marks
+                let (m, um, ad) = add_marks_for_all env v uvars false m_marks m um ad
+                // um_marks
+                let um_marks = Set.map (fun (_,vs) -> keep_only_hole_hexpression hes vs) um_marks
+                let (m, um, ad) = add_marks_for_all env v uvars true um_marks m um ad
                 (m,um,ad)
 
             let results = Seq.map treat_possibility expr_possibilities
