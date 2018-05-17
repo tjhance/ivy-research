@@ -30,7 +30,7 @@ let main argv =
     let nb = Convert.ToInt32 (Console.ReadLine())
     let formula = List.item nb md.Invariants
     printfn "Generating marks for the formula (pre execution)..."
-    let (b,m,um,ad) = Synthesis.marks_for_formula infos env Set.empty formula
+    let (b,(m,um,ad)) = Synthesis.marks_for_formula infos env Set.empty formula
     printfn "Success !"
     if verbose
     then
@@ -65,7 +65,7 @@ let main argv =
     ignore (Console.ReadLine())
 
     printfn "Generating marks for the formula (post execution)..."
-    let (b,m,um,ad) = Synthesis.marks_for_formula infos env' Set.empty formula
+    let (b,(m,um,ad)) = Synthesis.marks_for_formula infos env' Set.empty formula
     printfn "Success !"
     if verbose
     then
@@ -78,7 +78,7 @@ let main argv =
     ignore (Console.ReadLine())
 
     printfn "Going back through the action..."
-    let (_, m, um, ad) = Synthesis.marks_before_action md infos env name args m um ad false
+    let (_,(m,um,ad)) = Synthesis.marks_before_action md infos env name args (m,um,ad) false
     printfn "Success !"
     if verbose
     then

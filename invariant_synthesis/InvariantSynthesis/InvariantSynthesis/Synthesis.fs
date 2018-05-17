@@ -279,34 +279,34 @@
     // env: initial environment (before the execution of the expr)
     // m, um: marks after the execution of the expr
     // Return type : (important elements, universally quantified important elements (depend on the model))
-    let rec marks_before_expression module_decl infos env expr (m,um,ad) mark_value =
+    let rec marks_before_expression module_decl infos env expr cfg mark_value =
         match expr with
-        | ExprConst _ -> (m, um, ad)
+        | ExprConst _ -> cfg
         | ExprVar str ->
-            let (_, cfg) = marks_for_value infos env Set.empty (ValueVar str)
-            if mark_value then (config_union (m,um,ad) cfg) else (m,um,ad)
+            let (_, cfg') = marks_for_value infos env Set.empty (ValueVar str)
+            if mark_value then (config_union cfg cfg') else cfg
         | ExprFun (str, es) ->
             let (env, envs, vs) = intermediate_environments module_decl infos env es
-            let (_, cfg) = marks_for_value infos env Set.empty (ValueFun (str, List.map (fun v -> ValueConst v) vs))
-            let cfg = if mark_value then (config_union (m,um,ad) cfg) else (m,um,ad)
+            let (_, cfg') = marks_for_value infos env Set.empty (ValueFun (str, List.map (fun v -> ValueConst v) vs))
+            let cfg = if mark_value then (config_union cfg cfg') else cfg
             marks_before_expressions module_decl infos envs (List.rev es) cfg (List.map (fun _ -> mark_value) es)
         | ExprAction (str, es) ->
             let (env, envs, lst) = intermediate_environments module_decl infos env es
-            let (args_marks, cfg) = marks_before_action module_decl infos env str lst (m,um,ad) mark_value
+            let (args_marks, cfg) = marks_before_action module_decl infos env str lst cfg mark_value
             marks_before_expressions module_decl infos envs (List.rev es) cfg (List.rev args_marks)
         | ExprEqual (e1, e2) ->
             let (env1, v1) = evaluate_expression module_decl infos env e1
             let (env2, v2) = evaluate_expression module_decl infos env1 e2
-            let (_, cfg) = marks_for_formula infos env2 Set.empty (Equal (ValueConst v1,ValueConst v2))
-            let cfg = if mark_value then (config_union (m,um,ad) cfg) else (m, um, ad)
+            let (_, cfg') = marks_for_formula infos env2 Set.empty (Equal (ValueConst v1,ValueConst v2))
+            let cfg = if mark_value then (config_union cfg cfg') else cfg
             let cfg = marks_before_expression module_decl infos env1 e2 cfg mark_value
             marks_before_expression module_decl infos env e1 cfg mark_value
         | ExprOr (e1, e2) ->
             let (env1, v1) = evaluate_expression module_decl infos env e1
             let (_, v2) = evaluate_expression module_decl infos env1 e2
             let aux mark1 mark2 =
-                let cfg = marks_before_expression module_decl infos env1 e2 (m,um,ad) (mark_value && mark2)
-                marks_before_expression module_decl infos env e1 cfg (mark_value && mark1)
+                let cfg' = marks_before_expression module_decl infos env1 e2 cfg (mark_value && mark2)
+                marks_before_expression module_decl infos env e1 cfg' (mark_value && mark1)
             match v1, v2 with
             | ConstBool true, ConstBool false -> aux true false
             | ConstBool false, ConstBool true -> aux false true
@@ -315,15 +315,14 @@
                 let cfg2 = aux false true
                 if is_better_config cfg2 cfg1 then cfg2 else cfg1
             | ConstBool false, ConstBool false | _, _ -> aux true true
-        | ExprAnd (e1, e2) -> marks_before_expression module_decl infos env (ExprNot (ExprOr (ExprNot e1, ExprNot e2))) (m,um,ad) mark_value
-        | ExprNot e -> marks_before_expression module_decl infos env e (m,um,ad) mark_value
+        | ExprAnd (e1, e2) -> marks_before_expression module_decl infos env (ExprNot (ExprOr (ExprNot e1, ExprNot e2))) cfg mark_value
+        | ExprNot e -> marks_before_expression module_decl infos env e cfg mark_value
         | ExprSomeElse (d,f,v) ->
             if mark_value
             then
-                let (_,cfg) = marks_for_value infos env Set.empty (ValueSomeElse (d,f,v))
-                config_union (m,um,ad) cfg
-            else
-                (m,um,ad)
+                let (_,cfg') = marks_for_value infos env Set.empty (ValueSomeElse (d,f,v))
+                config_union cfg cfg'
+            else cfg
 
     // envs: the env before each expression
     and marks_before_expressions module_decl infos envs es cfg mark_values =
@@ -331,18 +330,18 @@
             marks_before_expression module_decl infos env e cfg mark
         List.fold2 aux cfg (List.zip envs es) mark_values
 
-    and marks_before_statement module_decl infos env st (m, um, ad) =
+    and marks_before_statement module_decl infos env st cfg =
         match st with
         | NewBlock (decls, sts) ->
             let env' = enter_new_block infos env decls (List.map (fun _ -> None) decls)
-            let cfg' = config_enter_block infos (m, um,ad) decls
+            let cfg' = config_enter_block infos cfg decls
             let (_, envs) = intermediate_environments_st module_decl infos env' sts
             let cfg' = marks_before_statements module_decl infos envs (List.rev sts) cfg'
-            config_leave_block infos cfg' decls (m, um, ad)
-        | Expression e -> marks_before_expression module_decl infos env e (m, um, ad) false
+            config_leave_block infos cfg' decls cfg
+        | Expression e -> marks_before_expression module_decl infos env e cfg false
         | VarAssign (str, e) ->
-            let marked = is_var_marked infos (m, um, ad) str
-            let cfg = remove_var_marks infos (m, um, ad) str
+            let marked = is_var_marked infos cfg str
+            let cfg = remove_var_marks infos cfg str
             marks_before_expression module_decl infos env e cfg marked
         | FunAssign (str, es, e) ->
             (*
@@ -357,17 +356,18 @@
             *)
             let (env', _) = evaluate_expression module_decl infos env e
             let (_, envs, vs) = intermediate_environments module_decl infos env' es
-            let marked = is_fun_marked infos (m, um, ad) str vs
-            let (m, um, ad) = remove_fun_marks infos (m, um, ad) str vs
+            let marked = is_fun_marked infos cfg str vs
+            let cfg = remove_fun_marks infos cfg str vs
 
             let n = List.length vs
             let permutations = Helper.all_permutations n
-            let possibilities = Seq.map (compute_neighbors_with_perm infos (m, um, ad) marked str vs Helper.identity Helper.identity) permutations
+            let possibilities = Seq.map (compute_neighbors_with_perm infos cfg marked str vs Helper.identity Helper.identity) permutations
 
             let treat_possibility (marks, neighbors) =
+                let (m,um,ad) = cfg
                 let ad = Seq.fold2 (fun ad v ns -> add_ineq_between infos ad (Set.singleton v) ns) ad vs neighbors
-                let (m, um, ad) = marks_before_expressions module_decl infos envs (List.rev es) (m, um, ad) (List.rev marks)
-                marks_before_expression module_decl infos env e (m, um, ad) marked
+                let (m,um,ad) = marks_before_expressions module_decl infos envs (List.rev es) (m,um,ad) (List.rev marks)
+                marks_before_expression module_decl infos env e (m,um,ad) marked
 
             let results = Seq.map treat_possibility possibilities
             Helper.seq_min is_better_config results
@@ -391,17 +391,17 @@
             *)
             let (es, uvars) = separate_hexpression hes
             let (_, envs, vs) = intermediate_environments module_decl infos env es
-            let m_marks = fun_marks_matching infos (m,m,ad) str (reconstruct_hexpression_opt hes vs)
-            let um_marks = fun_marks_matching infos (um,um,ad) str (reconstruct_hexpression_opt hes vs)
+            let m_marks = fun_marks_matching infos cfg str (reconstruct_hexpression_opt hes vs)
+            let um_marks = fun_marks_matching infos cfg str (reconstruct_hexpression_opt hes vs)
             let all_marks = Set.union m_marks um_marks
             let marked = not (Set.isEmpty all_marks)
-            let (m, um, ad) = Set.fold (fun cfg (_,vs) -> remove_fun_marks infos cfg str vs) (m, um, ad) all_marks
+            let cfg = Set.fold (fun cfg (_,vs) -> remove_fun_marks infos cfg str vs) cfg all_marks
 
             let n = List.length vs
             let permutations = Helper.all_permutations n
             let transform = reconstruct_hexpression_opt2 hes
             let inv_trans = keep_only_expr_hexpression hes
-            let expr_possibilities = Seq.map (compute_neighbors_with_perm infos (m, um, ad) marked str vs transform inv_trans) permutations
+            let expr_possibilities = Seq.map (compute_neighbors_with_perm infos cfg marked str vs transform inv_trans) permutations
             
             let treat_possibility (marks, neighbors) =
                 let compute_marks_for (env:Model.Environment) v unames model_dependent hole_vs =
@@ -413,6 +413,7 @@
                         config_union acc cfg
                     Set.fold aux cfg hole_vss
 
+                let (m,um,ad) = cfg
                 let ad = Seq.fold2 (fun ad v ns -> add_ineq_between infos ad (Set.singleton v) ns) ad vs neighbors
                 let (m, um, ad) = marks_before_expressions module_decl infos envs (List.rev es) (m, um, ad) (List.rev marks)
                 // m_marks
@@ -429,16 +430,16 @@
             let (env', v) = evaluate_expression module_decl infos env e
             let cfg =
                 match v with
-                | ConstBool true -> marks_before_statement module_decl infos env' sif (m, um, ad)
-                | ConstBool false | _ -> marks_before_statement module_decl infos env' selse (m, um, ad)
+                | ConstBool true -> marks_before_statement module_decl infos env' sif cfg
+                | ConstBool false | _ -> marks_before_statement module_decl infos env' selse cfg
             marks_before_expression module_decl infos env e cfg true
         | IfSomeElse (decl, f, sif, selse) ->
             match if_some_value infos env decl f with
             | Some value ->
                 let env' = enter_new_block infos env [decl] [Some value]
-                let cfg' = config_enter_block infos (m, um, ad) [decl]
+                let cfg' = config_enter_block infos cfg [decl]
                 let cfg' = marks_before_statement module_decl infos env' sif cfg'
-                let (_, cfg2) =
+                let (_, cfg'2) =
                     if is_var_marked infos cfg' decl.Name
                     then marks_for_formula infos env' Set.empty f
                     (* NOTE: In the case above, we may also ensure that every other value doesn't satisfy the predicate.
@@ -447,15 +448,15 @@
                        Therefore, we suppose that the choice made is always the value we choose here (if it satisfies the condition).
                        An assertion can also be added by the user to ensure this uniqueness. *)
                     else marks_for_formula infos env Set.empty (Exists (decl, f))
-                let cfg' = config_union cfg' cfg2
-                config_leave_block infos cfg' [decl] (m,um,ad)
+                let cfg' = config_union cfg' cfg'2
+                config_leave_block infos cfg' [decl] cfg
             | None ->
-                 let cfg = marks_before_statement module_decl infos env selse (m, um, ad)
+                 let cfg1 = marks_before_statement module_decl infos env selse cfg
                  let (_, cfg2) = marks_for_formula infos env Set.empty (Not (Exists (decl, f)))
-                 config_union cfg cfg2
+                 config_union cfg1 cfg2
         | Assert f ->
-            let (_, cfg) = marks_for_formula infos env Set.empty f
-            config_union (m,um,ad) cfg
+            let (_, cfg') = marks_for_formula infos env Set.empty f
+            config_union cfg cfg'
             
     // envs: the env before each statement
     and marks_before_statements module_decl infos envs sts cfg =
