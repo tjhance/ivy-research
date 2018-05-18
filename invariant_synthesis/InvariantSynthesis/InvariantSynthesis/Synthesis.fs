@@ -19,6 +19,7 @@
     let empty_marks = { f = Set.empty; v = Set.empty }
     let empty_ad = { d = Set.empty; md = false }
     let empty_config = (empty_marks, empty_marks, empty_ad)
+    // A config (m,um,ad) is composed of alist of marks m, a list of model-dependent marks um, additional data ad
 
     let is_model_dependent_type t =
         match t with
@@ -146,7 +147,6 @@
                 (v, config_union cfg1 cfg2)
     
     // uvar: variables that can browse an arbitrary large range (depending on the model)
-    // Return type : (formula value, important elements, universally quantified important elements (depend on the model) )
     and marks_for_formula infos env uvar f : bool * (Marks * Marks * AdditionalData) =
         match f with
         | Const  b -> (b, empty_config)
@@ -250,7 +250,6 @@
         Set.union (aux m) (aux um)
 
     // Used in fun assign statements
-    // Returns: list of (marked, neighbors)
     let compute_neighbors_with_perm infos cfg marked str vs transform inv_trans permut =
         let f = Helper.permutation_to_fun permut
         let inv_f = Helper.permutation_to_fun (Helper.inv_permutation permut)
@@ -278,7 +277,6 @@
 
     // env: initial environment (before the execution of the expr)
     // m, um: marks after the execution of the expr
-    // Return type : (important elements, universally quantified important elements (depend on the model))
     let rec marks_before_expression module_decl infos env expr cfg mark_value =
         match expr with
         | ExprConst _ -> cfg
@@ -405,7 +403,12 @@
             
             let treat_possibility (marks, neighbors) =
                 let compute_marks_for (env:Model.Environment) v unames model_dependent hole_vs =
-                    let uvars = if model_dependent then Set.map (fun (d:VarDecl) -> d.Name) (Set.ofList unames) else Set.empty
+                    let uvars =
+                        if model_dependent
+                        then
+                            let md_decls = Set.filter (fun (d:VarDecl) -> is_model_dependent_type d.Type) (Set.ofList unames)
+                            Set.map (fun (d:VarDecl) -> d.Name) md_decls
+                        else Set.empty
                     marks_for_value_with infos env uvars v (List.map (fun (d:VarDecl) -> d.Name) unames) hole_vs
                 let add_marks_for_all (env:Model.Environment) v uvars model_dependent hole_vss cfg =
                     let aux acc hole_vs =
