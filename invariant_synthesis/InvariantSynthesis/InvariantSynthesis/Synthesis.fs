@@ -352,8 +352,7 @@
             otherwise ->    We mark all ei s.t. there exists wi different from ei with fun(...wi...) marked, 
                             we add necessary inequalities
             *)
-            let (env', _) = evaluate_expression module_decl infos env e
-            let (_, envs, vs) = intermediate_environments module_decl infos env' es
+            let (env, envs, vs) = intermediate_environments module_decl infos env es
             let marked = is_fun_marked infos cfg str vs
             let cfg = remove_fun_marks infos cfg str vs
 
@@ -361,11 +360,13 @@
             let permutations = Helper.all_permutations n
             let possibilities = Seq.map (compute_neighbors_with_perm infos cfg marked str vs Helper.identity Helper.identity) permutations
 
+            let cfg = marks_before_expression module_decl infos env e cfg marked
+
             let treat_possibility (marks, neighbors) =
                 let (m,um,ad) = cfg
-                let ad = Seq.fold2 (fun ad v ns -> add_ineq_between infos ad (Set.singleton v) ns) ad vs neighbors
                 let (m,um,ad) = marks_before_expressions module_decl infos envs (List.rev es) (m,um,ad) (List.rev marks)
-                marks_before_expression module_decl infos env e (m,um,ad) marked
+                let ad = Seq.fold2 (fun ad v ns -> add_ineq_between infos ad (Set.singleton v) ns) ad vs neighbors
+                (m,um,ad)
 
             let results = Seq.map treat_possibility possibilities
             Helper.seq_min is_better_config results
@@ -388,7 +389,7 @@
             We add necessary inequalities.
             *)
             let (es, uvars) = separate_hexpression hes
-            let (_, envs, vs) = intermediate_environments module_decl infos env es
+            let (env, envs, vs) = intermediate_environments module_decl infos env es
             let m_marks = fun_marks_matching infos cfg str (reconstruct_hexpression_opt hes vs)
             let um_marks = fun_marks_matching infos cfg str (reconstruct_hexpression_opt hes vs)
             let all_marks = Set.union m_marks um_marks
@@ -401,30 +402,32 @@
             let inv_trans = keep_only_expr_hexpression hes
             let expr_possibilities = Seq.map (compute_neighbors_with_perm infos cfg marked str vs transform inv_trans) permutations
             
-            let treat_possibility (marks, neighbors) =
-                let compute_marks_for (env:Model.Environment) v unames model_dependent hole_vs =
-                    let uvars =
-                        if model_dependent
-                        then
-                            let md_decls = Set.filter (fun (d:VarDecl) -> is_model_dependent_type d.Type) (Set.ofList unames)
-                            Set.map (fun (d:VarDecl) -> d.Name) md_decls
-                        else Set.empty
-                    marks_for_value_with infos env uvars v (List.map (fun (d:VarDecl) -> d.Name) unames) hole_vs
-                let add_marks_for_all (env:Model.Environment) v uvars model_dependent hole_vss cfg =
-                    let aux acc hole_vs =
-                        let (_,cfg) = compute_marks_for env v uvars model_dependent hole_vs
-                        config_union acc cfg
-                    Set.fold aux cfg hole_vss
+            let compute_marks_for (env:Model.Environment) v unames model_dependent hole_vs =
+                let uvars =
+                    if model_dependent
+                    then
+                        let md_decls = Set.filter (fun (d:VarDecl) -> is_model_dependent_type d.Type) (Set.ofList unames)
+                        Set.map (fun (d:VarDecl) -> d.Name) md_decls
+                    else Set.empty
+                marks_for_value_with infos env uvars v (List.map (fun (d:VarDecl) -> d.Name) unames) hole_vs
+            let add_marks_for_all (env:Model.Environment) v uvars model_dependent hole_vss cfg =
+                let aux acc hole_vs =
+                    let (_,cfg) = compute_marks_for env v uvars model_dependent hole_vs
+                    config_union acc cfg
+                Set.fold aux cfg hole_vss
 
+            // m_marks
+            let m_marks = Set.map (fun (_,vs) -> keep_only_hole_hexpression hes vs) m_marks
+            let cfg = add_marks_for_all env v uvars false m_marks cfg
+            // um_marks
+            let um_marks = Set.map (fun (_,vs) -> keep_only_hole_hexpression hes vs) um_marks
+            let cfg = add_marks_for_all env v uvars true um_marks cfg
+
+            let treat_possibility (marks, neighbors) =
                 let (m,um,ad) = cfg
-                let ad = Seq.fold2 (fun ad v ns -> add_ineq_between infos ad (Set.singleton v) ns) ad vs neighbors
+                // exprs
                 let (m, um, ad) = marks_before_expressions module_decl infos envs (List.rev es) (m, um, ad) (List.rev marks)
-                // m_marks
-                let m_marks = Set.map (fun (_,vs) -> keep_only_hole_hexpression hes vs) m_marks
-                let (m, um, ad) = add_marks_for_all env v uvars false m_marks (m, um, ad)
-                // um_marks
-                let um_marks = Set.map (fun (_,vs) -> keep_only_hole_hexpression hes vs) um_marks
-                let (m, um, ad) = add_marks_for_all env v uvars true um_marks (m, um, ad)
+                let ad = Seq.fold2 (fun ad v ns -> add_ineq_between infos ad (Set.singleton v) ns) ad vs neighbors
                 (m,um,ad)
 
             let results = Seq.map treat_possibility expr_possibilities
