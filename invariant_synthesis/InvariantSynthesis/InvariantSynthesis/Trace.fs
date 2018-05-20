@@ -4,7 +4,7 @@
     open Model
 
     type RuntimeStData = Environment * Environment
-    type RuntimeExprData = Environment * Environment * ConstValue
+    type RuntimeExprData = Environment * Environment * ConstValue option
 
     type TrExpression =
         | TrExprConst of RuntimeExprData * ConstValue
@@ -16,6 +16,8 @@
         | TrExprOr of RuntimeExprData * TrExpression * TrExpression
         | TrExprAnd of RuntimeExprData * TrExpression * TrExpression
         | TrExprNot of RuntimeExprData * TrExpression
+        | TrExprSomeElse of RuntimeExprData * VarDecl * Formula * Value
+        | TrExprNotEvaluated
 
     and TrHoleExpression =
         | TrHole of VarDecl
@@ -30,3 +32,4 @@
         | TrIfElse of RuntimeStData * TrExpression * TrStatement
         | TrIfSomeElse of RuntimeStData * Option<ConstValue> * VarDecl * Formula * TrStatement
         | TrAssert of RuntimeStData * Formula
+        | TrNotEvaluated

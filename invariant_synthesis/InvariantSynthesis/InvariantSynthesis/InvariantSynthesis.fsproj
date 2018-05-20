@@ -9,9 +9,10 @@
     <Compile Include="Helper.fs" />
     <Compile Include="AST.fs" />
     <Compile Include="Model.fs" />
-    <Compile Include="Trace.fs" />
     <Compile Include="Interpreter.fs" />
     <Compile Include="Synthesis.fs" />
+    <Compile Include="Trace.fs" />
+    <Compile Include="TInterpreter.fs" />
     <Compile Include="Formula.fs" />
     <Compile Include="ConstraintsParser.fs" />
     <Compile Include="TestModule.fs" />
