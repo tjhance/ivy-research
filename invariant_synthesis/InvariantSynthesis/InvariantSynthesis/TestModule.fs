@@ -12,24 +12,31 @@
 
         let vars : List<VarDecl> =
             [
-                {Name="q.next_e" ; Type=Uninterpreted("incrementable.t")} ;
-                {Name="q.first_e" ; Type=Uninterpreted("incrementable.t")} ;
-                {Name="q.first" ; Type=Uninterpreted("data")} ;
+                {Name="q.next_e" ; Type=Uninterpreted("incrementable.t") ;
+                Representation=default_representation} ;
+                {Name="q.first_e" ; Type=Uninterpreted("incrementable.t") ;
+                Representation=default_representation} ;
+                {Name="q.first" ; Type=Uninterpreted("data");
+                Representation=default_representation} ;
             ]
 
         let funs : List<FunDecl> =
             [
                 {Name="incrementable.t.<" ; Output=Bool ;
-                Input=[Uninterpreted("incrementable.t");Uninterpreted("incrementable.t")] } ;
+                Input=[Uninterpreted("incrementable.t");Uninterpreted("incrementable.t")];
+                Representation={DisplayName=Some "<"; Flags=Set.singleton Infix}; Flags=[Strict; Transitive] |> Set.ofList} ;
 
                 {Name="incrementable.succ" ; Output=Bool ;
-                Input=[Uninterpreted("incrementable.t");Uninterpreted("incrementable.t")] } ;
+                Input=[Uninterpreted("incrementable.t");Uninterpreted("incrementable.t")];
+                Representation=default_representation; Flags=Set.singleton Strict} ;
 
                 {Name="q.content" ; Output=Bool ;
-                Input=[Uninterpreted("data");Uninterpreted("incrementable.t")] } ;
+                Input=[Uninterpreted("data");Uninterpreted("incrementable.t")];
+                Representation=default_representation; Flags=Set.empty} ;
 
                 {Name="q.spec.content_f" ; Output=Uninterpreted("data") ;
-                Input=[Uninterpreted("incrementable.t")] } ;
+                Input=[Uninterpreted("incrementable.t")]; Representation = default_representation;
+                Flags = Set.empty} ;
             ]
 
         let relation_formula name vars =
@@ -48,8 +55,8 @@
             [
                 {
                     Name="incrementable.next" ;
-                    Args=[{Name="x";Type=Uninterpreted("incrementable.t")}] ;
-                    Output={Name="y";Type=Uninterpreted("incrementable.t")} ;
+                    Args=[{Name="x";Type=Uninterpreted("incrementable.t");Representation=default_representation}] ;
+                    Output={Name="y";Type=Uninterpreted("incrementable.t");Representation=default_representation} ;
                     Content=
                         (
                             NewBlock
@@ -61,7 +68,7 @@
                                                 "y",
                                                 ExprSomeElse
                                                     (
-                                                        {Name="y";Type=Uninterpreted("incrementable.t")},
+                                                        {Name="y";Type=Uninterpreted("incrementable.t");Representation=default_representation},
                                                         relation_formula "incrementable.succ" [ValueVar "x"; ValueVar "y"],
                                                         ValueConst ConstVoid
                                                     )
@@ -73,7 +80,7 @@
                 {
                     Name="q.pop" ;
                     Args=[] ;
-                    Output={Name="res";Type=Uninterpreted("data")} ;
+                    Output={Name="res";Type=Uninterpreted("data");Representation=default_representation} ;
                     Content=
                         (
                             NewBlock
@@ -86,7 +93,7 @@
                                         VarAssign ("q.first_e", ExprAction("incrementable.next", [ExprVar "q.first_e"])) ;
                                         IfSomeElse
                                             (
-                                                {Name="nf";Type=Uninterpreted("data")},
+                                                {Name="nf";Type=Uninterpreted("data");Representation=default_representation},
                                                 relation_formula "q.content" [ValueVar "nf";ValueVar "q.first_e"],
                                                 VarAssign ("q.first", ExprVar "nf"),
                                                 empty_statement

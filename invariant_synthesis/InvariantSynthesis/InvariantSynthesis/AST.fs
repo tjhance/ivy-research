@@ -11,9 +11,20 @@
         | Bool
         | Uninterpreted of string
 
+    type RepresentationFlags = Infix
+    type RepresentationInfos = { DisplayName: string option; Flags: Set<RepresentationFlags> }
+
+    type RelationFlags =
+        | Reflexive
+        | Strict
+        | Transitive
+
     type TypeDecl = { Name: string }
-    type FunDecl = { Name: string; Input: List<Type>; Output: Type }
-    type VarDecl = { Name: string; Type: Type }
+    type FunDecl = { Name: string; Input: List<Type>; Output: Type;
+        Representation: RepresentationInfos; Flags: Set<RelationFlags> }
+    type VarDecl = { Name: string; Type: Type; Representation: RepresentationInfos }
+
+    let default_representation : RepresentationInfos = { DisplayName = None; Flags = Set.empty }
 
     type ConstValue =
         | ConstVoid // Only used for actions that return nothing (or sometimes for errors)

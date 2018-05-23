@@ -90,8 +90,9 @@ let main argv =
     printfn "Press enter to compute formula."
     ignore (Console.ReadLine())
 
+    let decls = Model.declarations_of_module md
     let f = Formula.formula_from_marks env m ad
-    printfn "%s" (Formula.formula_to_string f 0)
+    printfn "%s" (Formula.formula_to_string decls f 0)
     if ad.md
     then printfn "These conditions may not be sufficient to satisfy/break the invariant!"
     else printfn "These conditions are sufficient to satisfy/break the invariant!"
@@ -99,7 +100,7 @@ let main argv =
     printfn ""
     printfn "Invariant to add:"
     let f = Formula.simplify_formula (Not f)
-    printfn "%s" (Formula.formula_to_string f 0)
+    printfn "%s" (Formula.formula_to_string decls f 0)
     
     ignore (Console.ReadLine())
     0

@@ -23,6 +23,23 @@
 
     type Environment = { f : FunEnv; v : VarEnv }
 
+    type VarDecls = Map<string, VarDecl>
+    type FunDecls = Map<string, FunDecl>
+
+    type Declarations = { f : FunDecls; v : VarDecls }
+
+    let declarations_of_module (md:ModuleDecl) =
+        let aux acc (d:VarDecl) =
+            Map.add d.Name d acc
+        let vars = List.fold aux Map.empty md.Vars
+        let aux acc (d:FunDecl) =
+            Map.add d.Name d acc
+        let funs = List.fold aux Map.empty md.Funs
+        { f = funs; v = vars }
+
+    let add_var_declaration (d:VarDecl) (ds:Declarations) =
+        { ds with v=Map.add d.Name d ds.v }
+
     let type_default_value t =
         match t with
         | Void -> ConstVoid
@@ -49,7 +66,7 @@
             let res = Seq.map (fun lst -> Seq.map (fun v -> v::lst) pos) res
             Seq.concat res
 
-    let constraints_to_env (m:ModuleDecl) cs =
+    let constraints_to_env (m:ModuleDecl) cs : (TypeInfos * Environment) =
         // Type infos
         // Init
         let type_infos = List.fold (fun acc (tdecl:TypeDecl) -> Map.add tdecl.Name 0 acc) Map.empty m.Types

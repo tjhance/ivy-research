@@ -3,9 +3,7 @@
     open AST
 
     // TODO: 2steps synthesis
-    // TODO: formula simplification by using:
-    // 1. relation entailment
-    // 2. flags for relations (like transitive, reflexive, strict (~r(x,x))...)
+    // TODO: formula simplification by taking into account flags
     let order_tuple (a,b) =
         if a < b then (a,b) else (b,a)
 
@@ -63,7 +61,7 @@
         let all_new_vars_decl_assigned () : List<VarDecl> =
             let content = (Map.toList !vars_map)
             let content = List.filter (fun (_,assoc) -> match assoc with New _ -> true | _ -> false) content
-            List.map (fun (cv,assoc) -> match assoc with New str -> { Name=str ; Type=type_of_const_value cv } | _ -> failwith "Invalid association.") content
+            List.map (fun (cv,assoc) -> match assoc with New str -> { Name=str ; Type=type_of_const_value cv ; Representation=default_representation } | _ -> failwith "Invalid association.") content
 
         let rec value_of_association va =
             match va with
@@ -168,7 +166,10 @@
         | Bool -> "bool"
         | Uninterpreted str -> str
 
-    let var_decl_to_string (vd:VarDecl) = sprintf "%s:%s" vd.Name (type_to_string vd.Type)
+    let var_decl_to_string (vd:VarDecl) =
+        match vd.Representation.DisplayName with
+        | None -> sprintf "%s:%s" vd.Name (type_to_string vd.Type)
+        | Some s -> sprintf "%s:%s" s (type_to_string vd.Type)
 
     let list_to_args_str lst =
         match lst with
@@ -180,50 +181,72 @@
         then sprintf "(%s)" str
         else str
 
-    let rec value_to_string v =
-        match v with
-        | ValueConst cv -> const_value_to_string cv
-        | ValueVar str -> str
-        | ValueFun (str, vs) -> sprintf "%s%s" str (list_to_args_str (List.map value_to_string vs))
-        | ValueEqual (v1,v2) -> sprintf "(%s == %s)" (value_to_string v1) (value_to_string v2)
-        | ValueOr (v1,v2) -> sprintf "(%s || %s)" (value_to_string v1) (value_to_string v2)
-        | ValueAnd (v1,v2) -> sprintf "(%s && %s)" (value_to_string v1) (value_to_string v2)
-        | ValueNot v -> sprintf "not %s" (value_to_string v)
-        | ValueSomeElse (d,f,v) -> sprintf "some %s s.t. %s or %s" (var_decl_to_string d) (formula_to_string f 10) (value_to_string v)
+    let rec value_to_string (decls:Model.Declarations) v =
+        let rec aux v =
+            match v with
+            | ValueConst cv -> const_value_to_string cv
+            | ValueVar str ->
+                try
+                    match (Map.find str decls.v).Representation.DisplayName with
+                    | None -> str
+                    | Some str -> str
+                with :? System.Collections.Generic.KeyNotFoundException -> str
+            | ValueFun (str, vs) ->
+                try
+                    let d = Map.find str decls.f
+                    let str = 
+                        match d.Representation.DisplayName with
+                        | None -> str
+                        | Some str -> str
+                    if Set.contains Infix d.Representation.Flags
+                    then sprintf "%s %s %s" (aux (List.head vs)) str (aux (List.head (List.tail vs)))
+                    else sprintf "%s%s" str (list_to_args_str (List.map aux vs))
+                with :? System.Collections.Generic.KeyNotFoundException ->
+                    sprintf "%s%s" str (list_to_args_str (List.map aux vs))
+            | ValueEqual (v1,v2) -> sprintf "(%s == %s)" (aux v1) (aux v2)
+            | ValueOr (v1,v2) -> sprintf "(%s || %s)" (aux v1) (aux v2)
+            | ValueAnd (v1,v2) -> sprintf "(%s && %s)" (aux v1) (aux v2)
+            | ValueNot v -> sprintf "not %s" (aux v)
+            | ValueSomeElse (d,f,v) ->
+                let decls = Model.add_var_declaration d decls
+                sprintf "some %s s.t. %s or %s" (var_decl_to_string d) (formula_to_string decls f 10) (aux v)
+        aux v
 
-    and formula_to_string f prec =
+    and formula_to_string decls f prec =
         match f with
         // ----- Syntaxic sugars -----
         | Not (Equal (v1,v2)) ->
-            let str = sprintf "%s ~= %s" (value_to_string v1) (value_to_string v2)
+            let str = sprintf "%s ~= %s" (value_to_string decls v1) (value_to_string decls v2)
             add_parenthesis_if_needed str 4 prec
         | Equal (v, ValueConst (ConstBool true))
         | Equal (ValueConst (ConstBool true), v) ->
-            let str = sprintf "%s" (value_to_string v)
+            let str = sprintf "%s" (value_to_string decls v)
             add_parenthesis_if_needed str 10 prec
         | Equal (v, ValueConst (ConstBool false))
         | Equal (ValueConst (ConstBool false), v) ->
-            let str = sprintf "~%s" (value_to_string v)
+            let str = sprintf "~%s" (value_to_string decls v)
             add_parenthesis_if_needed str 5 prec
         // ---------------------------
         | Const b -> sprintf "%b" b
         | Equal (v1, v2) ->
-            let str = sprintf "%s = %s" (value_to_string v1) (value_to_string v2)
+            let str = sprintf "%s = %s" (value_to_string decls v1) (value_to_string decls v2)
             add_parenthesis_if_needed str 4 prec
         | Or (f1,f2) ->
-            let str = sprintf "%s | %s" (formula_to_string f1 2) (formula_to_string f2 2)
+            let str = sprintf "%s | %s" (formula_to_string decls f1 2) (formula_to_string decls f2 2)
             add_parenthesis_if_needed str 2 prec
         | And (f1,f2) ->
-            let str = sprintf "%s & %s" (formula_to_string f1 3) (formula_to_string f2 3)
+            let str = sprintf "%s & %s" (formula_to_string decls f1 3) (formula_to_string decls f2 3)
             add_parenthesis_if_needed str 3 prec
         | Not f ->
-            let str = sprintf "~%s" (formula_to_string f 5)
+            let str = sprintf "~%s" (formula_to_string decls f 5)
             add_parenthesis_if_needed str 5 prec
         | Forall (vd, f) ->
-            let str = sprintf "F %s. %s" (var_decl_to_string vd) (formula_to_string f 1)
+            let decls = Model.add_var_declaration vd decls
+            let str = sprintf "F %s. %s" (var_decl_to_string vd) (formula_to_string decls f 1)
             add_parenthesis_if_needed str 1 prec
         | Exists (vd, f) ->
-            let str = sprintf "E %s. %s" (var_decl_to_string vd) (formula_to_string f 1)
+            let decls = Model.add_var_declaration vd decls
+            let str = sprintf "E %s. %s" (var_decl_to_string vd) (formula_to_string decls f 1)
             add_parenthesis_if_needed str 1 prec
 
 (*
