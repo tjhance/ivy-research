@@ -2,6 +2,10 @@
 
     open AST
 
+    // TODO: 2steps synthesis
+    // TODO: formula simplification by using:
+    // 1. relation entailment
+    // 2. flags for relations (like transitive, reflexive, strict (~r(x,x))...)
     let order_tuple (a,b) =
         if a < b then (a,b) else (b,a)
 
@@ -130,6 +134,25 @@
             let formula = List.fold (fun acc c -> And (acc,c)) h constraints
             let vars = all_new_vars_decl_assigned ()
             List.fold (fun acc vd -> Exists (vd, acc)) formula vars
+
+    ////////////////////////////////////////////////////////////////////////
+
+    let rec simplify_formula f =
+        match f with
+        // Negation
+        | Not (Not f) -> simplify_formula f
+        | Not (Or (f1, f2)) -> simplify_formula (And (Not f1, Not f2))
+        | Not (And (f1, f2)) -> simplify_formula (Or (Not f1, Not f2))
+        | Not (Forall (d,f)) -> simplify_formula (Exists (d, Not f))
+        | Not (Exists (d,f)) -> simplify_formula (Forall (d, Not f))
+        // Identity cases
+        | Const b -> Const b
+        | Equal (v1, v2) -> Equal (v1, v2)
+        | Or (f1, f2) -> Or (simplify_formula f1, simplify_formula f2)
+        | And (f1, f2) -> And (simplify_formula f1, simplify_formula f2)
+        | Not f -> Not (simplify_formula f)
+        | Forall (v, f) -> Forall (v, simplify_formula f)
+        | Exists (v, f) -> Exists (v, simplify_formula f)
 
     ////////////////////////////////////////////////////////////////////////
 
