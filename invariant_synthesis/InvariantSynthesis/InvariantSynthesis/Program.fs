@@ -91,7 +91,7 @@ let main argv =
     ignore (Console.ReadLine())
 
     let decls = Model.declarations_of_module md
-    let f = Formula.formula_from_marks env m ad
+    let f = Formula.formula_from_marks decls env m ad
     printfn "%s" (Formula.formula_to_string decls f 0)
     if ad.md
     then printfn "These conditions may not be sufficient to satisfy/break the invariant!"

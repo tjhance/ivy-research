@@ -1,11 +1,70 @@
 ﻿module Formula
 
     open AST
+    open System.Runtime.InteropServices.ComTypes
 
     // TODO: 2steps synthesis
-    // TODO: formula simplification by taking into account flags
+
     let order_tuple (a,b) =
         if a < b then (a,b) else (b,a)
+
+    let simplify_marks (decls:Model.Declarations) (env:Model.Environment) (m:Synthesis.Marks) (ad:Synthesis.AdditionalData) =
+
+        let value_equal cv1 cv2 = Interpreter.value_equal () cv1 cv2
+
+        let value_diff diffs cv1 cv2 =
+            Set.contains (cv1,cv2) diffs || Set.contains (cv2,cv1) diffs
+
+        let add_diff_constraint diffs cvs =
+            let cv1 = (List.head cvs)
+            let cv2 = List.head (List.tail cvs)
+            Set.add (cv2,cv1) (Set.add (cv1,cv2) diffs)
+
+        let diffs_implied (m:Synthesis.Marks) =
+            let aux acc (str, cvs) =
+                if List.length cvs <> 2 then acc
+                else
+                    let flags = (Map.find str decls.f).Flags
+                    let value = Map.find (str, cvs) env.f
+                    if Set.contains Strict flags && value = ConstBool true
+                    then add_diff_constraint acc cvs
+                    else if Set.contains Reflexive flags && value = ConstBool false
+                    then add_diff_constraint acc cvs
+                    else acc
+            Set.fold aux Set.empty m.f
+
+        let is_relation_useful diffs rels (str, cvs) =
+            if List.length cvs <> 2 then true
+            else
+                let cv1 = List.head cvs
+                let cv2 = List.head (List.tail cvs)
+                let flags = (Map.find str decls.f).Flags
+                let value = Map.find (str, cvs) env.f
+                match value with
+                | ConstBool true ->
+                    if Set.contains Reflexive flags && value_equal cv1 cv2
+                    then false
+                    else
+                        // TODO: case of the transitive flag
+                        true
+                | ConstBool false ->
+                    if  Set.contains Strict flags && value_equal cv1 cv2
+                    then false
+                    else true
+                | _ -> true
+
+        // Remove useless diff
+        let di = diffs_implied m
+        let d' = Set.difference ad.d di
+        let all_d = Set.union ad.d di
+
+        // Remove useless relations
+        let mf' = Set.filter (is_relation_useful all_d m.f) m.f
+        
+        // Result
+        let ad = { ad with d=d' }
+        let m = { m with f=mf' }
+        (m, ad)
 
     let type_of_const_value cv =
         match cv with
@@ -19,7 +78,9 @@
         | ExistingVar of string
         | ExistingFun of string * List<ConstValue>
 
-    let formula_from_marks (env:Model.Environment) (m:Synthesis.Marks) (ad:Synthesis.AdditionalData) =
+    let formula_from_marks (decls:Model.Declarations) (env:Model.Environment) (m:Synthesis.Marks) (ad:Synthesis.AdditionalData) =
+        let (m, ad) = simplify_marks decls env m ad
+        
         // Associate a var to each value
         let next_name_nb = ref 0
         let new_var_name () =
