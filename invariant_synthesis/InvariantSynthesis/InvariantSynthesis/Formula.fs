@@ -15,9 +15,13 @@
         let value_diff diffs cv1 cv2 =
             Set.contains (cv1,cv2) diffs || Set.contains (cv2,cv1) diffs
 
+        let couple_of_lst lst =
+            let cv1 = (List.head lst)
+            let cv2 = List.head (List.tail lst)
+            (cv1, cv2)
+
         let add_diff_constraint diffs cvs =
-            let cv1 = (List.head cvs)
-            let cv2 = List.head (List.tail cvs)
+            let (cv1, cv2) = couple_of_lst cvs
             Set.add (cv2,cv1) (Set.add (cv1,cv2) diffs)
 
         let diffs_implied (m:Synthesis.Marks) =
@@ -33,11 +37,22 @@
                     else acc
             Set.fold aux Set.empty m.f
 
+        let rec transitive_closure pairs =
+            let step pairs =
+                let aux acc (l,r) =
+                    let aux' acc (l',r') =
+                        let acc = if r'=l then Set.add (l',r) acc else acc
+                        let acc = if r=l' then Set.add (l,r') acc else acc
+                        acc
+                    Set.fold aux' acc acc
+                Set.fold aux pairs pairs
+            let next = step pairs
+            if next = pairs then next else transitive_closure next
+
         let is_relation_useful diffs rels (str, cvs) =
             if List.length cvs <> 2 then true
             else
-                let cv1 = List.head cvs
-                let cv2 = List.head (List.tail cvs)
+                let (cv1, cv2) = couple_of_lst cvs
                 let flags = (Map.find str decls.f).Flags
                 let value = Map.find (str, cvs) env.f
                 match value with
@@ -45,8 +60,15 @@
                     if Set.contains Reflexive flags && value_equal cv1 cv2
                     then false
                     else
-                        // TODO: case of the transitive flag
-                        true
+                        let is_related_rel (str', cvs') =
+                            if str <> str' || (str', cvs') = (str, cvs)
+                            then false
+                            else Map.find (str', cvs') env.f = ConstBool true
+
+                        let rel_pairs = Set.filter is_related_rel rels
+                        let rel_pairs = Set.map (fun (_, cvs') -> couple_of_lst cvs') rel_pairs
+                        let trans = transitive_closure rel_pairs
+                        not (Set.contains (cv1, cv2) trans)
                 | ConstBool false ->
                     if  Set.contains Strict flags && value_equal cv1 cv2
                     then false

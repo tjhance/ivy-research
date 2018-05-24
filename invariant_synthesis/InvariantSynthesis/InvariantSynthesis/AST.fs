@@ -1,5 +1,7 @@
 ﻿module AST
 
+open System
+
     (* A VERY BASIC AST FOR IVY *)
 
     // TODO: Recode Interpreter/Synthesis with a trace system
@@ -18,6 +20,10 @@
         | Reflexive
         | Strict
         | Transitive
+        // TODO: flags below
+        | NegTransitive
+        | Symetric
+        | Antisymetric
 
     type TypeDecl = { Name: string }
     type FunDecl = { Name: string; Input: List<Type>; Output: Type;
