@@ -18,16 +18,14 @@ open System
 
     type RelationFlags =
         | Reflexive
-        | Strict
         | Transitive
-        // TODO: flags below
-        | NegTransitive
         | Symetric
-        | Antisymetric
+        | AntiSymetric
+        // TODO: use flags system above in Formula
 
     type TypeDecl = { Name: string }
     type FunDecl = { Name: string; Input: List<Type>; Output: Type;
-        Representation: RepresentationInfos; Flags: Set<RelationFlags> }
+        Representation: RepresentationInfos; Flags: Set<RelationFlags>; NegFlags: Set<RelationFlags> }
     type VarDecl = { Name: string; Type: Type; Representation: RepresentationInfos }
 
     let default_representation : RepresentationInfos = { DisplayName = None; Flags = Set.empty }

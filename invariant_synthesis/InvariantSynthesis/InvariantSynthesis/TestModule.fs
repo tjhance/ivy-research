@@ -24,19 +24,20 @@
             [
                 {Name="incrementable.t.<" ; Output=Bool ;
                 Input=[Uninterpreted("incrementable.t");Uninterpreted("incrementable.t")];
-                Representation={DisplayName=Some "<"; Flags=Set.singleton Infix}; Flags=[Strict; Transitive] |> Set.ofList} ;
+                Representation={DisplayName=Some "<"; Flags=Set.singleton Infix};
+                NegFlags=[Reflexive; Transitive] |> Set.ofList; Flags=Set.singleton Transitive} ;
 
                 {Name="incrementable.succ" ; Output=Bool ;
                 Input=[Uninterpreted("incrementable.t");Uninterpreted("incrementable.t")];
-                Representation=default_representation; Flags=Set.singleton Strict} ;
+                Representation=default_representation; Flags = Set.empty; NegFlags = Set.singleton Reflexive} ;
 
                 {Name="q.content" ; Output=Bool ;
                 Input=[Uninterpreted("data");Uninterpreted("incrementable.t")];
-                Representation=default_representation; Flags=Set.empty} ;
+                Representation=default_representation; Flags=Set.empty; NegFlags = Set.empty} ;
 
                 {Name="q.spec.content_f" ; Output=Uninterpreted("data") ;
                 Input=[Uninterpreted("incrementable.t")]; Representation = default_representation;
-                Flags = Set.empty} ;
+                Flags = Set.empty; NegFlags = Set.empty} ;
             ]
 
         let relation_formula name vars =

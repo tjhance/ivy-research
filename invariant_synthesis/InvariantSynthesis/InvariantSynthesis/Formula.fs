@@ -30,9 +30,10 @@
                 else
                     let flags = (Map.find str decls.f).Flags
                     let value = Map.find (str, cvs) env.f
-                    if Set.contains Strict flags && value = ConstBool true
+                    (*if Set.contains Strict flags && value = ConstBool true
                     then add_diff_constraint acc cvs
-                    else if Set.contains Reflexive flags && value = ConstBool false
+                    else *)
+                    if Set.contains Reflexive flags && value = ConstBool false
                     then add_diff_constraint acc cvs
                     else acc
             Set.fold aux Set.empty m.f
@@ -70,9 +71,10 @@
                         let trans = transitive_closure rel_pairs
                         not (Set.contains (cv1, cv2) trans)
                 | ConstBool false ->
-                    if  Set.contains Strict flags && value_equal cv1 cv2
+                    (*if  Set.contains Strict flags && value_equal cv1 cv2
                     then false
-                    else true
+                    else*)
+                    true
                 | _ -> true
 
         // Remove useless diff
