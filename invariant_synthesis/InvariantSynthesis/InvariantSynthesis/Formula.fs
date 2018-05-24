@@ -8,6 +8,8 @@
     let order_tuple (a,b) =
         if a < b then (a,b) else (b,a)
 
+    // TODO: use new flags system
+    // TODO: iterate on simplify_marks until no change
     let simplify_marks (decls:Model.Declarations) (env:Model.Environment) (m:Synthesis.Marks) (ad:Synthesis.AdditionalData) =
 
         let value_equal cv1 cv2 = Interpreter.value_equal () cv1 cv2
@@ -50,8 +52,8 @@
             let next = step pairs
             if next = pairs then next else transitive_closure next
 
-        let is_relation_useful diffs rels (str, cvs) =
-            if List.length cvs <> 2 then true
+        let filter_useful_rel diffs acc (str, cvs) =
+            if List.length cvs <> 2 then acc
             else
                 let (cv1, cv2) = couple_of_lst cvs
                 let flags = (Map.find str decls.f).Flags
@@ -59,23 +61,25 @@
                 match value with
                 | ConstBool true ->
                     if Set.contains Reflexive flags && value_equal cv1 cv2
-                    then false
+                    then Set.remove (str, cvs) acc
                     else
                         let is_related_rel (str', cvs') =
                             if str <> str' || (str', cvs') = (str, cvs)
                             then false
                             else Map.find (str', cvs') env.f = ConstBool true
 
-                        let rel_pairs = Set.filter is_related_rel rels
+                        let rel_pairs = Set.filter is_related_rel acc
                         let rel_pairs = Set.map (fun (_, cvs') -> couple_of_lst cvs') rel_pairs
                         let trans = transitive_closure rel_pairs
-                        not (Set.contains (cv1, cv2) trans)
+                        if Set.contains (cv1, cv2) trans
+                        then Set.remove (str, cvs) acc
+                        else acc
                 | ConstBool false ->
                     (*if  Set.contains Strict flags && value_equal cv1 cv2
                     then false
                     else*)
-                    true
-                | _ -> true
+                    acc
+                | _ -> acc
 
         // Remove useless diff
         let di = diffs_implied m
@@ -83,7 +87,7 @@
         let all_d = Set.union ad.d di
 
         // Remove useless relations
-        let mf' = Set.filter (is_relation_useful all_d m.f) m.f
+        let mf' = Set.fold (filter_useful_rel all_d) m.f m.f
         
         // Result
         let ad = { ad with d=d' }

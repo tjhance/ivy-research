@@ -20,8 +20,7 @@ open System
         | Reflexive
         | Transitive
         | Symetric
-        | AntiSymetric
-        // TODO: use flags system above in Formula
+        //| AntiSymetric // AntiSymetric is useless since all equality constraints are keeped
 
     type TypeDecl = { Name: string }
     type FunDecl = { Name: string; Input: List<Type>; Output: Type;
