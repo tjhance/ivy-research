@@ -1,18 +1,16 @@
 ﻿module Formula
 
     open AST
-    open System.Runtime.InteropServices.ComTypes
+    open Synthesis
 
     // TODO: 2steps synthesis
 
     let order_tuple (a,b) =
         if a < b then (a,b) else (b,a)
 
-    // TODO: use new flags system
-    // TODO: iterate on simplify_marks until no change
-    let simplify_marks (decls:Model.Declarations) (env:Model.Environment) (m:Synthesis.Marks) (ad:Synthesis.AdditionalData) =
+    let simplify_marks infos (decls:Model.Declarations) (env:Model.Environment) (m:Synthesis.Marks) (ad:Synthesis.AdditionalData) =
 
-        let value_equal cv1 cv2 = Interpreter.value_equal () cv1 cv2
+        let value_equal cv1 cv2 = Interpreter.value_equal infos cv1 cv2
 
         let value_diff diffs cv1 cv2 =
             Set.contains (cv1,cv2) diffs || Set.contains (cv2,cv1) diffs
@@ -22,23 +20,11 @@
             let cv2 = List.head (List.tail lst)
             (cv1, cv2)
 
-        let add_diff_constraint diffs cvs =
-            let (cv1, cv2) = couple_of_lst cvs
+        let add_diff_constraint diffs cv1 cv2 =
             Set.add (cv2,cv1) (Set.add (cv1,cv2) diffs)
 
-        let diffs_implied (m:Synthesis.Marks) =
-            let aux acc (str, cvs) =
-                if List.length cvs <> 2 then acc
-                else
-                    let flags = (Map.find str decls.f).Flags
-                    let value = Map.find (str, cvs) env.f
-                    (*if Set.contains Strict flags && value = ConstBool true
-                    then add_diff_constraint acc cvs
-                    else *)
-                    if Set.contains Reflexive flags && value = ConstBool false
-                    then add_diff_constraint acc cvs
-                    else acc
-            Set.fold aux Set.empty m.f
+        let remove_diff_constraint diffs cv1 cv2 =
+            Set.remove (cv2,cv1) (Set.remove (cv1,cv2) diffs)
 
         let rec transitive_closure pairs =
             let step pairs =
@@ -52,46 +38,111 @@
             let next = step pairs
             if next = pairs then next else transitive_closure next
 
-        let filter_useful_rel diffs acc (str, cvs) =
-            if List.length cvs <> 2 then acc
-            else
-                let (cv1, cv2) = couple_of_lst cvs
-                let flags = (Map.find str decls.f).Flags
-                let value = Map.find (str, cvs) env.f
-                match value with
-                | ConstBool true ->
-                    if Set.contains Reflexive flags && value_equal cv1 cv2
-                    then Set.remove (str, cvs) acc
-                    else
-                        let is_related_rel (str', cvs') =
-                            if str <> str' || (str', cvs') = (str, cvs)
-                            then false
-                            else Map.find (str', cvs') env.f = ConstBool true
+        let transitive_closure_of_rel str value rels =
 
-                        let rel_pairs = Set.filter is_related_rel acc
-                        let rel_pairs = Set.map (fun (_, cvs') -> couple_of_lst cvs') rel_pairs
-                        let trans = transitive_closure rel_pairs
-                        if Set.contains (cv1, cv2) trans
-                        then Set.remove (str, cvs) acc
+            let is_related_rel (str', cvs') =
+                if str <> str'
+                then false
+                else Map.find (str', cvs') env.f = ConstBool value
+
+            let rel_pairs = Set.filter is_related_rel rels
+            let rel_pairs = Set.map (fun (_, cvs') -> couple_of_lst cvs') rel_pairs
+            let trans = transitive_closure rel_pairs
+            Set.map (fun (cv1,cv2) -> (str,[cv1;cv2])) trans
+
+        let closure diffs mf =
+            let rec step_fp (diffs, mf) =
+                // Step
+                let step (diffs, mf) =
+                    // Transitive closure
+                    let aux acc (_, (d:FunDecl)) =
+                        let acc =
+                            if Set.contains Transitive d.Flags
+                            then
+                                let tr = transitive_closure_of_rel d.Name true acc
+                                Set.union acc tr
+                            else acc
+                        if Set.contains Transitive d.NegFlags
+                        then
+                            let tr = transitive_closure_of_rel d.Name false acc
+                            Set.union acc tr
                         else acc
-                | ConstBool false ->
-                    (*if  Set.contains Strict flags && value_equal cv1 cv2
-                    then false
-                    else*)
-                    acc
-                | _ -> acc
+                    let mf = List.fold aux mf (Map.toList decls.f)
+                    // Symetry
+                    let aux acc (str, cvs) =
+                        let d = Map.find str decls.f
+                        let v = Map.find (str, cvs) env.f
+                        if (Set.contains Symetric d.Flags && v = ConstBool true)
+                            || (Set.contains Symetric d.NegFlags && v = ConstBool false)
+                        then Set.add (str, List.rev cvs) acc
+                        else acc
+                    let mf = Set.fold aux mf mf
+                    // Anti-symetry
+                    let aux acc (str, cvs) =
+                        let d = Map.find str decls.f
+                        let v = Map.find (str, cvs) env.f
+                        if (Set.contains AntiSymetric d.Flags && v = ConstBool true)
+                            || (Set.contains AntiSymetric d.NegFlags && v = ConstBool false)
+                        then
+                            let (cv1, cv2) = couple_of_lst cvs
+                            if value_diff diffs cv1 cv2
+                            then Set.add (str, List.rev cvs) acc
+                            else acc
+                        else acc
+                    let mf = Set.fold aux mf mf
+                    // Diffs
+                    let aux acc (str, cvs) =
+                        let d = Map.find str decls.f
+                        let v = Map.find (str, cvs) env.f
+                        if (Set.contains Reflexive d.Flags && v = ConstBool false)
+                            || (Set.contains Reflexive d.NegFlags && v = ConstBool true)
+                        then
+                            let (cv1, cv2) = couple_of_lst cvs
+                            if value_equal cv1 cv2
+                            then add_diff_constraint acc cv1 cv2
+                            else acc
+                        else acc
+                    let diffs = Set.fold aux diffs mf
+                    (diffs, mf)
+                let next = step (diffs, mf)
+                if next = (diffs, mf) then next else step_fp next
+            
+            let (diffs, mf) = step_fp (diffs, mf)
 
-        // Remove useless diff
-        let di = diffs_implied m
-        let d' = Set.difference ad.d di
-        let all_d = Set.union ad.d di
+            // Reflexion
+            let aux acc (_, (d:FunDecl)) =
+                if Set.contains Reflexive d.Flags || Set.contains Reflexive d.NegFlags
+                then
+                    let values = Model.all_values infos (List.head d.Input)
+                    let to_add = Seq.map (fun v -> (d.Name, List.map (fun _ -> v) d.Input)) values
+                    Set.union acc (Set.ofSeq to_add)
+                else acc
+            let mf = List.fold aux mf (Map.toList decls.f)
+            (diffs, mf)
 
         // Remove useless relations
-        let mf' = Set.fold (filter_useful_rel all_d) m.f m.f
+        let mf = m.f
+        let diffs = ad.d
+        let remove_rel_if_useless acc rel =
+            let acc' = Set.remove rel acc
+            let (_, cl) = closure diffs acc'
+            if Set.contains rel cl
+            then acc'
+            else acc
+        let mf = Set.fold remove_rel_if_useless mf mf
+
+        // Remove useless diff
+        let remove_diff_if_useless acc (v1,v2) =
+            let acc' = remove_diff_constraint acc v1 v2
+            let (cl, _) = closure acc' mf
+            if Set.contains (v1,v2) cl
+            then acc'
+            else acc
+        let diffs = Set.fold remove_diff_if_useless diffs diffs
         
         // Result
-        let ad = { ad with d=d' }
-        let m = { m with f=mf' }
+        let ad = { ad with d=diffs }
+        let m = { m with f=mf }
         (m, ad)
 
     let type_of_const_value cv =
@@ -106,8 +157,8 @@
         | ExistingVar of string
         | ExistingFun of string * List<ConstValue>
 
-    let formula_from_marks (decls:Model.Declarations) (env:Model.Environment) (m:Synthesis.Marks) (ad:Synthesis.AdditionalData) =
-        let (m, ad) = simplify_marks decls env m ad
+    let formula_from_marks infos (decls:Model.Declarations) (env:Model.Environment) (m:Synthesis.Marks) (ad:Synthesis.AdditionalData) =
+        let (m, ad) = simplify_marks infos decls env m ad
         
         // Associate a var to each value
         let next_name_nb = ref 0

@@ -25,7 +25,7 @@
                 {Name="incrementable.t.<" ; Output=Bool ;
                 Input=[Uninterpreted("incrementable.t");Uninterpreted("incrementable.t")];
                 Representation={DisplayName=Some "<"; Flags=Set.singleton Infix};
-                NegFlags=[Reflexive; Transitive] |> Set.ofList; Flags=Set.singleton Transitive} ;
+                NegFlags=[Reflexive; Transitive; AntiSymetric] |> Set.ofList; Flags=[Transitive; AntiSymetric] |> Set.ofList} ;
 
                 {Name="incrementable.succ" ; Output=Bool ;
                 Input=[Uninterpreted("incrementable.t");Uninterpreted("incrementable.t")];

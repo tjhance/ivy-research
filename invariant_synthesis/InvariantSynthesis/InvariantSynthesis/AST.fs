@@ -20,7 +20,7 @@ open System
         | Reflexive
         | Transitive
         | Symetric
-        //| AntiSymetric // AntiSymetric is useless since all equality constraints are keeped
+        | AntiSymetric
 
     type TypeDecl = { Name: string }
     type FunDecl = { Name: string; Input: List<Type>; Output: Type;
