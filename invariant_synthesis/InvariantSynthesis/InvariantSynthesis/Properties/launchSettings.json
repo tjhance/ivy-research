@@ -1,8 +1,7 @@
 {
   "profiles": {
     "InvariantSynthesis": {
-      "commandName": "Project",
-      "commandLineArgs": "-v"
+      "commandName": "Project"
     }
   }
 }

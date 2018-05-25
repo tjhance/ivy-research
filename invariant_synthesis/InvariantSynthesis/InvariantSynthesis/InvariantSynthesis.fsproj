@@ -16,6 +16,7 @@
     <Compile Include="Formula.fs" />
     <Compile Include="ConstraintsParser.fs" />
     <Compile Include="TestModule.fs" />
+    <Compile Include="Printer.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

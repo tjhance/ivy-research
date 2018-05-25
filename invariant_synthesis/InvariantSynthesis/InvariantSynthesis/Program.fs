@@ -93,15 +93,34 @@ let main argv =
     let decls = Model.declarations_of_module md
     let f = Formula.formula_from_marks infos decls env m ad
     let f = Formula.simplify_formula f
-    printfn "%s" (Formula.formula_to_string decls f 0)
+    printfn "%s" (Printer.formula_to_string decls f 0)
+    printfn ""
+
     if ad.md
-    then printfn "These conditions may not be sufficient to satisfy/break the invariant!"
-    else printfn "These conditions are sufficient to satisfy/break the invariant!"
+    then
+        printfn "These conditions may not be sufficient to satisfy/break the invariant!"
+        printfn "Would you like to add an accepting path to the invariant? (y/n)"
+        let answer = ref (Console.ReadLine())
+        while !answer = "y" do
+            printfn "Please modify some constraints on the environment to fix the initial environment."
+            printfn ""
+            printfn "Constraints you can't change:"
+            printfn "%s" (Printer.marks_to_string decls env m)
+            printfn ""
+            printfn "Constraints you should change (at least one):"
+            printfn "%s" (Printer.marks_to_string decls env um)
+
+            printfn ""
+            printfn "ERROR: Not implemented yet."
+            printfn "Would you like to add an accepting path to the invariant? (y/n)"
+            answer := Console.ReadLine()
+    else
+        printfn "These conditions are sufficient to satisfy/break the invariant!"
 
     printfn ""
     printfn "Invariant to add:"
     let f = Formula.simplify_formula (Not f)
-    printfn "%s" (Formula.formula_to_string decls f 0)
+    printfn "%s" (Printer.formula_to_string decls f 0)
     
     ignore (Console.ReadLine())
     0

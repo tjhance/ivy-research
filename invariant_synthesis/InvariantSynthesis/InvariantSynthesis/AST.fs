@@ -7,6 +7,8 @@ open System
     // TODO: Recode Interpreter/Synthesis with a trace system
     // TODO: Adapt the Interpreter/Synthesis in order to be able to also analyze assertion fails
     // TODO: Parse Ivy code
+    // TODO: implement 2 steps synthesis (with user help)
+    // TODO: Use model checking tool to know whether 2steps synthesis is needed
 
     type Type =
         | Void
