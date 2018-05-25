@@ -51,6 +51,16 @@
             Set.map (fun (cv1,cv2) -> (str,[cv1;cv2])) trans
 
         let closure diffs mf =
+            // Reflexion
+            let aux acc (_, (d:FunDecl)) =
+                if Set.contains Reflexive d.Flags || Set.contains Reflexive d.NegFlags
+                then
+                    let values = Model.all_values infos (List.head d.Input)
+                    let to_add = Seq.map (fun v -> (d.Name, List.map (fun _ -> v) d.Input)) values
+                    Set.union acc (Set.ofSeq to_add)
+                else acc
+            let mf = List.fold aux mf (Map.toList decls.f)
+
             let rec step_fp (diffs, mf) =
                 // Step
                 let step (diffs, mf) =
@@ -109,15 +119,6 @@
             
             let (diffs, mf) = step_fp (diffs, mf)
 
-            // Reflexion
-            let aux acc (_, (d:FunDecl)) =
-                if Set.contains Reflexive d.Flags || Set.contains Reflexive d.NegFlags
-                then
-                    let values = Model.all_values infos (List.head d.Input)
-                    let to_add = Seq.map (fun v -> (d.Name, List.map (fun _ -> v) d.Input)) values
-                    Set.union acc (Set.ofSeq to_add)
-                else acc
-            let mf = List.fold aux mf (Map.toList decls.f)
             (diffs, mf)
 
         // Remove useless relations
@@ -135,7 +136,7 @@
         let remove_diff_if_useless acc (v1,v2) =
             let acc' = remove_diff_constraint acc v1 v2
             let (cl, _) = closure acc' mf
-            if Set.contains (v1,v2) cl
+            if value_diff cl v1 v2
             then acc'
             else acc
         let diffs = Set.fold remove_diff_if_useless diffs diffs
@@ -278,6 +279,10 @@
     let rec simplify_formula f =
         match f with
         // Negation
+        | Not (Equal (v, ValueConst (ConstBool b)))
+        | Not (Equal (ValueConst (ConstBool b), v))
+            -> simplify_formula (Equal (v, ValueConst (ConstBool (not b))))
+        | Not (Const b) -> simplify_formula (Const (not b))
         | Not (Not f) -> simplify_formula f
         | Not (Or (f1, f2)) -> simplify_formula (And (Not f1, Not f2))
         | Not (And (f1, f2)) -> simplify_formula (Or (Not f1, Not f2))

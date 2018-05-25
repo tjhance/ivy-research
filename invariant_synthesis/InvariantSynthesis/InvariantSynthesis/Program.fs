@@ -92,6 +92,7 @@ let main argv =
 
     let decls = Model.declarations_of_module md
     let f = Formula.formula_from_marks infos decls env m ad
+    let f = Formula.simplify_formula f
     printfn "%s" (Formula.formula_to_string decls f 0)
     if ad.md
     then printfn "These conditions may not be sufficient to satisfy/break the invariant!"
