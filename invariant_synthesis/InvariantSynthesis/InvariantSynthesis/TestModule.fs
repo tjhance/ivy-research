@@ -42,8 +42,8 @@
 
         let impl =
             [
-                (RelPattern (true, "incrementable.succ", ["A";"B"]),
-                    [RelPattern (true, "incrementable.t.<", ["A";"B"])] |> Set.ofList)
+                ([RelPattern (PatternConst true, "incrementable.succ", [PatternVar "A";PatternVar "B"])] |> Set.ofList,
+                    [RelPattern (PatternConst true, "incrementable.t.<", [PatternVar "A";PatternVar "B"])] |> Set.ofList)
             ]
 
         let relation_formula name vars =

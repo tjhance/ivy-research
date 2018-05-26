@@ -30,12 +30,16 @@ open System
         Representation: RepresentationInfos; Flags: Set<RelationFlags>; NegFlags: Set<RelationFlags> }
     type VarDecl = { Name: string; Type: Type; Representation: RepresentationInfos }
 
-    type Pattern =
-        | VarPattern of bool * string
-        | RelPattern of bool * string * List<string>
-        | ValueDiffPattern of string * string
+    type PatternValue =
+        | PatternConst of bool
+        | PatternVar of string
 
-    type ImplicationRule = Pattern * Set<Pattern>
+    type Pattern =
+        | VarPattern of PatternValue * string
+        | RelPattern of PatternValue * string * List<PatternValue>
+        | ValueDiffPattern of Type * PatternValue * PatternValue
+
+    type ImplicationRule = Set<Pattern> * Set<Pattern>
 
     let default_representation : RepresentationInfos = { DisplayName = None; Flags = Set.empty }
 
@@ -95,6 +99,12 @@ open System
         { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; Vars: List<VarDecl>;
             Actions: List<ActionDecl>; Invariants: List<Formula>; Implications: List<ImplicationRule> }
 
+
+    let type_of_const_value cv =
+        match cv with
+        | ConstVoid -> Void
+        | ConstBool _ -> Bool
+        | ConstInt (s,_) -> Uninterpreted s
 
     let find_relation<'a,'b> (m:ModuleDecl) str =
         List.find (fun (decl:FunDecl) -> decl.Name = str) m.Funs

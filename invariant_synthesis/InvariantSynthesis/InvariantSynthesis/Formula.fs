@@ -1,17 +1,20 @@
 ﻿module Formula
 
     open AST
-    open Synthesis
 
     let order_tuple (a,b) =
         if a < b then (a,b) else (b,a)
+
+    exception DoesntMatch
 
     let simplify_marks infos (impls:List<AST.ImplicationRule>) (decls:Model.Declarations) (env:Model.Environment) (m:Synthesis.Marks) (ad:Synthesis.AdditionalData) =
 
         let value_equal cv1 cv2 = Interpreter.value_equal infos cv1 cv2
 
         let value_diff diffs cv1 cv2 =
-            Set.contains (cv1,cv2) diffs || Set.contains (cv2,cv1) diffs
+            if Synthesis.is_model_dependent_value cv1 && Synthesis.is_model_dependent_value cv2
+            then Set.contains (cv1,cv2) diffs || Set.contains (cv2,cv1) diffs
+            else value_equal cv1 cv2
 
         let couple_of_lst lst =
             let cv1 = (List.head lst)
@@ -48,6 +51,93 @@
             let trans = transitive_closure rel_pairs
             Set.map (fun (cv1,cv2) -> (str,[cv1;cv2])) trans
 
+        let free_vars_of_pattern p =
+            let aux acc t v =
+                match v with
+                | PatternVar name ->
+                    Set.add ({Name=name;Type=t;Representation=default_representation}) acc
+                | PatternConst _ -> acc
+            match p with
+            | VarPattern _ -> Set.empty
+            | RelPattern (_, str, vs) ->
+                let types = (Map.find str decls.f).Input
+                List.fold2 aux Set.empty types vs
+            | ValueDiffPattern (t,n1,n2) ->
+                List.fold2 aux Set.empty [t;t] [n1;n2]
+        
+        let free_vars_of_patterns ps =
+            Set.fold (fun acc p -> Set.union acc (free_vars_of_pattern p)) Set.empty ps
+
+        let update_dico dico patval cv =
+            match patval with
+            | PatternConst b ->
+                if cv = ConstBool b then dico
+                else raise DoesntMatch
+            | PatternVar str ->
+                if Map.containsKey str dico
+                then
+                    if value_equal (Map.find str dico) cv then dico
+                    else raise DoesntMatch
+                else Map.add str cv dico
+
+        let all_dicos_matching_pattern (diffs,mv,mf) p prev_dico =
+            match p with
+            | VarPattern (pv,str) ->
+                if Set.contains str mv
+                then 
+                    try
+                        let dico = update_dico prev_dico pv (Map.find str env.v)
+                        Set.singleton dico
+                    with :? DoesntMatch -> Set.empty
+                else Set.empty
+            | RelPattern (pv, str, pvs) ->
+                let aux acc (relname,relvalues) =
+                    if relname <> str then acc
+                    else
+                        try
+                            let dico = update_dico prev_dico pv (Map.find (relname,relvalues) env.f)
+                            Set.add (List.fold2 update_dico dico pvs relvalues) acc
+                        with :? DoesntMatch -> acc
+                Set.fold aux Set.empty mf
+            | ValueDiffPattern (t, pv1, pv2) ->
+                let aux acc (cv1,cv2) =
+                    if t <> type_of_const_value cv1 || t <> type_of_const_value cv2 then acc
+                    else
+                        try
+                            let dico = update_dico prev_dico pv1 cv1
+                            Set.add (update_dico dico pv2 cv2) acc
+                        with :? DoesntMatch -> acc
+                Set.fold aux Set.empty diffs
+
+        let all_dicos_matching_free_var vars prev_dico =
+            let is_free_var (d:VarDecl) =
+                if Map.containsKey d.Name prev_dico then false
+                else true
+            let free_vars = Set.toList (Set.filter is_free_var vars)
+            let free_types = List.map (fun (v:VarDecl) -> v.Type) free_vars
+            let all_values = Model.all_values_ext infos free_types
+            let aux dico free_vars cvs =
+                List.fold2 (fun acc (v:VarDecl) cv -> Map.add v.Name cv acc) dico free_vars cvs
+            Seq.map (aux prev_dico free_vars) all_values
+
+        let add_constraint dico (diffs,mv,mf) r =
+            let resolve pv =
+                match pv with
+                | PatternConst b -> ConstBool b
+                | PatternVar str -> Map.find str dico
+            match r with
+            | VarPattern (_,str) -> (diffs,Set.add str mv,mf)
+            | RelPattern (_,str,pvs) ->
+                let cvs = List.map resolve pvs
+                (diffs,mv,Set.add (str,cvs) mf)
+            | ValueDiffPattern (_, pv1, pv2) ->
+                let cv1 = resolve pv1
+                let cv2 = resolve pv2
+                (add_diff_constraint diffs cv1 cv2,mv,mf)
+
+        let add_constraints dico cfg rs =
+            Set.fold (add_constraint dico) cfg rs
+
         let closure diffs mv mf =
             // Reflexion
             let aux acc (_, (d:FunDecl)) =
@@ -63,39 +153,18 @@
                 // Step
                 let step (diffs, mv, mf) =
                     // Impls
-                    let aux (diffs,mv,mf) (l,rs) =
-                        let add_constraint dico (diffs,mv,mf) r =
-                            match r with
-                            | VarPattern (_,str) -> (diffs,Set.add str mv,mf)
-                            | RelPattern (_,str,strs) ->
-                                let cvs = List.map (fun str -> Map.find str dico) strs
-                                (diffs,mv,Set.add (str,cvs) mf)
-                            | ValueDiffPattern (str1, str2) ->
-                                let cv1 = Map.find str1 dico
-                                let cv2 = Map.find str2 dico
-                                (add_diff_constraint diffs cv1 cv2,mv,mf)
-                        let add_constraints dico cfg rs =
-                            Set.fold (add_constraint dico) cfg rs
-                        match l with
-                        | VarPattern (b,str) ->
-                            if Set.contains str mv && Map.find str env.v = ConstBool b
-                            then add_constraints Map.empty (diffs,mv,mf) rs
-                            else (diffs,mv,mf)
-                        | RelPattern (b,str,strs) ->
-                            let is_involved (str',cvs') =
-                                if str' <> str then false
-                                else
-                                    Map.find (str',cvs') env.f = ConstBool b
-                            let assign_dico strs cvs =
-                                List.fold2 (fun acc str cv -> Map.add str cv acc) Map.empty strs cvs
-                            let candidates = Set.filter is_involved mf
-                            let candidates = Set.map (fun (_, cvs) -> assign_dico strs cvs) candidates
-                            Set.fold (fun acc dico -> add_constraints dico acc rs) (diffs,mv,mf) candidates
-                        | ValueDiffPattern (str1, str2) ->
-                            let assign_dico (cv1, cv2) =
-                                Map.add str1 cv1 (Map.add str2 cv2 Map.empty)
-                            let candidates = Set.map assign_dico diffs
-                            Set.fold (fun acc dico -> add_constraints dico acc rs) (diffs,mv,mf) candidates
+                    let aux (diffs,mv,mf) (ls,rs) =
+                        let rec all_dicos ls =
+                            match ls with
+                            | [] -> Seq.singleton (Map.empty)
+                            | l::ls ->
+                                let dicos = all_dicos ls
+                                Seq.concat (Seq.map (all_dicos_matching_pattern (diffs,mv,mf) l) dicos)
+                        let free_vars = free_vars_of_patterns (Set.union ls rs)
+                        let dicos = all_dicos (Set.toList ls)
+                        let dicos = Seq.concat (Seq.map (all_dicos_matching_free_var free_vars) dicos)
+                        Seq.fold (fun acc dico -> add_constraints dico acc rs) (diffs,mv,mf) dicos
+
                     let (diffs,mv,mf) = List.fold aux (diffs,mv,mf) impls
                     // Transitive closure
                     let aux acc (_, (d:FunDecl)) =
@@ -195,12 +264,6 @@
         let ad = { ad with d=diffs }
         let m = { m with f=mf ; v=mv }
         (m, ad)
-
-    let type_of_const_value cv =
-        match cv with
-        | ConstVoid -> Void
-        | ConstBool _ -> Bool
-        | ConstInt (s,_) -> Uninterpreted s
 
     type ValueAssociation =
         | VAConst of ConstValue
