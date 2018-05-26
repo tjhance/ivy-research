@@ -66,6 +66,7 @@
             let res = Seq.map (fun lst -> Seq.map (fun v -> v::lst) pos) res
             Seq.concat res
 
+    // Note: If some constraints are contradictory, the last one has the last word
     let constraints_to_env (m:ModuleDecl) cs : (TypeInfos * Environment) =
         // Type infos
         // Init

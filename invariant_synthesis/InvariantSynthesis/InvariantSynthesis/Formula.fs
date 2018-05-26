@@ -2,8 +2,6 @@
 
     open AST
     open Synthesis
-    open System.Net.Mail
-    open System.Net.Mail
 
     let order_tuple (a,b) =
         if a < b then (a,b) else (b,a)

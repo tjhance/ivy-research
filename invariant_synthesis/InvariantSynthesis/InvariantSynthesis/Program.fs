@@ -113,7 +113,13 @@ let main argv =
             printfn "%s" (Printer.marks_to_string decls env um')
 
             printfn ""
-            printfn "ERROR: Not implemented yet."
+            let str = read_until_line_jump ()
+            printfn "Loading constraints..."
+            let cs' = ConstraintsParser.parse_from_str md str
+            printfn "Building new environment..."
+            let env_allowed = Model.constraints_to_env md (cs@cs')
+            printfn "ERROR: Not implemented"
+
             printfn "Would you like to add an accepting path to the invariant? (y/n)"
             answer := Console.ReadLine()
     else
