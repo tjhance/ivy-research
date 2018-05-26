@@ -91,7 +91,9 @@ let main argv =
     ignore (Console.ReadLine())
 
     let decls = Model.declarations_of_module md
-    let f = Formula.formula_from_marks infos decls env m ad
+    let (m', ad1) = Formula.simplify_marks infos md.Implications decls env m ad
+    let (um', ad2) = Formula.simplify_marks infos md.Implications decls env um ad
+    let f = Formula.formula_from_marks env m' ad1
     let f = Formula.simplify_formula f
     printfn "%s" (Printer.formula_to_string decls f 0)
     printfn ""
@@ -108,7 +110,7 @@ let main argv =
             printfn "%s" (Printer.marks_to_string decls env m)
             printfn ""
             printfn "Constraints you should change (at least one):"
-            printfn "%s" (Printer.marks_to_string decls env um)
+            printfn "%s" (Printer.marks_to_string decls env um')
 
             printfn ""
             printfn "ERROR: Not implemented yet."

@@ -40,6 +40,12 @@
                 Flags = Set.empty; NegFlags = Set.empty} ;
             ]
 
+        let impl =
+            [
+                (RelPattern (true, "incrementable.succ", ["A";"B"]),
+                    [RelPattern (true, "incrementable.t.<", ["A";"B"])] |> Set.ofList)
+            ]
+
         let relation_formula name vars =
             Equal (ValueFun(name,vars), ValueConst (ConstBool true)) ;
 
@@ -117,6 +123,6 @@
         let queue_module : ModuleDecl =
             {
                 Name=name; Types=types; Funs=funs; Vars=vars;
-                Actions=actions;
+                Actions=actions; Implications=impl
                 Invariants=invariants
             }

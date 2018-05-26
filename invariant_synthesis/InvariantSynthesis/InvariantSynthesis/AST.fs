@@ -8,6 +8,7 @@ open System
     // TODO: Adapt the Interpreter/Synthesis in order to be able to also analyze assertion fails
     // TODO: Parse Ivy code
     // TODO: implement 2 steps synthesis (with user help)
+    // TODO: improve simplification system (encode relation flags with a better implications system)
     // TODO: Use model checking tool to know whether 2steps synthesis is needed
 
     type Type =
@@ -28,6 +29,13 @@ open System
     type FunDecl = { Name: string; Input: List<Type>; Output: Type;
         Representation: RepresentationInfos; Flags: Set<RelationFlags>; NegFlags: Set<RelationFlags> }
     type VarDecl = { Name: string; Type: Type; Representation: RepresentationInfos }
+
+    type Pattern =
+        | VarPattern of bool * string
+        | RelPattern of bool * string * List<string>
+        | ValueDiffPattern of string * string
+
+    type ImplicationRule = Pattern * Set<Pattern>
 
     let default_representation : RepresentationInfos = { DisplayName = None; Flags = Set.empty }
 
@@ -83,7 +91,9 @@ open System
         | Assert of Formula
 
     type ActionDecl = { Name: string; Args: List<VarDecl>; Output: VarDecl; Content: Statement }
-    type ModuleDecl = { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; Vars: List<VarDecl>; Actions: List<ActionDecl>; Invariants: List<Formula> }
+    type ModuleDecl =
+        { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; Vars: List<VarDecl>;
+            Actions: List<ActionDecl>; Invariants: List<Formula>; Implications: List<ImplicationRule> }
 
 
     let find_relation<'a,'b> (m:ModuleDecl) str =

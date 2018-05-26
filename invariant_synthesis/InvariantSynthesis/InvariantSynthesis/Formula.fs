@@ -2,11 +2,13 @@
 
     open AST
     open Synthesis
+    open System.Net.Mail
+    open System.Net.Mail
 
     let order_tuple (a,b) =
         if a < b then (a,b) else (b,a)
 
-    let simplify_marks infos (decls:Model.Declarations) (env:Model.Environment) (m:Synthesis.Marks) (ad:Synthesis.AdditionalData) =
+    let simplify_marks infos (impls:List<AST.ImplicationRule>) (decls:Model.Declarations) (env:Model.Environment) (m:Synthesis.Marks) (ad:Synthesis.AdditionalData) =
 
         let value_equal cv1 cv2 = Interpreter.value_equal infos cv1 cv2
 
@@ -48,7 +50,7 @@
             let trans = transitive_closure rel_pairs
             Set.map (fun (cv1,cv2) -> (str,[cv1;cv2])) trans
 
-        let closure diffs mf =
+        let closure diffs mv mf =
             // Reflexion
             let aux acc (_, (d:FunDecl)) =
                 if Set.contains Reflexive d.Flags || Set.contains Reflexive d.NegFlags
@@ -59,9 +61,44 @@
                 else acc
             let mf = List.fold aux mf (Map.toList decls.f)
 
-            let rec step_fp (diffs, mf) =
+            let rec step_fp (diffs, mv, mf) =
                 // Step
-                let step (diffs, mf) =
+                let step (diffs, mv, mf) =
+                    // Impls
+                    let aux (diffs,mv,mf) (l,rs) =
+                        let add_constraint dico (diffs,mv,mf) r =
+                            match r with
+                            | VarPattern (_,str) -> (diffs,Set.add str mv,mf)
+                            | RelPattern (_,str,strs) ->
+                                let cvs = List.map (fun str -> Map.find str dico) strs
+                                (diffs,mv,Set.add (str,cvs) mf)
+                            | ValueDiffPattern (str1, str2) ->
+                                let cv1 = Map.find str1 dico
+                                let cv2 = Map.find str2 dico
+                                (add_diff_constraint diffs cv1 cv2,mv,mf)
+                        let add_constraints dico cfg rs =
+                            Set.fold (add_constraint dico) cfg rs
+                        match l with
+                        | VarPattern (b,str) ->
+                            if Set.contains str mv && Map.find str env.v = ConstBool b
+                            then add_constraints Map.empty (diffs,mv,mf) rs
+                            else (diffs,mv,mf)
+                        | RelPattern (b,str,strs) ->
+                            let is_involved (str',cvs') =
+                                if str' <> str then false
+                                else
+                                    Map.find (str',cvs') env.f = ConstBool b
+                            let assign_dico strs cvs =
+                                List.fold2 (fun acc str cv -> Map.add str cv acc) Map.empty strs cvs
+                            let candidates = Set.filter is_involved mf
+                            let candidates = Set.map (fun (_, cvs) -> assign_dico strs cvs) candidates
+                            Set.fold (fun acc dico -> add_constraints dico acc rs) (diffs,mv,mf) candidates
+                        | ValueDiffPattern (str1, str2) ->
+                            let assign_dico (cv1, cv2) =
+                                Map.add str1 cv1 (Map.add str2 cv2 Map.empty)
+                            let candidates = Set.map assign_dico diffs
+                            Set.fold (fun acc dico -> add_constraints dico acc rs) (diffs,mv,mf) candidates
+                    let (diffs,mv,mf) = List.fold aux (diffs,mv,mf) impls
                     // Transitive closure
                     let aux acc (_, (d:FunDecl)) =
                         let acc =
@@ -111,29 +148,46 @@
                             else acc
                         else acc
                     let diffs = Set.fold aux diffs mf
-                    (diffs, mf)
-                let next = step (diffs, mf)
-                if next = (diffs, mf) then next else step_fp next
-            
-            let (diffs, mf) = step_fp (diffs, mf)
+                    (diffs, mv, mf)
 
-            (diffs, mf)
+                let next = step (diffs, mv, mf)
+                if next = (diffs, mv, mf) then next else step_fp next
+            
+            let (diffs, mv, mf) = step_fp (diffs, mv, mf)
+            (diffs, mv, mf)
+
+        let mf = m.f
+        let mv = m.v
+        let diffs = ad.d
+        // Remove useless vars
+        let remove_rel_if_useless acc var =
+            if (Map.find var decls.v).Type <> Bool // All flags/rules target boolean vars
+            then acc
+            else
+                let acc' = Set.remove var acc
+                let (_, cl, _) = closure diffs acc' mf
+                if Set.contains var cl
+                then acc'
+                else acc
+        let mv = Set.fold remove_rel_if_useless mv mv
 
         // Remove useless relations
-        let mf = m.f
-        let diffs = ad.d
         let remove_rel_if_useless acc rel =
-            let acc' = Set.remove rel acc
-            let (_, cl) = closure diffs acc'
-            if Set.contains rel cl
-            then acc'
-            else acc
+            let (str,_) = rel
+            if (Map.find str decls.f).Output <> Bool // All flags/rules target relations
+            then acc
+            else
+                let acc' = Set.remove rel acc
+                let (_, _, cl) = closure diffs mv acc'
+                if Set.contains rel cl
+                then acc'
+                else acc
         let mf = Set.fold remove_rel_if_useless mf mf
 
         // Remove useless diff
         let remove_diff_if_useless acc (v1,v2) =
             let acc' = remove_diff_constraint acc v1 v2
-            let (cl, _) = closure acc' mf
+            let (cl, _, _) = closure acc' mv mf
             if value_diff cl v1 v2
             then acc'
             else acc
@@ -141,7 +195,7 @@
         
         // Result
         let ad = { ad with d=diffs }
-        let m = { m with f=mf }
+        let m = { m with f=mf ; v=mv }
         (m, ad)
 
     let type_of_const_value cv =
@@ -156,9 +210,8 @@
         | ExistingVar of string
         | ExistingFun of string * List<ConstValue>
 
-    let formula_from_marks infos (decls:Model.Declarations) (env:Model.Environment) (m:Synthesis.Marks) (ad:Synthesis.AdditionalData) =
-        let (m, ad) = simplify_marks infos decls env m ad
-        
+    let formula_from_marks (env:Model.Environment) (m:Synthesis.Marks) (ad:Synthesis.AdditionalData) =
+      
         // Associate a var to each value
         let next_name_nb = ref 0
         let new_var_name () =
