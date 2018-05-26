@@ -16,40 +16,11 @@
             then Set.contains (cv1,cv2) diffs || Set.contains (cv2,cv1) diffs
             else value_equal cv1 cv2
 
-        let couple_of_lst lst =
-            let cv1 = (List.head lst)
-            let cv2 = List.head (List.tail lst)
-            (cv1, cv2)
-
         let add_diff_constraint diffs cv1 cv2 =
             Set.add (cv2,cv1) (Set.add (cv1,cv2) diffs)
 
         let remove_diff_constraint diffs cv1 cv2 =
             Set.remove (cv2,cv1) (Set.remove (cv1,cv2) diffs)
-
-        let rec transitive_closure pairs =
-            let step pairs =
-                let aux acc (l,r) =
-                    let aux' acc (l',r') =
-                        let acc = if r'=l then Set.add (l',r) acc else acc
-                        let acc = if r=l' then Set.add (l,r') acc else acc
-                        acc
-                    Set.fold aux' acc acc
-                Set.fold aux pairs pairs
-            let next = step pairs
-            if next = pairs then next else transitive_closure next
-
-        let transitive_closure_of_rel str value rels =
-
-            let is_related_rel (str', cvs') =
-                if str <> str'
-                then false
-                else Map.find (str', cvs') env.f = ConstBool value
-
-            let rel_pairs = Set.filter is_related_rel rels
-            let rel_pairs = Set.map (fun (_, cvs') -> couple_of_lst cvs') rel_pairs
-            let trans = transitive_closure rel_pairs
-            Set.map (fun (cv1,cv2) -> (str,[cv1;cv2])) trans
 
         let free_vars_of_pattern p =
             let aux acc t v =
@@ -71,7 +42,7 @@
         let update_dico dico patval cv =
             match patval with
             | PatternConst b ->
-                if cv = ConstBool b then dico
+                if value_equal cv (ConstBool b) then dico
                 else raise DoesntMatch
             | PatternVar str ->
                 if Map.containsKey str dico
@@ -138,88 +109,35 @@
         let add_constraints dico cfg rs =
             Set.fold (add_constraint dico) cfg rs
 
+        let step (diffs, mv, mf) impls =
+            // Apply implication rules one time
+            let aux (diffs,mv,mf) (ls,rs) =
+                let rec all_dicos ls =
+                    match ls with
+                    | [] -> Seq.singleton (Map.empty)
+                    | l::ls ->
+                        let dicos = all_dicos ls
+                        Seq.concat (Seq.map (all_dicos_matching_pattern (diffs,mv,mf) l) dicos)
+                let free_vars = free_vars_of_patterns (Set.union ls rs)
+                let dicos = all_dicos (Set.toList ls)
+                let dicos = Seq.concat (Seq.map (all_dicos_matching_free_var free_vars) dicos)
+                Seq.fold (fun acc dico -> add_constraints dico acc rs) (diffs,mv,mf) dicos
+
+            let (diffs,mv,mf) = List.fold aux (diffs,mv,mf) impls
+            (diffs, mv, mf)
+
         let closure diffs mv mf =
-            // Reflexion
-            let aux acc (_, (d:FunDecl)) =
-                if Set.contains Reflexive d.Flags || Set.contains Reflexive d.NegFlags
-                then
-                    let values = Model.all_values infos (List.head d.Input)
-                    let to_add = Seq.map (fun v -> (d.Name, List.map (fun _ -> v) d.Input)) values
-                    Set.union acc (Set.ofSeq to_add)
-                else acc
-            let mf = List.fold aux mf (Map.toList decls.f)
+            // Separate rules
+            let impls_base = List.filter (fun (ls, _) -> Set.isEmpty ls) impls
+            let impls = List.filter (fun (ls, _) -> not (Set.isEmpty ls)) impls
 
+            // Apply base rules
+            let (diffs, mv, mf) = step (diffs, mv, mf) impls_base
+
+            // Apply other rules until fixpoint
             let rec step_fp (diffs, mv, mf) =
-                // Step
-                let step (diffs, mv, mf) =
-                    // Impls
-                    let aux (diffs,mv,mf) (ls,rs) =
-                        let rec all_dicos ls =
-                            match ls with
-                            | [] -> Seq.singleton (Map.empty)
-                            | l::ls ->
-                                let dicos = all_dicos ls
-                                Seq.concat (Seq.map (all_dicos_matching_pattern (diffs,mv,mf) l) dicos)
-                        let free_vars = free_vars_of_patterns (Set.union ls rs)
-                        let dicos = all_dicos (Set.toList ls)
-                        let dicos = Seq.concat (Seq.map (all_dicos_matching_free_var free_vars) dicos)
-                        Seq.fold (fun acc dico -> add_constraints dico acc rs) (diffs,mv,mf) dicos
-
-                    let (diffs,mv,mf) = List.fold aux (diffs,mv,mf) impls
-                    // Transitive closure
-                    let aux acc (_, (d:FunDecl)) =
-                        let acc =
-                            if Set.contains Transitive d.Flags
-                            then
-                                let tr = transitive_closure_of_rel d.Name true acc
-                                Set.union acc tr
-                            else acc
-                        if Set.contains Transitive d.NegFlags
-                        then
-                            let tr = transitive_closure_of_rel d.Name false acc
-                            Set.union acc tr
-                        else acc
-                    let mf = List.fold aux mf (Map.toList decls.f)
-                    // Symetry
-                    let aux acc (str, cvs) =
-                        let d = Map.find str decls.f
-                        let v = Map.find (str, cvs) env.f
-                        if (Set.contains Symetric d.Flags && v = ConstBool true)
-                            || (Set.contains Symetric d.NegFlags && v = ConstBool false)
-                        then Set.add (str, List.rev cvs) acc
-                        else acc
-                    let mf = Set.fold aux mf mf
-                    // Anti-symetry
-                    let aux acc (str, cvs) =
-                        let d = Map.find str decls.f
-                        let v = Map.find (str, cvs) env.f
-                        if (Set.contains AntiSymetric d.Flags && v = ConstBool true)
-                            || (Set.contains AntiSymetric d.NegFlags && v = ConstBool false)
-                        then
-                            let (cv1, cv2) = couple_of_lst cvs
-                            if value_diff diffs cv1 cv2
-                            then Set.add (str, List.rev cvs) acc
-                            else acc
-                        else acc
-                    let mf = Set.fold aux mf mf
-                    // Diffs
-                    let aux acc (str, cvs) =
-                        let d = Map.find str decls.f
-                        let v = Map.find (str, cvs) env.f
-                        if (Set.contains Reflexive d.Flags && v = ConstBool false)
-                            || (Set.contains Reflexive d.NegFlags && v = ConstBool true)
-                        then
-                            let (cv1, cv2) = couple_of_lst cvs
-                            if value_equal cv1 cv2
-                            then add_diff_constraint acc cv1 cv2
-                            else acc
-                        else acc
-                    let diffs = Set.fold aux diffs mf
-                    (diffs, mv, mf)
-
-                let next = step (diffs, mv, mf)
+                let next = step (diffs, mv, mf) impls
                 if next = (diffs, mv, mf) then next else step_fp next
-            
             let (diffs, mv, mf) = step_fp (diffs, mv, mf)
             (diffs, mv, mf)
 
