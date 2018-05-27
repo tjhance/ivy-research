@@ -44,3 +44,12 @@
 
     let order_tuple (a,b) =
         if a < b then (a,b) else (b,a)
+
+    // Mutable Dictionnary
+
+    type System.Collections.Generic.Dictionary<'K, 'V> with
+        member x.TryFind(key) =
+            match x.TryGetValue(key) with
+            | true, v -> Some v
+            | _ -> None
+

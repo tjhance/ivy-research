@@ -52,6 +52,7 @@
         [i1]
 
     exception DoesntMatch
+    exception EndCondition
 
     let simplify_marks infos (impls:List<AST.ImplicationRule>) (decls:Model.Declarations) (env:Model.Environment) (m:Synthesis.Marks) (ad:Synthesis.AdditionalData) =
 
@@ -157,7 +158,8 @@
         let add_constraints dico cfg rs =
             Set.fold (add_constraint dico) cfg rs
 
-        let step (diffs, mv, mf) impls =
+        let step (diffs, mv, mf) impls
+            (already_applied:System.Collections.Generic.Dictionary<Set<Pattern> * Map<string, ConstValue>, unit>) =
             // Apply implication rules one time
             let aux (diffs,mv,mf) (ls,rs) =
                 let rec all_dicos ls =
@@ -168,24 +170,39 @@
                         Seq.concat (Seq.map (all_dicos_matching_pattern (diffs,mv,mf) l) dicos)
                 let free_vars = free_vars_of_patterns (Set.union ls rs)
                 let dicos = all_dicos (Set.toList ls)
-                let dicos = Seq.concat (Seq.map (all_dicos_matching_free_var free_vars) dicos)
+                let admfv_if_necessary dico =
+                    if already_applied.ContainsKey (rs,dico)
+                    then Seq.empty
+                    else
+                        (
+                            already_applied.Add((rs,dico), ())
+                            all_dicos_matching_free_var free_vars dico
+                        )
+                let dicos = Seq.concat (Seq.map admfv_if_necessary dicos)
                 Seq.fold (fun acc dico -> add_constraints dico acc rs) (diffs,mv,mf) dicos
 
             let (diffs,mv,mf) = List.fold aux (diffs,mv,mf) impls
             (diffs, mv, mf)
 
-        let closure diffs mv mf =
+        let closure diffs mv mf end_condition =
             // Separate rules
             let impls_base = List.filter (fun (ls, _) -> Set.isEmpty ls) impls
             let impls = List.filter (fun (ls, _) -> not (Set.isEmpty ls)) impls
 
             // Apply base rules
-            let (diffs, mv, mf) = step (diffs, mv, mf) impls_base
+            let already_applied =
+                System.Collections.Generic.Dictionary<Set<Pattern> * Map<string, ConstValue>, unit>()
+            let (diffs, mv, mf) = step (diffs, mv, mf) impls_base already_applied
 
             // Apply other rules until fixpoint
-            let rec step_fp (diffs, mv, mf) =
-                let next = step (diffs, mv, mf) impls
-                if next = (diffs, mv, mf) then next else step_fp next
+            let step_fp (diffs, mv, mf) =
+                let already_applied =
+                    System.Collections.Generic.Dictionary<Set<Pattern> * Map<string, ConstValue>, unit>()
+                let rec aux (diffs, mv, mf) =
+                    let next = step (diffs, mv, mf) impls already_applied
+                    if end_condition next then raise EndCondition
+                    else if next = (diffs, mv, mf) then next else aux next
+                aux (diffs, mv, mf)
             let (diffs, mv, mf) = step_fp (diffs, mv, mf)
             (diffs, mv, mf)
 
@@ -198,10 +215,10 @@
             then acc
             else*)
                 let acc' = Set.remove var acc
-                let (_, cl, _) = closure diffs acc' mf
-                if Set.contains var cl
-                then acc'
-                else acc
+                try
+                    ignore (closure diffs acc' mf (fun (_,cl,_) -> Set.contains var cl))
+                    acc
+                with :? EndCondition -> acc'
         let mv = Set.fold remove_rel_if_useless mv mv
 
         // Remove useless relations
@@ -211,19 +228,19 @@
             then acc
             else*)
                 let acc' = Set.remove rel acc
-                let (_, _, cl) = closure diffs mv acc'
-                if Set.contains rel cl
-                then acc'
-                else acc
+                try
+                    ignore (closure diffs mv acc' (fun (_,_,cl) -> Set.contains rel cl))
+                    acc
+                with :? EndCondition -> acc'
         let mf = Set.fold remove_rel_if_useless mf mf
 
         // Remove useless diff
         let remove_diff_if_useless acc (v1,v2) =
             let acc' = remove_diff_constraint acc v1 v2
-            let (cl, _, _) = closure acc' mv mf
-            if value_diff cl v1 v2
-            then acc'
-            else acc
+            try
+                ignore (closure acc' mv mf (fun (cl,_,_) -> value_diff cl v1 v2))
+                acc
+            with :? EndCondition -> acc'
         let diffs = Set.fold remove_diff_if_useless diffs diffs
         
         // Result
