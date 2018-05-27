@@ -8,7 +8,11 @@ open System
     // TODO: Adapt the Interpreter/Synthesis in order to be able to also analyze assertion fails
     // TODO: Parse Ivy code
     // TODO: implement 2 steps synthesis (with user help)
-    // TODO: Use model checking tool to know whether 2steps synthesis is needed
+
+    // TODO: Use model checking tool to know whether 2steps synthesis is needed?
+    // TODO: OR Use an automated method: computing weakest precondition (wp) and finding
+    // a finite model for (wp AND NOT new_strong_invariant). Having the same args
+    // for the action should also be imposed in order to have a comparable environment.
 
     type Type =
         | Void

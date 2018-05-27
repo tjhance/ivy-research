@@ -1,0 +1,39 @@
+Presentation of IVy
+	Context
+	Decidable Logics
+		EPR
+		FAI
+	The language
+	Automating, interactive tools
+
+Research directions
+	Make EPR
+		Fragmentation
+		Adding relations
+	Typing (session types)
+	Invariant synthesis
+
+Session types (optional)
+	Why adding typing?
+	Example of session types
+	Limits
+		Decidability limits (interpreted logic)
+		Modeling limits (non-linearity)
+
+Invariant synthesis
+	Finite Model Property
+	Counterexample generalization (current method)
+	Limits (universal only, sometimes bad generalization)
+	My method (code analysis)
+		Code analysis
+		Case when some marks are model-dependent
+
+Conclusion
+	Advantages compared to other methods
+		Former counterexample generalization
+		Abstract code analysis (with weakest precondition)
+		Focus on: complexity of formula, terminate finitely?, shape of formulas generated
+	What remains to be done
+		Formal guarantees/characterization
+		Usable/integrated implementation
+		
