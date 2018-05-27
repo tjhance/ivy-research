@@ -33,7 +33,8 @@
             | RelPattern (_, str, vs) ->
                 let types = (Map.find str decls.f).Input
                 List.fold2 aux Set.empty types vs
-            | ValueDiffPattern (t,n1,n2) ->
+            | ValueDiffPattern (type_str,n1,n2) ->
+                let t = Uninterpreted type_str
                 List.fold2 aux Set.empty [t;t] [n1;n2]
         
         let free_vars_of_patterns ps =
@@ -70,7 +71,8 @@
                             Set.add (List.fold2 update_dico dico pvs relvalues) acc
                         with :? DoesntMatch -> acc
                 Set.fold aux Set.empty mf
-            | ValueDiffPattern (t, pv1, pv2) ->
+            | ValueDiffPattern (type_str, pv1, pv2) ->
+                let t = Uninterpreted type_str
                 let aux acc (cv1,cv2) =
                     if t <> type_of_const_value cv1 || t <> type_of_const_value cv2 then acc
                     else

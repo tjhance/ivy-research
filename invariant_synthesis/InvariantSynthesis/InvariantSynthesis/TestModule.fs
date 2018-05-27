@@ -24,20 +24,18 @@
             [
                 {Name="incrementable.t.<" ; Output=Bool ;
                 Input=[Uninterpreted("incrementable.t");Uninterpreted("incrementable.t")];
-                Representation={DisplayName=Some "<"; Flags=Set.singleton Infix};
-                NegFlags=[Reflexive; Transitive; AntiSymetric] |> Set.ofList; Flags=[Transitive; AntiSymetric] |> Set.ofList} ;
+                Representation={DisplayName=Some "<"; Flags=Set.singleton Infix} } ;
 
                 {Name="incrementable.succ" ; Output=Bool ;
                 Input=[Uninterpreted("incrementable.t");Uninterpreted("incrementable.t")];
-                Representation=default_representation; Flags = Set.empty; NegFlags = Set.singleton Reflexive} ;
+                Representation=default_representation} ;
 
                 {Name="q.content" ; Output=Bool ;
                 Input=[Uninterpreted("data");Uninterpreted("incrementable.t")];
-                Representation=default_representation; Flags=Set.empty; NegFlags = Set.empty} ;
+                Representation=default_representation} ;
 
                 {Name="q.spec.content_f" ; Output=Uninterpreted("data") ;
-                Input=[Uninterpreted("incrementable.t")]; Representation = default_representation;
-                Flags = Set.empty; NegFlags = Set.empty} ;
+                Input=[Uninterpreted("incrementable.t")]; Representation = default_representation} ;
             ]
 
         let impl =

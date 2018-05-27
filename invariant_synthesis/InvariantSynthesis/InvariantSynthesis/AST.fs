@@ -8,7 +8,6 @@ open System
     // TODO: Adapt the Interpreter/Synthesis in order to be able to also analyze assertion fails
     // TODO: Parse Ivy code
     // TODO: implement 2 steps synthesis (with user help)
-    // TODO: delete flag system and use implications instead
     // TODO: Use model checking tool to know whether 2steps synthesis is needed
 
     type Type =
@@ -19,15 +18,8 @@ open System
     type RepresentationFlags = Infix
     type RepresentationInfos = { DisplayName: string option; Flags: Set<RepresentationFlags> }
 
-    type RelationFlags =
-        | Reflexive
-        | Transitive
-        | Symetric
-        | AntiSymetric
-
     type TypeDecl = { Name: string }
-    type FunDecl = { Name: string; Input: List<Type>; Output: Type;
-        Representation: RepresentationInfos; Flags: Set<RelationFlags>; NegFlags: Set<RelationFlags> }
+    type FunDecl = { Name: string; Input: List<Type>; Output: Type; Representation: RepresentationInfos }
     type VarDecl = { Name: string; Type: Type; Representation: RepresentationInfos }
 
     type PatternValue =
@@ -37,7 +29,7 @@ open System
     type Pattern =
         | VarPattern of PatternValue * string
         | RelPattern of PatternValue * string * List<PatternValue>
-        | ValueDiffPattern of Type * PatternValue * PatternValue
+        | ValueDiffPattern of string * PatternValue * PatternValue
 
     type ImplicationRule = Set<Pattern> * Set<Pattern>
 
