@@ -2,8 +2,54 @@
 
     open AST
 
-    let order_tuple (a,b) =
-        if a < b then (a,b) else (b,a)
+    let binary_relation_implication rel1 value1 rel2 value2 =
+        let l = [RelPattern (PatternConst value1, rel1, [PatternVar "X"; PatternVar "Y"])] |> Set.ofList
+        let r = [RelPattern (PatternConst value2, rel2, [PatternVar "X"; PatternVar "Y"])] |> Set.ofList
+        let i1 = (l,r)
+        let l = [RelPattern (PatternConst (not value2), rel2, [PatternVar "X"; PatternVar "Y"])] |> Set.ofList
+        let r = [RelPattern (PatternConst (not value1), rel1, [PatternVar "X"; PatternVar "Y"])] |> Set.ofList
+        let i2 = (l,r)
+        [i1;i2]
+
+    let reflexive relname relvalue typename =
+        let l = Set.empty
+        let r = [RelPattern (PatternConst relvalue, relname, [PatternVar "X"; PatternVar "X"])] |> Set.ofList
+        let i1 = (l,r)
+        let l = [RelPattern (PatternConst (not relvalue), relname, [PatternVar "X"; PatternVar "Y"])] |> Set.ofList
+        let r = [ValueDiffPattern (typename, PatternVar "X", PatternVar "Y")] |> Set.ofList
+        let i2 = (l,r)
+        [i1;i2]
+    
+    let transitive relname relvalue =
+        let l = [RelPattern (PatternConst relvalue, relname, [PatternVar "X"; PatternVar "Y"]) ;
+            RelPattern (PatternConst relvalue, relname, [PatternVar "Y"; PatternVar "Z"])] |> Set.ofList
+        let r = [RelPattern (PatternConst relvalue, relname, [PatternVar "X"; PatternVar "Z"])] |> Set.ofList
+        let i1 = (l,r)
+        let l = [RelPattern (PatternConst (not relvalue), relname, [PatternVar "X"; PatternVar "Z"]) ;
+            RelPattern (PatternConst relvalue, relname, [PatternVar "X"; PatternVar "Y"])] |> Set.ofList
+        let r = [RelPattern (PatternConst (not relvalue), relname, [PatternVar "Y"; PatternVar "Z"])] |> Set.ofList
+        let i2 = (l,r)
+        let l = [RelPattern (PatternConst (not relvalue), relname, [PatternVar "X"; PatternVar "Z"]) ;
+            RelPattern (PatternConst relvalue, relname, [PatternVar "Y"; PatternVar "Z"])] |> Set.ofList
+        let r = [RelPattern (PatternConst (not relvalue), relname, [PatternVar "X"; PatternVar "Y"])] |> Set.ofList
+        let i3 = (l,r)
+        [i1;i2;i3]
+
+    let symetric relname =
+        let l = [RelPattern (PatternConst true, relname, [PatternVar "X"; PatternVar "Y"])] |> Set.ofList
+        let r = [RelPattern (PatternConst true, relname, [PatternVar "Y"; PatternVar "X"])] |> Set.ofList
+        let i1 = (l,r)
+        let l = [RelPattern (PatternConst false, relname, [PatternVar "X"; PatternVar "Y"])] |> Set.ofList
+        let r = [RelPattern (PatternConst false, relname, [PatternVar "Y"; PatternVar "X"])] |> Set.ofList
+        let i2 = (l,r)
+        [i1;i2]
+
+    let antisymetric relname relvalue typename =
+        let l = [RelPattern (PatternConst relvalue, relname, [PatternVar "X"; PatternVar "Y"]) ;
+            ValueDiffPattern (typename, PatternVar "X", PatternVar "Y")] |> Set.ofList
+        let r = [RelPattern (PatternConst (not relvalue), relname, [PatternVar "Y"; PatternVar "X"])] |> Set.ofList
+        let i1 = (l,r)
+        [i1]
 
     exception DoesntMatch
 
@@ -14,7 +60,7 @@
         let value_diff diffs cv1 cv2 =
             if Synthesis.is_model_dependent_value cv1 && Synthesis.is_model_dependent_value cv2
             then Set.contains (cv1,cv2) diffs || Set.contains (cv2,cv1) diffs
-            else value_equal cv1 cv2
+            else not (value_equal cv1 cv2)
 
         let add_diff_constraint diffs cv1 cv2 =
             Set.add (cv2,cv1) (Set.add (cv1,cv2) diffs)
@@ -148,9 +194,9 @@
         let diffs = ad.d
         // Remove useless vars
         let remove_rel_if_useless acc var =
-            if (Map.find var decls.v).Type <> Bool // All flags/rules target boolean vars
+            (*if (Map.find var decls.v).Type <> Bool // Uncomment if all rules target boolean vars
             then acc
-            else
+            else*)
                 let acc' = Set.remove var acc
                 let (_, cl, _) = closure diffs acc' mf
                 if Set.contains var cl
@@ -160,10 +206,10 @@
 
         // Remove useless relations
         let remove_rel_if_useless acc rel =
-            let (str,_) = rel
-            if (Map.find str decls.f).Output <> Bool // All flags/rules target relations
+            (*let (str,_) = rel
+            if (Map.find str decls.f).Output <> Bool // Uncomment if all rules target relations
             then acc
-            else
+            else*)
                 let acc' = Set.remove rel acc
                 let (_, _, cl) = closure diffs mv acc'
                 if Set.contains rel cl
@@ -292,7 +338,7 @@
             Set.map
                 (
                     fun (cv1,cv2) ->
-                        let (cv1,cv2) = order_tuple (cv1,cv2)
+                        let (cv1,cv2) = Helper.order_tuple (cv1,cv2)
                         Not (Equal (value_of_association (value2var cv1), value_of_association (value2var cv2)))
                 ) ineq_constraints
         let constraints = Set.union constraints ineq_constraints

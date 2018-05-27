@@ -41,3 +41,6 @@
     // Misc
 
     let identity a = a
+
+    let order_tuple (a,b) =
+        if a < b then (a,b) else (b,a)

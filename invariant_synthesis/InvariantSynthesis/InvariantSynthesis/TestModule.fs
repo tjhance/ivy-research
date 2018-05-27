@@ -39,10 +39,16 @@
             ]
 
         let impl =
-            [
-                ([RelPattern (PatternConst true, "incrementable.succ", [PatternVar "A";PatternVar "B"])] |> Set.ofList,
-                    [RelPattern (PatternConst true, "incrementable.t.<", [PatternVar "A";PatternVar "B"])] |> Set.ofList)
-            ]
+            List.concat
+                [
+                    Formula.binary_relation_implication "incrementable.succ" true "incrementable.t.<" true ;
+                    Formula.reflexive "incrementable.succ" false "incrementable.t" ;
+                    Formula.reflexive "incrementable.t.<" false "incrementable.t" ;
+                    Formula.transitive "incrementable.t.<" true ;
+                    Formula.transitive "incrementable.t.<" false ;
+                    Formula.antisymetric "incrementable.t.<" true "incrementable.t" ;
+                    Formula.antisymetric "incrementable.t.<" false "incrementable.t"
+                ]
 
         let relation_formula name vars =
             Equal (ValueFun(name,vars), ValueConst (ConstBool true)) ;
