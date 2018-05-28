@@ -186,6 +186,8 @@
                 (false, cfg)
         | Exists (decl, f) ->
             marks_for_formula infos env uvar (Not (Forall (decl, Not f)))
+        | Imply (f1, f2) ->
+            marks_for_formula infos env uvar (Or (Not f1, f2))
 
     and marks_for_value_with infos (env:Model.Environment) uvar v names values =
         let v' = List.fold2 (fun acc n v -> Map.add n v acc) env.v names values

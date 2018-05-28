@@ -254,7 +254,8 @@
         | ExistingVar of string
         | ExistingFun of string * List<ConstValue>
 
-    let formula_from_marks (env:Model.Environment) (m:Synthesis.Marks) (ad:Synthesis.AdditionalData) =
+    let formula_from_marks (env:Model.Environment) ((m:Synthesis.Marks), (ad:Synthesis.AdditionalData))
+        (alt_exec:List<Synthesis.Marks*Synthesis.AdditionalData>) =
       
         // Associate a var to each value
         let next_name_nb = ref 0
@@ -294,10 +295,17 @@
             | cv when not (Synthesis.is_model_dependent_value cv) -> false
             | cv -> Map.containsKey cv !vars_map
 
-        let all_new_vars_decl_assigned () : List<VarDecl> =
+        let all_new_vars_decl_assigned () : Set<VarDecl> =
             let content = (Map.toList !vars_map)
             let content = List.filter (fun (_,assoc) -> match assoc with New _ -> true | _ -> false) content
-            List.map (fun (cv,assoc) -> match assoc with New str -> { Name=str ; Type=type_of_const_value cv ; Representation=default_representation } | _ -> failwith "Invalid association.") content
+            let vars =
+                List.map
+                    (fun (cv,assoc) ->
+                        match assoc with
+                        | New str -> { Name=str ; Type=type_of_const_value cv ; Representation=default_representation }
+                        | _ -> failwith "Invalid association."
+                    ) content
+            Set.ofList vars
 
         let rec value_of_association va =
             match va with
@@ -308,57 +316,90 @@
                 let vs = List.map (fun cv -> value_of_association (value2var cv)) cvs
                 ValueFun (str, vs)
 
-        // Browse the constraints to associate an existing var to values when possible
-        Set.iter (associate_existing_var) m.v
-        let v' = // We remove trivial equalities
-            Set.filter
-                (
-                    fun str ->
-                        let cv = Map.find str env.v
-                        value2var cv <> ExistingVar str
-                ) m.v
-        let m = {m with v=v'}
+        let constraints_for (m:Synthesis.Marks,ad:Synthesis.AdditionalData) =
+            // Browse the constraints to associate an existing var to values when possible
+            Set.iter (associate_existing_var) m.v
+            let v' = // We remove trivial equalities
+                Set.filter
+                    (
+                        fun str ->
+                            let cv = Map.find str env.v
+                            value2var cv <> ExistingVar str
+                    ) m.v
+            let m = {m with v=v'}
 
-        // Browse the constraints to associate an existing fun to values when possible
-        Set.iter (associate_existing_fun) m.f
-        let f' = // We remove trivial equalities
-            Set.filter
-                (
-                    fun (str, cvs) ->
-                        let cv = Map.find (str, cvs) env.f
-                        value2var cv <> ExistingFun (str, cvs)
-                ) m.f
-        let m = {m with f=f'}
+            // Browse the constraints to associate an existing fun to values when possible
+            Set.iter (associate_existing_fun) m.f
+            let f' = // We remove trivial equalities
+                Set.filter
+                    (
+                        fun (str, cvs) ->
+                            let cv = Map.find (str, cvs) env.f
+                            value2var cv <> ExistingFun (str, cvs)
+                    ) m.f
+            let m = {m with f=f'}
 
-        // Replace value by var in each var/fun marked constraint
-        let constraints_var =
-            Set.map
-                (
-                    fun str ->
-                        let cv = Map.find str env.v
-                        Equal (ValueVar str, value_of_association (value2var cv))
-                ) m.v
-        let constraints_fun =
-            Set.map
-                (
-                    fun (str,cvs) ->
-                        let cv = Map.find (str,cvs) env.f
-                        let cvs = List.map (fun cv -> value_of_association (value2var cv)) cvs
-                        Equal (ValueFun (str, cvs), value_of_association (value2var cv))
-                ) m.f
-        let constraints = Set.union constraints_var constraints_fun
+            // Replace value by var in each var/fun marked constraint
+            let constraints_var =
+                Set.map
+                    (
+                        fun str ->
+                            let cv = Map.find str env.v
+                            Equal (ValueVar str, value_of_association (value2var cv))
+                    ) m.v
+            let constraints_fun =
+                Set.map
+                    (
+                        fun (str,cvs) ->
+                            let cv = Map.find (str,cvs) env.f
+                            let cvs = List.map (fun cv -> value_of_association (value2var cv)) cvs
+                            Equal (ValueFun (str, cvs), value_of_association (value2var cv))
+                    ) m.f
+            let constraints = Set.union constraints_var constraints_fun
 
-        // Add inequalities between vars
-        let ineq_constraints = // We don't need inequalities when one of the member is unused
-            Set.filter (fun (cv1,cv2) -> value_assigned cv1 && value_assigned cv2) ad.d
-        let ineq_constraints =
-            Set.map
-                (
-                    fun (cv1,cv2) ->
-                        let (cv1,cv2) = Helper.order_tuple (cv1,cv2)
-                        Not (Equal (value_of_association (value2var cv1), value_of_association (value2var cv2)))
-                ) ineq_constraints
-        let constraints = Set.union constraints ineq_constraints
+            // Add inequalities between vars
+            let ineq_constraints = // We don't need inequalities when one of the member is unused
+                Set.filter (fun (cv1,cv2) -> value_assigned cv1 && value_assigned cv2) ad.d
+            let ineq_constraints =
+                Set.map
+                    (
+                        fun (cv1,cv2) ->
+                            let (cv1,cv2) = Helper.order_tuple (cv1,cv2)
+                            Not (Equal (value_of_association (value2var cv1), value_of_association (value2var cv2)))
+                    ) ineq_constraints
+            let constraints = Set.union constraints ineq_constraints
+            constraints
+
+        let constraints = constraints_for (m, ad)
+        let vars = all_new_vars_decl_assigned ()
+
+        let alt_constraints =
+            List.map 
+                (fun e ->
+                    let c = constraints_for e
+                    (c, all_new_vars_decl_assigned ())
+                ) alt_exec
+        let alt_constraints = List.rev alt_constraints
+
+        let formula_for cs vars =
+            let cs = Set.toList cs
+            match cs with
+            | [] -> Const true
+            | h::constraints ->
+                let formula = List.fold (fun acc c -> And (acc,c)) h constraints
+                Set.fold (fun acc vd -> Exists (vd, acc)) formula vars
+
+        let (formulas, _) =
+            List.fold
+                (fun (formulas, declared_vars) (c, vars) ->
+                    let f = formula_for c (Set.difference vars declared_vars)
+                    (f::formulas, vars)
+                ) ([], vars) alt_constraints
+
+        let formulas =
+            match formulas with
+            | [] -> Const false
+            | h::formulas -> List.fold (fun acc c -> Or (acc,c)) h formulas
 
         // Construct the formula with the quantifiers
         let constraints = Set.toList constraints
@@ -366,11 +407,13 @@
         | [] -> Const true
         | h::constraints ->
             let formula = List.fold (fun acc c -> And (acc,c)) h constraints
-            let vars = all_new_vars_decl_assigned ()
-            List.fold (fun acc vd -> Exists (vd, acc)) formula vars
+            let formula = Imply (formula, formulas)
+            Set.fold (fun acc vd -> Exists (vd, acc)) formula vars
 
     let rec simplify_formula f =
         match f with
+        // Implication
+        | Imply (f1, Const false) -> simplify_formula (Not f1)
         // Negation
         | Not (Equal (v, ValueConst (ConstBool b)))
         | Not (Equal (ValueConst (ConstBool b), v))
@@ -381,6 +424,7 @@
         | Not (And (f1, f2)) -> simplify_formula (Or (Not f1, Not f2))
         | Not (Forall (d,f)) -> simplify_formula (Exists (d, Not f))
         | Not (Exists (d,f)) -> simplify_formula (Forall (d, Not f))
+        | Not (Imply (f1, f2)) -> simplify_formula (And (f1, Not f2))
         // Identity cases
         | Const b -> Const b
         | Equal (v1, v2) -> Equal (v1, v2)
@@ -389,3 +433,4 @@
         | Not f -> Not (simplify_formula f)
         | Forall (v, f) -> Forall (v, simplify_formula f)
         | Exists (v, f) -> Exists (v, simplify_formula f)
+        | Imply (f1, f2) -> Imply (simplify_formula f1, simplify_formula f2)

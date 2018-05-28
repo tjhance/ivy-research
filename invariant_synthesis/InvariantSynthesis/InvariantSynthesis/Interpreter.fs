@@ -83,6 +83,8 @@
         | Exists (d,f) ->
             let possible_values = Model.all_values infos d.Type
             Seq.exists (fun v -> eval_formula_with infos env f [d.Name] [v]) possible_values
+        | Imply (f1,f2) ->
+            evaluate_formula infos env (Or (Not f1, f2))
 
     exception AssertionFailed of Model.Environment * Formula
 

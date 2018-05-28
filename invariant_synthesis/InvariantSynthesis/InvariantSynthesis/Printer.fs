@@ -65,7 +65,7 @@
         // ----- Syntaxic sugars -----
         | Not (Equal (v1,v2)) ->
             let str = sprintf "%s ~= %s" (value_to_string decls v1) (value_to_string decls v2)
-            add_parenthesis_if_needed str 4 prec
+            add_parenthesis_if_needed str 5 prec
         | Equal (v, ValueConst (ConstBool true))
         | Equal (ValueConst (ConstBool true), v) ->
             let str = sprintf "%s" (value_to_string decls v)
@@ -73,21 +73,21 @@
         | Equal (v, ValueConst (ConstBool false))
         | Equal (ValueConst (ConstBool false), v) ->
             let str = sprintf "~%s" (value_to_string decls v)
-            add_parenthesis_if_needed str 5 prec
+            add_parenthesis_if_needed str 6 prec
         // ---------------------------
         | Const b -> sprintf "%b" b
         | Equal (v1, v2) ->
             let str = sprintf "%s = %s" (value_to_string decls v1) (value_to_string decls v2)
-            add_parenthesis_if_needed str 4 prec
-        | Or (f1,f2) ->
-            let str = sprintf "%s | %s" (formula_to_string decls f1 2) (formula_to_string decls f2 2)
-            add_parenthesis_if_needed str 2 prec
-        | And (f1,f2) ->
-            let str = sprintf "%s & %s" (formula_to_string decls f1 3) (formula_to_string decls f2 3)
-            add_parenthesis_if_needed str 3 prec
-        | Not f ->
-            let str = sprintf "~%s" (formula_to_string decls f 5)
             add_parenthesis_if_needed str 5 prec
+        | Or (f1,f2) ->
+            let str = sprintf "%s | %s" (formula_to_string decls f1 3) (formula_to_string decls f2 3)
+            add_parenthesis_if_needed str 3 prec
+        | And (f1,f2) ->
+            let str = sprintf "%s & %s" (formula_to_string decls f1 4) (formula_to_string decls f2 4)
+            add_parenthesis_if_needed str 4 prec
+        | Not f ->
+            let str = sprintf "~%s" (formula_to_string decls f 6)
+            add_parenthesis_if_needed str 6 prec
         | Forall (vd, f) ->
             let decls = Model.add_var_declaration vd decls
             let str = sprintf "F %s. %s" (var_decl_to_string vd) (formula_to_string decls f 1)
@@ -96,14 +96,18 @@
             let decls = Model.add_var_declaration vd decls
             let str = sprintf "E %s. %s" (var_decl_to_string vd) (formula_to_string decls f 1)
             add_parenthesis_if_needed str 1 prec
+        | Imply (f1,f2) ->
+            let str = sprintf "%s -> %s" (formula_to_string decls f1 2) (formula_to_string decls f2 2)
+            add_parenthesis_if_needed str 2 prec
 
     (*
     Precedence:
     value : oo (=10)
-    ~ : 5
-    = : 4
-    & : 3
-    | : 2
+    ~ : 6
+    = : 5
+    & : 4
+    | : 3
+    -> : 2
     F E : 1
     *)
 

@@ -63,6 +63,7 @@ open System
         | Not of Formula
         | Forall of VarDecl * Formula
         | Exists of VarDecl * Formula
+        | Imply of Formula * Formula
 
     (* With side effects *)
     type Expression =

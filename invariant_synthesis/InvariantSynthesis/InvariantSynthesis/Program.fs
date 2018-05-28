@@ -93,18 +93,20 @@ let main argv =
     let decls = Model.declarations_of_module md
     let (m', ad1) = Formula.simplify_marks infos md.Implications decls env m ad
     let (um', ad2) = Formula.simplify_marks infos md.Implications decls env um ad
-    let f = Formula.formula_from_marks env m' ad1
+    let f = Formula.formula_from_marks env (m', ad1) []
     let f = Formula.simplify_formula f
     printfn "%s" (Printer.formula_to_string decls f 0)
     printfn ""
 
+    let allowed_paths = ref []
     if ad.md
     then
-        printfn "These conditions may not be sufficient to satisfy/break the invariant!"
-        printfn "Would you like to add an accepting path to the invariant? (y/n)"
+        printfn "This invariant may be too strong!"
+        printfn "(Some model-dependent marks have been ignored)"
+        printfn "Would you like to add an allowed path to the invariant? (y/n)"
         let answer = ref (Console.ReadLine())
         while !answer = "y" do
-            printfn "Please modify some constraints on the environment to fix the initial environment."
+            printfn "Please modify some constraints on the environment to change the final formula value."
             printfn ""
             printfn "Constraints you can't change:"
             printfn "%s" (Printer.marks_to_string decls env m)
@@ -117,17 +119,36 @@ let main argv =
             printfn "Loading constraints..."
             let cs' = ConstraintsParser.parse_from_str md str
             printfn "Building new environment..."
-            let env_allowed = Model.constraints_to_env md (cs@cs')
-            printfn "ERROR: Not implemented"
-
+            let (infos_allowed, env_allowed) = Model.constraints_to_env md (cs@cs')
+            printfn "Computing..."
+            let (env_allowed',_) = Interpreter.execute_action md infos_allowed env_allowed name args
+            let (b_al,(m_al,um_al,ad_al)) =
+                Synthesis.marks_for_formula infos_allowed env_allowed' Set.empty formula
+            if b_al <> b
+            then
+                let (_,(m_al,_,ad_al)) =
+                    Synthesis.marks_before_action md infos_allowed env_allowed name args (m_al,um_al,ad_al) false
+                if ad_al.md
+                then printfn "ERROR: Some marks still are model-dependent!"
+                else
+                    let (m_al, ad_al) = Formula.simplify_marks infos md.Implications decls env m_al ad_al
+                    allowed_paths := (m_al,ad_al)::(!allowed_paths)
+            else printfn "ERROR: Formula has the same value than with the original environment!"
+            
             printfn "Would you like to add an accepting path to the invariant? (y/n)"
             answer := Console.ReadLine()
     else
         printfn "These conditions are sufficient to satisfy/break the invariant!"
 
+    let f =
+        if not (List.isEmpty (!allowed_paths))
+        then
+            let f = Formula.formula_from_marks env (m', ad1) (!allowed_paths)
+            Formula.simplify_formula f
+        else f
+
     printfn ""
     printfn "Invariant to add:"
-    let f = Formula.simplify_formula (Not f)
     printfn "%s" (Printer.formula_to_string decls f 0)
     
     ignore (Console.ReadLine())
