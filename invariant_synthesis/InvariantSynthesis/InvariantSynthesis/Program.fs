@@ -91,9 +91,9 @@ let main argv =
     ignore (Console.ReadLine())
 
     let decls = Model.declarations_of_module md
-    let (m', ad1) = Formula.simplify_marks infos md.Implications decls env m ad
-    let (um', ad2) = Formula.simplify_marks infos md.Implications decls env um ad
-    let f = Formula.formula_from_marks env (m', ad1) []
+    let (m', diff1) = Formula.simplify_marks infos md.Implications decls env m ad.d
+    let (um', diff2) = Formula.simplify_marks infos md.Implications decls env um ad.d
+    let f = Formula.formula_from_marks env (m', diff1) []
     let f = Formula.simplify_formula f
     printfn "%s" (Printer.formula_to_string decls f 0)
     printfn ""
@@ -131,8 +131,10 @@ let main argv =
                 if ad_al.md
                 then printfn "ERROR: Some marks still are model-dependent!"
                 else
-                    let (m_al, ad_al) = Formula.simplify_marks infos md.Implications decls env m_al ad_al
-                    allowed_paths := (m_al,ad_al)::(!allowed_paths)
+                    let (m_union, diff_union) = (Synthesis.marks_union m_al m', Set.union ad_al.d diff1)
+                    let (m_al, diff_al) = Formula.simplify_marks infos md.Implications decls env m_union diff_union
+                    let (m_al, diff_al) = (Synthesis.marks_diff m_al m', Set.difference diff_al diff1)
+                    allowed_paths := (m_al,diff_al)::(!allowed_paths)
             else printfn "ERROR: Formula has the same value than with the original environment!"
             
             printfn "Would you like to add an accepting path to the invariant? (y/n)"
@@ -143,7 +145,7 @@ let main argv =
     let f =
         if not (List.isEmpty (!allowed_paths))
         then
-            let f = Formula.formula_from_marks env (m', ad1) (!allowed_paths)
+            let f = Formula.formula_from_marks env (m', diff1) (!allowed_paths)
             Formula.simplify_formula f
         else f
 
@@ -190,7 +192,6 @@ incrementable.succ(0,1)
 1:incrementable.t ~= q.next_e
 2:incrementable.t ~= q.first_e
 2:incrementable.t = q.next_e
-~q.empty
 q.spec.content_f(0) = 0
 q.spec.content_f(1) = 1
 q.spec.content_f(2) = 0

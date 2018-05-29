@@ -48,6 +48,8 @@
     
     let marks_union_many = marks_reduce Set.unionMany Set.unionMany    
     let marks_union m1 m2 = marks_union_many ([m1;m2] |> List.toSeq)
+    let marks_diff m1 m2 =
+        { f=Set.difference m1.f m2.f ; v=Set.difference m1.v m2.v }
 
     let ad_union_many = ad_reduce Set.unionMany (Seq.exists (fun e -> e))
     let ad_union ad1 ad2 = ad_union_many ([ad1;ad2] |> List.toSeq)
