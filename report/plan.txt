@@ -1,10 +1,11 @@
 Presentation of IVy
 	Context
 	Decidable Logics
-		EPR
-		FAI
+		EPR (with Finite Model Property)
+		FAU
 	The language
-	Automating, interactive tools
+	Deciding IVy
+	Automation, interactive tools
 
 Research directions
 	Make EPR
@@ -21,19 +22,21 @@ Session types (optional)
 		Modeling limits (non-linearity)
 
 Invariant synthesis
-	Finite Model Property
+	Using weakest precondition
 	Counterexample generalization (current method)
 	Limits (universal only, sometimes bad generalization)
-	My method (code analysis)
-		Code analysis
-		Case when some marks are model-dependent
 
-Conclusion
+My contribution (code analysis)
+	Code analysis
+	Model-dependent marks
 	Advantages compared to other methods
 		Former counterexample generalization
 		Abstract code analysis (with weakest precondition)
 		Focus on: complexity of formula, terminate finitely?, shape of formulas generated
+
+Conclusion
 	What remains to be done
 		Formal guarantees/characterization
 		Usable/integrated implementation
+	Lessons from this internship
 		
