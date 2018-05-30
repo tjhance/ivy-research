@@ -116,6 +116,19 @@
             let (rsd, tr_es) = apply_op env (lst@[e]) op
             let (tr_es, tr_e) = Helper.separate_last tr_es
             TrFunAssign (rsd, str, tr_es, tr_e)
+        | ForallFunAssign (str, hes, v) ->
+            let (exprs, uvars) = Interpreter.separate_hexpression hes
+            let op (env:Model.Environment) cvs =
+                let exprs = List.map (fun cv -> Expr (ExprConst cv)) cvs
+                let uvars = List.map Hole uvars
+                let args = Interpreter.reconstruct_hexpression hes exprs uvars
+                Interpreter.execute_statement m infos env (ForallFunAssign (str,args,v))
+            let (rsd, tr_es) = apply_op env exprs op
+            let tr_es = List.map TrExpr tr_es
+            let uvars = List.map TrHole uvars
+            let args = Interpreter.reconstruct_hexpression hes tr_es uvars
+            TrForallFunAssign (rsd, str, args, v)
+
 
     and trace_statements (m:ModuleDecl) infos (env:Model.Environment) ss =
         let rec aux env ss =
