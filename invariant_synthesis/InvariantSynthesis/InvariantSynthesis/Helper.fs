@@ -41,6 +41,13 @@
     let lst_to_couple lst =
         (List.head lst, List.head (List.tail lst))
 
+    let separate_hd lst =
+        (List.head lst, List.tail lst)
+
+    let separate_last lst =
+        let (last, lst) = separate_hd (List.rev lst)
+        (List.rev lst, last)
+
     // Misc
 
     let identity a = a

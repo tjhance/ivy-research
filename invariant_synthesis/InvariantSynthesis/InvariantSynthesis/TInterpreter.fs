@@ -7,7 +7,7 @@
     exception StAssertionFailed of TrStatement * Formula
 
     let rec trace_expression (m:ModuleDecl) infos (env:Model.Environment) e =
-        let apply_op es op =
+        let apply_op env es op =
             let trs = trace_expressions m infos env es
             let last_env = final_env_of_exprs trs env
             let retval =
@@ -18,17 +18,17 @@
                 else None
             let red = (env, last_env, retval)
             (red, trs)
-        let binary_op e1 e2 op =
+        let binary_op env e1 e2 op =
             let op _ lst =
                 let (a,b) = Helper.lst_to_couple lst
                 op a b
-            let (red,lst) = apply_op [e1;e2] op
+            let (red,lst) = apply_op env [e1;e2] op
             let (t1,t2) = Helper.lst_to_couple lst
             (red, t1, t2)
-        let unary_op e op =
+        let unary_op env e op =
             let op _ lst =
                 op (List.head lst)
-            let (red,lst) = apply_op [e] op
+            let (red,lst) = apply_op env [e] op
             (red, List.head lst)
         match e with
         | ExprConst cv ->
@@ -41,20 +41,20 @@
             let eval last_env cvs =
                 let cvs = List.map (fun cv -> ValueConst cv) cvs
                 Interpreter.evaluate_value infos last_env (ValueFun (str, cvs))
-            let (red, trs) = apply_op lst eval
+            let (red, trs) = apply_op env lst eval
             TrExprFun (red, str, trs)
         | ExprAction (str, lst) ->
             trace_action m infos env str lst
         | ExprEqual (e1, e2) ->
             let eval cv1 cv2 =
                 ConstBool (Interpreter.value_equal infos cv1 cv2)
-            TrExprEqual (binary_op e1 e2 eval)
+            TrExprEqual (binary_op env e1 e2 eval)
         | ExprOr (e1, e2) ->
-            TrExprOr (binary_op e1 e2 Interpreter.value_or)
+            TrExprOr (binary_op env e1 e2 Interpreter.value_or)
         | ExprAnd (e1, e2) ->
-            TrExprAnd (binary_op e1 e2 Interpreter.value_and)
+            TrExprAnd (binary_op env e1 e2 Interpreter.value_and)
         | ExprNot e ->
-            TrExprNot (unary_op e Interpreter.value_not)
+            TrExprNot (unary_op env e Interpreter.value_not)
         | ExprSomeElse (d,f,e) ->
             let red = (env,env,Some (Interpreter.evaluate_value infos env (ValueSomeElse (d,f,e))))
             TrExprSomeElse (red,d,f,e)
@@ -72,6 +72,23 @@
         List.rev (List.fold aux [] es)
 
     and trace_statement (m:ModuleDecl) infos (env:Model.Environment) s =
+        let apply_op env es op =
+            let tr_es = trace_expressions m infos env es
+            let env' = final_env_of_exprs tr_es env
+            let (env',b) =
+                if exprs_are_fully_evaluated tr_es
+                then
+                    let rets = List.map ret_value_of_expr tr_es
+                    let env' = op env' rets
+                    (env', true)
+                else (env', false)
+            let rsd = (env, env', b)
+            (rsd, tr_es)
+        let apply_unary_op env e op =
+            let op env lst =
+                op env (List.head lst)
+            let (rsd,lst) = apply_op env [e] op
+            (rsd, List.head lst)
         match s with
         | NewBlock (decls, ss) ->
             let env' = Interpreter.enter_new_block infos env decls (List.map (fun _ -> None) decls)
@@ -85,6 +102,20 @@
             let env' = final_env_of_exprs [tr] env
             let rsd = (env, env', expr_is_fully_evaluated tr)
             TrExpression (rsd, tr)
+        | VarAssign (str, e) ->
+            let op (env:Model.Environment) cv =
+                let v' = Map.add str cv env.v
+                { env with v=v' }
+            let (rsd, tr_e) = apply_unary_op env e op
+            TrVarAssign (rsd, str, tr_e)
+        | FunAssign (str, lst, e) ->
+            let op (env:Model.Environment) cvs =
+                let (cvs, cv) = Helper.separate_last cvs
+                let f' = Map.add (str, cvs) cv env.f
+                { env with f=f' }
+            let (rsd, tr_es) = apply_op env (lst@[e]) op
+            let (tr_es, tr_e) = Helper.separate_last tr_es
+            TrFunAssign (rsd, str, tr_es, tr_e)
 
     and trace_statements (m:ModuleDecl) infos (env:Model.Environment) ss =
         let rec aux env ss =
