@@ -38,6 +38,9 @@
             | (h1,h2,h3,h4)::lst -> aux lst (h1::acc1,h2::acc2,h3::acc3,h4::acc4)
         aux lst ([],[],[],[])
 
+    let lst_to_couple lst =
+        (List.head lst, List.head (List.tail lst))
+
     // Misc
 
     let identity a = a
