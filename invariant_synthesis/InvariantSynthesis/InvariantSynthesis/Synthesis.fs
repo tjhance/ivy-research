@@ -2,10 +2,6 @@
 
     open AST
     open Interpreter
-    open System.Globalization
-    open System
-    open System
-    open System
 
     type FunMarks = Set<string * List<ConstValue>>
     type VarMarks = Set<string>

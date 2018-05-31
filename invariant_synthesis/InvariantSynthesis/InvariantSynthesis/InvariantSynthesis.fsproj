@@ -13,8 +13,10 @@
     <Compile Include="Synthesis.fs" />
     <Compile Include="Trace.fs" />
     <Compile Include="TInterpreter.fs" />
+    <Compile Include="TSynthesis.fs" />
     <Compile Include="Formula.fs" />
     <Compile Include="ConstraintsParser.fs" />
+    <Compile Include="ParserAST.fs" />
     <Compile Include="TestModule.fs" />
     <Compile Include="Printer.fs" />
     <Compile Include="Program.fs" />
