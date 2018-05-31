@@ -3,9 +3,6 @@
     open AST
     open Trace
 
-    exception ExprAssertionFailed of TrExpression * Formula
-    exception StAssertionFailed of TrStatement * Formula
-
     let rec trace_expression (m:ModuleDecl) infos (env:Model.Environment) e =
         let apply_op env es op =
             let trs = trace_expressions m infos env es
@@ -128,7 +125,47 @@
             let uvars = List.map TrHole uvars
             let args = Interpreter.reconstruct_hexpression hes tr_es uvars
             TrForallFunAssign (rsd, str, args, v)
-
+        | IfElse (e, sif, selse) ->
+            let tr = trace_expression m infos env e
+            let env' = final_env_of_exprs [tr] env
+            let (env',tr_st) =
+                if expr_is_fully_evaluated tr
+                then
+                    let ret = ret_value_of_expr tr
+                    match ret with
+                    | ConstBool true ->
+                        let tr_st = trace_statement m infos env' sif
+                        let env' = final_env_of_st tr_st
+                        (env', tr_st)
+                    | ConstBool false | _ ->
+                        let tr_st = trace_statement m infos env' selse
+                        let env' = final_env_of_st tr_st
+                        (env', tr_st)
+                else (env', TrNotEvaluated)
+            let rsd = (env, env', st_is_fully_executed tr_st)
+            TrIfElse (rsd, tr, tr_st)
+        | IfSomeElse (decl, f, sif, selse) ->
+            match Interpreter.if_some_value infos env decl f with
+            | Some value ->
+                let env' = Interpreter.enter_new_block infos env [decl] [Some value]
+                let tr = trace_statement m infos env' sif
+                let env' = final_env_of_sts [tr] env'
+                let env' = Interpreter.leave_block infos env' [decl] env
+                let rsd = (env, env', st_is_fully_executed tr)
+                TrIfSomeElse (rsd, Some value, decl, f, tr)
+            | None ->
+                let tr = trace_statement m infos env selse
+                let env' = final_env_of_sts [tr] env
+                let rsd = (env, env', st_is_fully_executed tr)
+                TrIfSomeElse (rsd, None, decl, f, tr)
+        | Assert f ->
+             if Interpreter.evaluate_formula infos env f
+             then
+                let rsd = (env, env, true)
+                TrAssert (rsd, f)
+             else
+                let rsd = (env, env, false)
+                TrAssert (rsd, f)
 
     and trace_statements (m:ModuleDecl) infos (env:Model.Environment) ss =
         let rec aux env ss =
