@@ -54,18 +54,21 @@
             TrExprNot (unary_op env e Interpreter.value_not)
         | ExprSomeElse (d,f,e) ->
             let red = (env,env,Some (Interpreter.evaluate_value infos env (ValueSomeElse (d,f,e))))
-            TrExprSomeElse (red,d,f,e)
+            let (_,_,cv) = red
+            let cv =
+                if Interpreter.evaluate_formula infos env (Exists (d,f))
+                then cv else None 
+            TrExprSomeElse (red,cv,d,f,e)
 
     and trace_expressions (m:ModuleDecl) infos (env:Model.Environment) es =
         let aux trs e =
             match trs with
             | [] -> [trace_expression m infos env e]
             | hd::_ ->
+                let env = final_env_of_expr hd
                 if expr_is_fully_evaluated hd
-                then
-                    let env = final_env_of_expr hd
-                    (trace_expression m infos env e)::trs
-                else (TrExprNotEvaluated)::trs
+                then (trace_expression m infos env e)::trs
+                else (TrExprNotEvaluated (env,env, None))::trs
         List.rev (List.fold aux [] es)
 
     and trace_statement (m:ModuleDecl) infos (env:Model.Environment) s =
@@ -141,7 +144,7 @@
                         let tr_st = trace_statement m infos env' selse
                         let env' = final_env_of_st tr_st
                         (env', tr_st)
-                else (env', TrNotEvaluated)
+                else (env', TrNotEvaluated(env',env',false))
             let rsd = (env, env', st_is_fully_executed tr_st)
             TrIfElse (rsd, tr, tr_st)
         | IfSomeElse (decl, f, sif, selse) ->
@@ -203,7 +206,7 @@
             TrExprAction (red, input, output, tr_args, tr)
         else
             let red = (env, env', None)
-            TrExprAction (red, input, output, tr_args, TrNotEvaluated)
+            TrExprAction (red, input, output, tr_args, TrNotEvaluated(env',env',false))
 
     and trace_action (m:ModuleDecl) infos (env:Model.Environment) name args =
         let action_decl = find_action m name
