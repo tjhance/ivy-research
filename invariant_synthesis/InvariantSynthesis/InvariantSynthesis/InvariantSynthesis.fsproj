@@ -4,7 +4,7 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp2.0</TargetFramework>
   </PropertyGroup>
-
+  
   <ItemGroup>
     <Compile Include="Helper.fs" />
     <Compile Include="AST.fs" />
@@ -17,6 +17,7 @@
     <Compile Include="Formula.fs" />
     <Compile Include="ConstraintsParser.fs" />
     <Compile Include="ParserAST.fs" />
+    <Compile Include="Parser.fs" />
     <Compile Include="TestModule.fs" />
     <Compile Include="Printer.fs" />
     <Compile Include="Program.fs" />
@@ -32,4 +33,8 @@
     </Reference>
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Update="FSharp.Core" Version="4.3.4" />
+  </ItemGroup>
+  
 </Project>

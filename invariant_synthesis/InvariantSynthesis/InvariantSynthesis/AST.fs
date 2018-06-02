@@ -1,7 +1,5 @@
 ﻿module AST
 
-open System
-
     (* A VERY BASIC AST FOR IVY *)
 
     // TODO: Parse Ivy code
