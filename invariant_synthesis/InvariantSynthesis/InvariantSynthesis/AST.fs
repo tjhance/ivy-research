@@ -4,8 +4,6 @@ open System
 
     (* A VERY BASIC AST FOR IVY *)
 
-    // TODO: Recode Interpreter/Synthesis with a trace system
-    // TODO: Adapt the Interpreter/Synthesis in order to be able to also analyze assertion fails
     // TODO: Parse Ivy code
 
     // TODO: Use model checking tool to know whether 2steps synthesis is needed?

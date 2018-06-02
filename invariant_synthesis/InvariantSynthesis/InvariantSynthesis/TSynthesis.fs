@@ -70,13 +70,13 @@
             let (_, cfg') = marks_for_value infos env Set.empty (ValueVar str)
             if mark_value && v <> None then (config_union cfg cfg') else cfg
         | TrExprFun ((_,env',v), str, tr_es) ->
-            let cfg =
+            let (cfg, args_mark) =
                 if mark_value && v <> None then
                     let vs = List.map ret_value_of_expr tr_es
                     let (_, cfg') = marks_for_value infos env' Set.empty (ValueFun (str, List.map (fun v -> ValueConst v) vs))
-                    config_union cfg cfg'
-                else cfg
-            marks_before_expressions module_decl infos tr_es cfg (List.map (fun _ -> mark_value) tr_es)
+                    (config_union cfg cfg', true)
+                else (cfg, false)
+            marks_before_expressions module_decl infos tr_es cfg (List.map (fun _ -> args_mark) tr_es)
         | TrExprAction ((_,_,v), input, output, tr_es, tr_st) ->
             let (cfg, args_marks) =
                 if exprs_are_fully_evaluated tr_es
@@ -93,14 +93,14 @@
                 else (cfg, List.map (fun _ -> false) tr_es)
             marks_before_expressions module_decl infos tr_es cfg args_marks
         | TrExprEqual ((_,env',v), tr_e1, tr_e2) ->
-            let cfg =
+            let (cfg, args_mark) =
                 if mark_value && v <> None then
                     let v1 = ret_value_of_expr tr_e1
                     let v2 = ret_value_of_expr tr_e2
                     let (_, cfg') = marks_for_formula infos env' Set.empty (Equal (ValueConst v1,ValueConst v2))
-                    config_union cfg cfg'
-                else cfg
-            marks_before_expressions module_decl infos [tr_e1;tr_e2] cfg [mark_value;mark_value]
+                    (config_union cfg cfg', true)
+                else (cfg, false)
+            marks_before_expressions module_decl infos [tr_e1;tr_e2] cfg [args_mark;args_mark]
         | TrExprOr ((_,_,v), tr_e1, tr_e2) ->
             let aux mark1 mark2 =
                 marks_before_expressions module_decl infos [tr_e1;tr_e2] cfg [mark1;mark2]

@@ -20,24 +20,10 @@ let main argv =
     let cs = ConstraintsParser.parse_from_str md str
     printfn "Building environment from constraints..."
     let (infos, env) = Model.constraints_to_env md cs
-    printfn "Success !"
     if verbose
     then
         printfn "%A" infos
         printfn "%A" env
-
-    printfn "Please enter the index of the invariant to analyze:"
-    let nb = Convert.ToInt32 (Console.ReadLine())
-    let formula = List.item nb md.Invariants
-    printfn "Generating marks for the formula (pre execution)..."
-    let (b,(m,um,ad)) = Synthesis.marks_for_formula infos env Set.empty formula
-    printfn "Success !"
-    if verbose
-    then
-        printfn "%A" b
-        printfn "%A" m
-        printfn "%A" um
-        printfn "%A" ad
 
     printfn "Please enter the name of the (concrete) action to execute:"
     let name = Console.ReadLine()
@@ -54,41 +40,40 @@ let main argv =
             )
             (find_action md name).Args
     printfn "Executing..."
-    let (env',ret) = Interpreter.execute_action md infos env name args
+    let tr = TInterpreter.trace_action md infos env name (List.map (fun cv -> ExprConst cv) args)
     printfn "Success !"
     if verbose
     then
-        printfn "%A" ret
-        printfn "%A" env'
+        printfn "%A" tr
 
-    printfn "Press enter to proceed to computation."
-    ignore (Console.ReadLine())
+    let ((m,um,ad),formula,b) =
+        if Trace.expr_is_fully_evaluated tr
+        then
+            printfn "Please enter the index of the invariant to analyze:"
+            let nb = Convert.ToInt32 (Console.ReadLine())
+            let formula = List.item nb md.Invariants
 
-    printfn "Generating marks for the formula (post execution)..."
-    let (b,(m,um,ad)) = Synthesis.marks_for_formula infos env' Set.empty formula
-    printfn "Success !"
-    if verbose
-    then
-        printfn "%A" b
-        printfn "%A" m
-        printfn "%A" um
-        printfn "%A" ad
-
-    printfn "Press enter to resume computation."
-    ignore (Console.ReadLine())
+            printfn "Generating marks for the formula (post execution)..."
+            let (b,(m,um,ad)) = Synthesis.marks_for_formula infos (Trace.final_env_of_expr tr) Set.empty formula
+            if verbose
+            then
+                printfn "%A" b
+                printfn "%A" m
+                printfn "%A" um
+                printfn "%A" ad
+            ((m,um,ad), Some formula, b)
+        else
+            printfn "Assertion failed... No invariant to analyze."
+            printfn "Analyzing the reason of failure."
+            (Synthesis.empty_config, None, false)
 
     printfn "Going back through the action..."
-    let (_,(m,um,ad)) = Synthesis.marks_before_action md infos env name args (m,um,ad) false
-    printfn "Success !"
+    let (m,um,ad) = TSynthesis.marks_before_expression md infos tr (m,um,ad) false
     if verbose
     then
-        printfn "%A" b
         printfn "%A" m
         printfn "%A" um
         printfn "%A" ad
-
-    printfn "Press enter to compute formula."
-    ignore (Console.ReadLine())
 
     let decls = Model.declarations_of_module md
     let (m', diff1) = Formula.simplify_marks infos md.Implications decls env m ad.d
@@ -121,21 +106,37 @@ let main argv =
             printfn "Building new environment..."
             let (infos_allowed, env_allowed) = Model.constraints_to_env md (cs@cs')
             printfn "Computing..."
-            let (env_allowed',_) = Interpreter.execute_action md infos_allowed env_allowed name args
-            let (b_al,(m_al,um_al,ad_al)) =
-                Synthesis.marks_for_formula infos_allowed env_allowed' Set.empty formula
-            if b_al <> b
-            then
-                let (_,(m_al,_,ad_al)) =
-                    Synthesis.marks_before_action md infos_allowed env_allowed name args (m_al,um_al,ad_al) false
-                if ad_al.md
-                then printfn "ERROR: Some marks still are model-dependent!"
-                else
-                    let (m_union, diff_union) = (Synthesis.marks_union m_al m', Set.union ad_al.d diff1)
-                    let (m_al, diff_al) = Formula.simplify_marks infos md.Implications decls env m_union diff_union
-                    let (m_al, diff_al) = (Synthesis.marks_diff m_al m', Set.difference diff_al diff1)
-                    allowed_paths := (m_al,diff_al)::(!allowed_paths)
-            else printfn "ERROR: Formula has the same value than with the original environment!"
+            let tr_allowed =
+                TInterpreter.trace_action md infos_allowed env_allowed name (List.map (fun cv -> ExprConst cv) args)
+            match formula with
+            | None ->
+                if Trace.expr_is_fully_evaluated tr_allowed <> b
+                then
+                    let (m_al,_,ad_al) =
+                        TSynthesis.marks_before_expression md infos_allowed tr_allowed Synthesis.empty_config false
+                    if ad_al.md
+                    then printfn "ERROR: Some marks still are model-dependent!"
+                    else
+                        let (m_union, diff_union) = (Synthesis.marks_union m_al m', Set.union ad_al.d diff1)
+                        let (m_al, diff_al) = Formula.simplify_marks infos md.Implications decls env m_union diff_union
+                        let (m_al, diff_al) = (Synthesis.marks_diff m_al m', Set.difference diff_al diff1)
+                        allowed_paths := (m_al,diff_al)::(!allowed_paths)
+                else printfn "ERROR: Execution still fail!"
+            | Some formula ->
+                let (b_al,(m_al,um_al,ad_al)) =
+                    Synthesis.marks_for_formula infos_allowed (Trace.final_env_of_expr tr_allowed) Set.empty formula
+                if b_al <> b
+                then
+                    let (m_al,_,ad_al) =
+                        TSynthesis.marks_before_expression md infos_allowed tr_allowed (m_al,um_al,ad_al) false
+                    if ad_al.md
+                    then printfn "ERROR: Some marks still are model-dependent!"
+                    else
+                        let (m_union, diff_union) = (Synthesis.marks_union m_al m', Set.union ad_al.d diff1)
+                        let (m_al, diff_al) = Formula.simplify_marks infos md.Implications decls env m_union diff_union
+                        let (m_al, diff_al) = (Synthesis.marks_diff m_al m', Set.difference diff_al diff1)
+                        allowed_paths := (m_al,diff_al)::(!allowed_paths)
+                else printfn "ERROR: Formula has the same value than with the original environment!"
             
             printfn "Would you like to add an accepting path to the invariant? (y/n)"
             answer := Console.ReadLine()
