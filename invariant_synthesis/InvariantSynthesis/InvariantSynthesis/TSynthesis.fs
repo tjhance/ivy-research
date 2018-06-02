@@ -258,7 +258,29 @@
                     marks_before_statement module_decl infos tr_st cfg
                 else cfg
             marks_before_expression module_decl infos tr_e cfg true
-        // TODO
+        | TrIfSomeElse ((env,_,_), cv, decl, f, tr_s) ->
+            match cv with
+            | Some _ ->
+                let cfg' = config_enter_block infos cfg [decl]
+                let cfg' = marks_before_statement module_decl infos tr_s cfg'
+                let (_, cfg'') =
+                    if is_var_marked infos cfg' decl.Name
+                    then marks_for_formula infos (initial_env_of_st tr_s) Set.empty f
+                    (* NOTE: In the case above, we may also ensure that every other value doesn't satisfy the predicate.
+                       However, it is a different problem than garanteeing the invariant value,
+                       since we are bound to an execution (maybe there is no uniqueness in this execution).
+                       Therefore, we suppose that the choice made is always the value we choose here (if it satisfies the condition).
+                       An assertion can also be added by the user to ensure this uniqueness. *)
+                    else marks_for_formula infos env Set.empty (Exists (decl, f))
+                let cfg' = config_union cfg' cfg''
+                config_leave_block infos cfg' [decl] cfg
+            | None ->
+                let cfg = marks_before_statement module_decl infos tr_s cfg
+                let (_,cfg') = marks_for_formula infos env Set.empty (Not (Exists (decl, f)))
+                config_union cfg cfg'
+        | TrAssert ((env,_,_),f) ->
+            let (_, cfg') = marks_for_formula infos env Set.empty f
+            config_union cfg cfg'
 
     // Statements are analysed in reverse order
     and marks_before_statements module_decl infos trs cfg =
