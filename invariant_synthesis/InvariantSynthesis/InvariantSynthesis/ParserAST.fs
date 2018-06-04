@@ -1,6 +1,7 @@
 ﻿module ParserAST
 
-    type Ivy_element =
+    // See OCaml definition for now...
+    (*type Ivy_element =
         | Type of AST.TypeDecl
         | Function of AST.FunDecl
         | Variable of AST.VarDecl
@@ -8,9 +9,9 @@
         | Action of AST.ActionDecl
         | Module of string * List<string> * List<Ivy_element>
         | Object of string * List<Ivy_element>
-        | ObjectFromModule of string * string * List<string>
-
-    // Convert a list of ivy elements to a global AST.ModuleDecl.
+        | ObjectFromModule of string * string * List<string>*)
+    
+    // Convert a list of ivy parser AST elements to a global AST.ModuleDecl.
     let ivy_elements_to_ast_module elements =
         ()
 
