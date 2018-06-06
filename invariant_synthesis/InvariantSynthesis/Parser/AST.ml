@@ -1,4 +1,6 @@
 
+(* EXPRESSION *)
+
 type ivy_type =
     | Void
     | Bool
@@ -25,3 +27,18 @@ type parsed_expression =
     | Imply of parsed_expression * parsed_expression
     | SomeElse of var_decl * parsed_expression * parsed_expression
 
+(* STATEMENT *)
+
+type hole_expression =
+    | Hole of var_decl
+    | Expr of parsed_expression
+
+type parsed_statement =
+    | NewBlock of var_decl list * parsed_statement list
+    | Expression of parsed_expression
+    | VarAssign of string * parsed_expression
+    | GeneralFunAssign of string * hole_expression list * parsed_expression
+    | IfElse of parsed_expression * parsed_statement * parsed_statement
+    | IfSomeElse of var_decl * parsed_expression * parsed_statement * parsed_statement
+    | Assert of parsed_expression
+    | Assume of parsed_expression

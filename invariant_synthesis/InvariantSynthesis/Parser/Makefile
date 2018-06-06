@@ -3,13 +3,9 @@
 all:
 	ocamlbuild -use-menhir -tag thread -use-ocamlfind main.native
 
-expr:
+parser:
 	mkdir -p _build
-	menhir --dump --explain ./ExprParser.mly --base _build/ExprParser
-
-stat:
-	mkdir -p _build
-	menhir --dump --explain ./StatParser.mly --base _build/StatParser
+	menhir --dump --explain ./Parser.mly --base _build/Parser
 
 clean:
 	rm -r _build

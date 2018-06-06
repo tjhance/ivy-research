@@ -6,20 +6,22 @@ let print_position outx lexbuf =
     pos.pos_lnum (pos.pos_cnum - pos.pos_bol + 1)
 
 let parse_with_error lexbuf =
-  try ExprParser.prog ExprLexer.read lexbuf with
-  | ExprLexer.SyntaxError msg ->
+  try Some (Parser.next_expression (Lexer.read false) lexbuf) with
+  | Lexer.SyntaxError msg ->
     Printf.fprintf stderr "%a: %s\n" print_position lexbuf msg;
     None
-  | ExprParser.Error ->
+  | Parser.Error ->
     Printf.fprintf stderr "%a: syntax error\n" print_position lexbuf;
-    exit (-1)
+    None
 
 let rec parse_and_print lexbuf =
   match parse_with_error lexbuf with
+  | None ->
+    ()
   | Some _ ->
     Printf.printf "Parsed !\n";
     parse_and_print lexbuf
-  | None -> ()
+
 
 let () =
   let filename = "no file" in
