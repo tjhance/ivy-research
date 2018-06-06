@@ -42,3 +42,19 @@ type parsed_statement =
     | IfSomeElse of var_decl * parsed_expression * parsed_statement * parsed_statement
     | Assert of parsed_expression
     | Assume of parsed_expression
+
+(* ELEMENTS *)
+
+type action_decl = string * var_decl list * var_decl * parsed_statement
+and module_decl = string * string list * parsed_element list
+
+and parsed_element =
+    | Type of type_decl
+    | Function of fun_decl
+    | Variable of var_decl
+    | Conjecture of parsed_expression
+    | AbstractAction of string * var_decl list * var_decl
+    | Action of action_decl
+    | Module of module_decl
+    | Object of string * parsed_element list
+    | ObjectFromModule of string * string * string list

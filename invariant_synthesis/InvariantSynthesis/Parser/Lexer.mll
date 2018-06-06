@@ -29,6 +29,16 @@ rule read ignore_nls =
   | "ensure" { ASSERT }
   | "require" { ASSUME }
   | "assume" { ASSUME }
+  | "conjecture" { CONJECTURE }
+  | "type"   { TYPE }
+  | "action" { ACTION }
+  | "returns" { RETURNS }
+  | "individual" { INDIVIDUAL }
+  | "function" { FUNCTION }
+  | "relation" { RELATION }
+  | "module" { MODULE }
+  | "object" { OBJECT }
+  | "instance" { INSTANCE }
   | "~="     { DIFFERENT }
   | "->"     { RIGHT_ARROW }
   | ":="     { ASSIGN }

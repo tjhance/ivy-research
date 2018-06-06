@@ -1,6 +1,16 @@
 %{
   open AST
+
+  let type_of_decls ds =
+    let aux (_,t) = t
+    in List.map aux ds
+
+  let name_of_decls ds =
+    let aux (n,_) = n
+    in List.map aux ds
 %}
+
+%token CONJECTURE TYPE ACTION RETURNS INDIVIDUAL FUNCTION RELATION MODULE OBJECT INSTANCE
 
 %token SEMI_COLON LEFT_BRACE RIGHT_BRACE
 %token ASSIGN CALL IF ASSERT ASSUME
@@ -26,6 +36,8 @@
 
 %start <AST.parsed_expression> next_expression
 %start <AST.parsed_statement> next_statement
+%start <AST.parsed_element> next_element
+%start <AST.parsed_element list> all_elements
 %%
 
 (* Entry points *)
@@ -39,12 +51,65 @@ end_expression:
   ;
 
 next_statement:
-  list(EOL) ; s=statement ; end_statement { s } ;
+  list(EOL) ; s = statement ; end_statement { s } ;
+
+next_element:
+  list(EOL) ; e = element ; end_element { e } ;
+
+all_elements_aux:
+  e = element ; list (EOL) { e } ;
+all_elements:
+  list (EOL) ; obj = list(all_elements_aux) ; EOF { obj } ;
+
+(* Elements *)
+
+end_element:
+  | EOL { }
+  | EOF { }
+  ;
+
+elements_aux:
+  e = element ; end_element ; list (EOL) { e } ;
+elements:
+  list (EOL) ; obj = list(elements_aux) { obj } ;
+
+element:
+  | TYPE ; name = ID { Type name }
+  | INDIVIDUAL ; d = decl { Variable d }
+  | FUNCTION ; name = ID ; LEFT_PARENTHESIS ; ds = decls; RIGHT_PARENTHESIS ; COLON ; t = ivy_type { Function(name, type_of_decls(ds), t, false) }
+  | RELATION ; name = ID ; LEFT_PARENTHESIS ; ds = decls; RIGHT_PARENTHESIS { Function(name, type_of_decls(ds), Bool, false) }
+  | ACTION ; name = ID ; args = action_args ; ret = action_ret { AbstractAction (name, args, ret) }
+  | ACTION ; name = ID ; args = action_args ; ret = action_ret ; EQUAL ; list(EOL) ; st = block_statement { Action (name, args, ret, st) }
+  | CONJECTURE ; e = expression { Conjecture e }
+  | MODULE ; name = ID ; args = module_args ; EQUAL ; list(EOL) ; els = block_of_elements { Module (name, args, els) }
+  | OBJECT ; name = ID ; EQUAL ; list(EOL) ; els = block_of_elements { Object (name, els) }
+  | INSTANCE ; name = ID ; COLON ; mod_name = ID ; args = module_args { ObjectFromModule (name, mod_name, args) }
+  ;
+
+block_of_elements:
+  LEFT_BRACE ; es = elements ; RIGHT_BRACE { es } ;
+
+module_args:
+  | LEFT_PARENTHESIS ; ds = decls; RIGHT_PARENTHESIS { name_of_decls ds }
+  | { [] }
+  ;
+
+action_args:
+  | LEFT_PARENTHESIS ; ds = decls; RIGHT_PARENTHESIS { ds }
+  | { [] }
+  ;
+
+action_ret:
+  | RETURNS ; LEFT_PARENTHESIS ; d = decl; RIGHT_PARENTHESIS { d }
+  | { ("", Void) }
+  ;
+
+decls:
+  obj = separated_list(COMMA, decl) { obj } ;
 
 (* Statements *)
 
 end_statement:
-  | EOF { }
   | SEMI_COLON { }
   ;
 
@@ -79,10 +144,7 @@ decl:
   | name = ID
     { (name, Uninterpreted "") }
   ;
-(*
-decls:
-  obj = separated_list(COMMA, decl) { obj } ;
-*)
+
 hole_expression:
   | e = expression { Expr e }
   | v = qvar_decl { Hole v }
@@ -133,7 +195,7 @@ expression:
   ;
 
 expressions:
-  obj = separated_list(COMMA, expression)    { obj } ;
+  obj = separated_list(COMMA, expression) { obj } ;
 
 ivy_type:
   | BOOL
@@ -150,4 +212,4 @@ qvar_decl:
   ;
 
 qvar_decls:
-  obj = separated_list(COMMA, qvar_decl)    { obj } ;
+  obj = separated_list(COMMA, qvar_decl) { obj } ;
