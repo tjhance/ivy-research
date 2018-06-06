@@ -1,6 +1,6 @@
 {
 open Lexing
-open FormulaParser
+open ExprParser
 
 exception SyntaxError of string
 
@@ -20,13 +20,17 @@ let infix_id = ['<' '=' '~' '>']*
 rule read =
   parse
   | white    { read lexbuf }
-  | newline  { next_line lexbuf; read lexbuf }
+  | newline  { next_line lexbuf; EOL }
+  | "bool"   { BOOL }
+  | "some"   { SOME }
+  | "else"   { ELSE }
   | "true"   { TRUE }
   | "false"  { FALSE }
   | "forall" { FORALL }
   | "exists" { EXISTS }
   | "~="     { DIFFERENT }
   | "->"     { RIGHT_ARROW }
+  | '.'      { POINT }
   | ','      { COMMA }
   | ':'      { COLON }
   | '('      { LEFT_PARENTHESIS }
@@ -37,5 +41,5 @@ rule read =
   | '~'      { NOT }
   | infix_id { INFIX_ID (Lexing.lexeme lexbuf) }
   | id       { ID (Lexing.lexeme lexbuf) }
-  | _        { raise (SyntaxError ("Unexpected char: " ^ Lexing.lexeme lexbuf)) }
   | eof      { EOF }
+  | _        { raise (SyntaxError ("Unexpected char: " ^ Lexing.lexeme lexbuf)) }

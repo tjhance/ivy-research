@@ -57,7 +57,7 @@
             | ValueNot v -> sprintf "not %s" (aux v)
             | ValueSomeElse (d,f,v) ->
                 let decls = Model.add_var_declaration d decls
-                sprintf "some %s s.t. %s or %s" (var_decl_to_string d) (formula_to_string decls f 10) (aux v)
+                sprintf "some %s. %s else %s" (var_decl_to_string d) (formula_to_string decls f 10) (aux v)
         aux v
 
     and formula_to_string decls f prec =

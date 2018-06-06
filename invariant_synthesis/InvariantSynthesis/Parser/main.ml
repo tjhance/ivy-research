@@ -1,4 +1,3 @@
-open FormulaLexer
 open Lexing
 
 let print_position outx lexbuf =
@@ -7,11 +6,11 @@ let print_position outx lexbuf =
     pos.pos_lnum (pos.pos_cnum - pos.pos_bol + 1)
 
 let parse_with_error lexbuf =
-  try FormulaParser.prog FormulaLexer.read lexbuf with
-  | SyntaxError msg ->
+  try ExprParser.prog ExprLexer.read lexbuf with
+  | ExprLexer.SyntaxError msg ->
     Printf.fprintf stderr "%a: %s\n" print_position lexbuf msg;
     None
-  | FormulaParser.Error ->
+  | ExprParser.Error ->
     Printf.fprintf stderr "%a: syntax error\n" print_position lexbuf;
     exit (-1)
 

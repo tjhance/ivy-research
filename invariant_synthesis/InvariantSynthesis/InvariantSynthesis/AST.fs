@@ -2,6 +2,12 @@
 
     (* A VERY BASIC AST FOR IVY *)
 
+    // TODO: "For" loops
+    // TODO: "if some" with multiple var decls
+    // TODO: Allow multiple return values for actions.
+    // If used in an expression, returns ConstVoid.
+    // If used in a "call" statement, assign each value.
+
     // TODO: Parse Ivy code
 
     // TODO: Use model checking tool to know whether 2steps synthesis is needed?
