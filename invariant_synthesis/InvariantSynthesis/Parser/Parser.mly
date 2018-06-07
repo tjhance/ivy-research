@@ -127,7 +127,7 @@ statement:
   | CALL ; e = expression { Expression e }
   | CALL ; name = ID ; ASSIGN ; e = expression { VarAssign (name, e) }
   | name = ID ; ASSIGN ; e = expression { VarAssign (name, e) }
-  | name = ID ; LEFT_PARENTHESIS ; args = hole_expressions ; RIGHT_PARENTHESIS ; ASSIGN ; e = expression { GeneralFunAssign (name, args, e) }
+  | name = ID ; LEFT_PARENTHESIS ; args = (*hole_*)expressions ; RIGHT_PARENTHESIS ; ASSIGN ; e = expression { GeneralFunAssign (name, args, e) }
   | IF ; e = expression ; list (EOL) ; sif = block_statement { IfElse (e, sif, NewBlock([],[])) }
   | IF ; e = expression ; list (EOL) ; sif = block_statement ; list (EOL) ;
     ELSE ; list (EOL) ; selse = block_statement { IfElse (e, sif, selse) }
@@ -145,6 +145,7 @@ decl:
     { (name, Uninterpreted "") }
   ;
 
+(*
 hole_expression:
   | e = expression { Expr e }
   | v = qvar_decl { Hole v }
@@ -152,6 +153,7 @@ hole_expression:
 
 hole_expressions:
   obj = separated_list(COMMA, hole_expression) { obj } ;
+*)
 
 (* Expressions *)
 
@@ -191,6 +193,8 @@ expression:
   | arg1 = expression; name = INFIX_ID; arg2 = expression
     { VarFunAction (name, [arg1;arg2]) }
   | name = ID
+    { VarFunAction (name, []) }
+  | name = QVAR_ID
     { VarFunAction (name, []) }
   ;
 

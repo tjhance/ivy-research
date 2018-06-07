@@ -8,10 +8,10 @@ let print_position outx lexbuf =
 let parse_with_error lexbuf =
   try Some (Parser.next_expression (Lexer.read false) lexbuf) with
   | Lexer.SyntaxError msg ->
-    Printf.fprintf stderr "%a: %s\n" print_position lexbuf msg;
+    Printf.fprintf stderr "[Lexing] %a: %s\n" print_position lexbuf msg;
     None
   | Parser.Error ->
-    Printf.fprintf stderr "%a: syntax error\n" print_position lexbuf;
+    Printf.fprintf stderr "[Parsing] %a: syntax error\n" print_position lexbuf;
     None
 
 let rec parse_and_print lexbuf =
@@ -19,12 +19,12 @@ let rec parse_and_print lexbuf =
   | None ->
     ()
   | Some ast ->
-    Printf.fprintf stdout "%s" (Sexplib.Sexp.to_string (Sexplib.Conv.sexp_of_opaque ast)) ;
+    Printf.fprintf stdout "Result: %s" (Sexplib.Sexp.to_string (Sexplib.Conv.sexp_of_unit ())) ;
     parse_and_print lexbuf
 
 
 let () =
-  let filename = "no file" in
+  let filename = "stdin" in
   let lexbuf = Lexing.from_channel (stdin) in
   lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
   parse_and_print lexbuf;
