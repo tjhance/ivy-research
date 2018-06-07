@@ -76,8 +76,10 @@ elements:
 element:
   | TYPE ; name = ID { Type name }
   | INDIVIDUAL ; d = decl { Variable d }
-  | FUNCTION ; name = ID ; LEFT_PARENTHESIS ; ds = decls; RIGHT_PARENTHESIS ; COLON ; t = ivy_type { Function(name, type_of_decls(ds), t, false) }
-  | RELATION ; name = ID ; LEFT_PARENTHESIS ; ds = decls; RIGHT_PARENTHESIS { Function(name, type_of_decls(ds), Bool, false) }
+  | FUNCTION ; name = ID ; LEFT_PARENTHESIS ; ds = qvar_decls; RIGHT_PARENTHESIS ; COLON ; t = ivy_type { Function(name, type_of_decls(ds), t, false) }
+  | FUNCTION ; LEFT_PARENTHESIS ; d1 = qvar_decl ; name = INFIX_ID ; d2 = qvar_decl ; RIGHT_PARENTHESIS ; COLON ; t = ivy_type { Function(name, type_of_decls([d1;d2]), t, true) }
+  | RELATION ; name = ID ; LEFT_PARENTHESIS ; ds = qvar_decls; RIGHT_PARENTHESIS { Function(name, type_of_decls(ds), Bool, false) }
+  | RELATION ; LEFT_PARENTHESIS ; d1 = qvar_decl ; name = INFIX_ID ; d2 = qvar_decl ; RIGHT_PARENTHESIS { Function(name, type_of_decls([d1;d2]), Bool, true) }
   | ACTION ; name = ID ; args = action_args ; ret = action_ret { AbstractAction (name, args, ret) }
   | ACTION ; name = ID ; args = action_args ; ret = action_ret ; EQUAL ; list(EOL) ; st = block_statement { Action (name, args, ret, st) }
   | CONJECTURE ; e = expression { Conjecture e }
@@ -195,7 +197,7 @@ expression:
   | name = ID
     { VarFunAction (name, []) }
   | name = QVAR_ID
-    { VarFunAction (name, []) }
+    { QVar name }
   ;
 
 expressions:

@@ -9,7 +9,9 @@ let white = [' ' '\t']+
 let newline = '\r' | '\n' | "\r\n"
 (* let newlines = [' ' '\t' '\r' '\n']* *)
 let qvar_id = ['A'-'Z']+
-let id = ['a'-'z' 'A'-'Z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_' '.']*
+let id =
+    ['a'-'z' 'A'-'Z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_' '.']* ['a'-'z' 'A'-'Z' '0'-'9' '_']
+  | ['a'-'z' 'A'-'Z' '_']
 let infix_id = ['<' '=' '~' '>']+
 
 rule read ignore_nls =
