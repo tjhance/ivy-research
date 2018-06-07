@@ -8,7 +8,10 @@ let print_position outx lexbuf =
 let parse_with_error action lexbuf =
   try
     match action with
-    | "all" -> Some (AST.sexp_of_parsed_elements (Parser.all_elements (Lexer.read false) lexbuf))
+    | "all" ->
+      let res = (Parser.all_elements (Lexer.read false) lexbuf) in
+      if res = [] then None
+      else Some (AST.sexp_of_parsed_elements res)
     | "expr" -> Some (AST.sexp_of_parsed_expression (Parser.next_expression (Lexer.read false) lexbuf))
     | "stat" -> Some (AST.sexp_of_parsed_statement (Parser.next_statement (Lexer.read false) lexbuf))
     | "elem" -> Some (AST.sexp_of_parsed_element (Parser.next_element (Lexer.read false) lexbuf))
@@ -30,22 +33,22 @@ let rec parse_and_print action out_chan lexbuf =
 
 let () =
   let action =
-      if Array.length Sys.argv > 0
-      then Sys.argv.(0)
+      if Array.length Sys.argv > 1
+      then Sys.argv.(1)
       else ""
     in
   let (chan, filename) =
-    if Array.length Sys.argv > 1
+    if Array.length Sys.argv > 2
     then
-      let filename = Sys.argv.(1) in
+      let filename = Sys.argv.(2) in
       (open_in filename, filename)
     else
       (stdin, "stdin")
     in
   let out_chan =
-    if Array.length Sys.argv > 2
+    if Array.length Sys.argv > 3
     then
-      open_out Sys.argv.(2)
+      open_out Sys.argv.(3)
     else
       stdout
     in

@@ -67,6 +67,10 @@
     let deserialize str =
         Prime.SymbolicOperators.scvalue<parsed_element list> str
     
+    let deserialize_from_janestreet_sexpr (str:string) =
+        let str = str.Replace('(','[').Replace(')',']') // Note: we should be more careful, but the AST does not contain any parenthesis
+        deserialize str
+
     // Convert a list of ivy parser AST elements to a global AST.ModuleDecl.
     let ivy_elements_to_ast_module elements =
         ()

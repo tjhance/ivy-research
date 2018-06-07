@@ -12,6 +12,13 @@ let read_until_line_jump () =
 
 [<EntryPoint>]
 let main argv =
+
+    let str = System.IO.File.ReadAllText("D:\\mini_test_parsed.sexpr");
+    let test = ParserAST.deserialize_from_janestreet_sexpr str
+    printfn "%A" test
+
+    exit 0 ;
+
     let verbose = Array.contains "-v" argv
     let md = TestModule.Queue.queue_module
     printfn "Please enter constraints:"
