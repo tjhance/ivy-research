@@ -11,11 +11,13 @@
 %}
 
 %token CONJECTURE TYPE ACTION RETURNS INDIVIDUAL FUNCTION RELATION MODULE OBJECT INSTANCE
+%token AFTER BEFORE DEFINITION
 
 %token SEMI_COLON LEFT_BRACE RIGHT_BRACE
 %token ASSIGN CALL IF ASSERT ASSUME VAR
 
 %token BOOL TRUE FALSE
+%token <int> INT
 %token <string> QVAR_ID
 %token <string> ID
 %token <string> INFIX_ID
@@ -80,8 +82,11 @@ element:
   | FUNCTION ; LEFT_PARENTHESIS ; d1 = qvar_decl ; name = INFIX_ID ; d2 = qvar_decl ; RIGHT_PARENTHESIS ; COLON ; t = ivy_type { Function(name, type_of_decls([d1;d2]), t, true) }
   | RELATION ; name = ID ; LEFT_PARENTHESIS ; ds = qvar_decls; RIGHT_PARENTHESIS { Function(name, type_of_decls(ds), Bool, false) }
   | RELATION ; LEFT_PARENTHESIS ; d1 = qvar_decl ; name = INFIX_ID ; d2 = qvar_decl ; RIGHT_PARENTHESIS { Function(name, type_of_decls([d1;d2]), Bool, true) }
+  | DEFINITION ; name = ID ; args = action_args ; EQUAL ; e = expression { Macro (name, args, e) }
   | ACTION ; name = ID ; args = action_args ; ret = action_ret { AbstractAction (name, args, ret) }
   | ACTION ; name = ID ; args = action_args ; ret = action_ret ; EQUAL ; list(EOL) ; st = block_statement { Action (name, args, ret, st) }
+  | AFTER ; name = ID ; list(EOL) ; st = block_statement { After (name, st) }
+  | BEFORE ; name = ID ; list(EOL) ; st = block_statement { Before (name, st) }
   | CONJECTURE ; e = expression { Conjecture e }
   | MODULE ; name = ID ; args = module_args ; EQUAL ; list(EOL) ; els = block_of_elements { Module (name, args, els) }
   | OBJECT ; name = ID ; EQUAL ; list(EOL) ; els = block_of_elements { Object (name, els) }
@@ -166,6 +171,8 @@ expression:
     { Const (ConstBool true) }
   | FALSE
     { Const (ConstBool false) }
+  | i = INT
+    { Const (ConstInt i) }
   | LEFT_PARENTHESIS; obj = expression; RIGHT_PARENTHESIS
     { obj }
   | e1 = expression; EQUAL; e2 = expression
@@ -198,8 +205,8 @@ expression:
     { VarFunAction (name, [arg1;arg2]) }
   | name = ID
     { VarFunAction (name, []) }
-  | name = QVAR_ID
-    { QVar name }
+  | d = qvar_decl
+    { QVar d }
   ;
 
 expressions:

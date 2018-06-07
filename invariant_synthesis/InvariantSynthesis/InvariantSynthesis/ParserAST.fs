@@ -16,11 +16,11 @@
     type const_value =
         | ConstVoid
         | ConstBool of bool
-        | ConstInt of string * int
+        | ConstInt of int
 
     type parsed_expression =
         | Const of const_value
-        | QVar of string
+        | QVar of var_decl
         | VarFunAction of string * parsed_expression list
         | Equal of parsed_expression * parsed_expression
         | Or of parsed_expression * parsed_expression
@@ -53,9 +53,12 @@
         | Type of type_decl
         | Function of fun_decl
         | Variable of var_decl
+        | Macro of string * var_decl list * parsed_expression
         | Conjecture of parsed_expression
         | AbstractAction of string * var_decl list * var_decl
         | Action of action_decl
+        | After of string * parsed_statement
+        | Before of string * parsed_statement
         | Module of module_decl
         | Object of string * parsed_element list
         | ObjectFromModule of string * string * string list

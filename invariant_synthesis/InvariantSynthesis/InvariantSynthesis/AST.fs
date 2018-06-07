@@ -7,6 +7,9 @@
     // TODO: Allow multiple return values for actions.
     // If used in an expression, returns ConstVoid.
     // If used in a "call" statement, assign each value.
+    // TODO: Handle functions with object as return value (case of instance a(X):b(Y))
+    // TODO: Non-macro definitions
+    // TODO: Axiom, isolate, inductive, export, extract...
 
     // TODO: Parse Ivy code
 
