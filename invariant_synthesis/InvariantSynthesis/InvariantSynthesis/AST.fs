@@ -100,6 +100,17 @@
             Actions: List<ActionDecl>; Invariants: List<Formula>; Implications: List<ImplicationRule> }
 
 
+    let empty_module name =
+        {
+            Name=name;
+            Types=[];
+            Funs=[];
+            Vars=[];
+            Actions=[];
+            Invariants=[];
+            Implications=[];
+        }
+
     let type_of_const_value cv =
         match cv with
         | ConstVoid -> Void

@@ -68,11 +68,47 @@
     let deserialize str =
         Prime.SymbolicOperators.scvalue<parsed_element list> str
 
-    // Convert a list of ivy parser AST elements to a global AST.ModuleDecl.
-    let ivy_elements_to_ast_module elements =
-        ()
+    let separator = '.'
 
-    // Resolve and/or adjust references to types, functions, variables or actions
-    // of an AST.ModuleDecl
-    let resolve_references md =
-        md
+    let compose_name base_name name =
+        sprintf "%s%c%s" base_name separator name
+
+    let decompose_name (name:string) =
+        let i = name.LastIndexOf(separator)
+        if i >= 0
+        then (Some (name.Substring(0,i)), name.Substring(i+1))
+        else (None, name)
+
+    let resolve_reference base_name reference candidates =
+        let rec aux base_name =
+            let name = compose_name base_name reference
+            if Set.contains name candidates
+            then name
+            else
+                match decompose_name base_name with
+                | (None, _) -> failwith ("Can't resolve reference: "+reference)
+                | (Some b, _) -> aux b
+        aux base_name
+
+    let resolve_type_reference base_name reference (m:AST.ModuleDecl) =
+        let candidates = List.map (fun (d:AST.TypeDecl) -> d.Name) m.Types
+        resolve_reference base_name reference (Set.ofList candidates)
+    
+    // Parsing to AST converters
+    let p2a_type ptype = ()
+        
+    // Convert a list of ivy parser AST elements to a global AST.ModuleDecl.
+    // Also add and/or adjust references to types, functions, variables or actions of the module.
+    let ivy_elements_to_ast_module name elements =
+        let rec aux acc base_name elements =
+            let treat acc e =
+                match e with
+                | Type name ->
+                    let name = { AST.Name = compose_name base_name name }
+                    { acc with AST.Types=(name::acc.Types) }
+                //| Function (name,args,ret,infix) ->
+
+            List.fold treat acc elements
+        aux (AST.empty_module name) "" elements
+
+
