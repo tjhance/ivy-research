@@ -43,7 +43,7 @@
 (* Entry points *)
 
 next_expression:
-  list(EOL) ; v = expression ; end_expression { v } ;
+  list(EOL) ; e = expression ; end_expression { e } ;
 
 end_expression:
   | EOL { }
