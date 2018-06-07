@@ -44,6 +44,7 @@ rule read ignore_nls =
   | "module" { MODULE }
   | "object" { OBJECT }
   | "instance" { INSTANCE }
+  | "instantiate" { INSTANTIATE }
   | "after"  { AFTER }
   | "before" { BEFORE }
   | "definition" { DEFINITION }

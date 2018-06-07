@@ -5,13 +5,10 @@
     let aux (_,t) = t
     in List.map aux ds
 
-  let name_of_decls ds =
-    let aux (n,_) = n
-    in List.map aux ds
 %}
 
 %token CONJECTURE TYPE ACTION RETURNS INDIVIDUAL FUNCTION RELATION MODULE OBJECT INSTANCE
-%token AFTER BEFORE DEFINITION
+%token AFTER BEFORE DEFINITION INSTANTIATE
 
 %token SEMI_COLON LEFT_BRACE RIGHT_BRACE
 %token ASSIGN CALL IF ASSERT ASSUME VAR
@@ -91,13 +88,14 @@ element:
   | MODULE ; name = ID ; args = module_args ; EQUAL ; list(EOL) ; els = block_of_elements { Module (name, args, els) }
   | OBJECT ; name = ID ; EQUAL ; list(EOL) ; els = block_of_elements { Object (name, els) }
   | INSTANCE ; name = ID ; COLON ; mod_name = ID ; args = module_args { ObjectFromModule (name, mod_name, args) }
+  | INSTANTIATE ; mod_name = ID ; args = module_args { ObjectFromModule ("", mod_name, args) }
   ;
 
 block_of_elements:
   LEFT_BRACE ; es = elements ; RIGHT_BRACE { es } ;
 
 module_args:
-  | LEFT_PARENTHESIS ; ds = decls; RIGHT_PARENTHESIS { name_of_decls ds }
+  | LEFT_PARENTHESIS ; ds = module_decls; RIGHT_PARENTHESIS { ds }
   | { [] }
   ;
 
@@ -109,6 +107,14 @@ action_args:
 action_ret:
   | RETURNS ; LEFT_PARENTHESIS ; d = decl; RIGHT_PARENTHESIS { d }
   | { ("", Void) }
+  ;
+
+module_decls:
+  obj = separated_list(COMMA, module_decl) { obj } ;
+
+module_decl:
+  | name = ID { name }
+  | name = INFIX_ID { name }
   ;
 
 decls:
