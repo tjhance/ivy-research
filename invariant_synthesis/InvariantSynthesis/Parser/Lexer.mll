@@ -27,6 +27,7 @@ rule read ignore_nls =
   | "exists" { EXISTS }
   | "call"   { CALL }
   | "if"     { IF }
+  | "var"     { VAR }
   | "assert" { ASSERT }
   | "ensure" { ASSERT }
   | "require" { ASSUME }

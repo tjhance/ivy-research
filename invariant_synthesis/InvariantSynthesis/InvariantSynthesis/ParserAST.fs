@@ -34,7 +34,8 @@
     (* STATEMENT *)
 
     type parsed_statement =
-        | NewBlock of var_decl list * parsed_statement list
+        | NewBlock of parsed_statement list
+        | NewVar of var_decl * parsed_expression option
         | Expression of parsed_expression
         | VarAssign of string * parsed_expression
         | GeneralFunAssign of string * parsed_expression list * parsed_expression

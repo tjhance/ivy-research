@@ -13,7 +13,7 @@
 %token CONJECTURE TYPE ACTION RETURNS INDIVIDUAL FUNCTION RELATION MODULE OBJECT INSTANCE
 
 %token SEMI_COLON LEFT_BRACE RIGHT_BRACE
-%token ASSIGN CALL IF ASSERT ASSUME
+%token ASSIGN CALL IF ASSERT ASSUME VAR
 
 %token BOOL TRUE FALSE
 %token <string> QVAR_ID
@@ -121,19 +121,21 @@ statements:
   list (EOL) ; obj = list(statements_aux) { obj } ;
 
 block_statement:
-  LEFT_BRACE ; sts = statements ; RIGHT_BRACE { NewBlock ([], sts) } ;
+  LEFT_BRACE ; sts = statements ; RIGHT_BRACE { NewBlock sts } ;
 
 statement:
-  | { NewBlock([],[]) }
+  | { NewBlock([]) }
   | b = block_statement { b }
+  | VAR ; d = decl { NewVar (d, None) }
+  | VAR ; d = decl ; ASSIGN ; e = expression { NewVar (d, Some e) }
   | CALL ; e = expression { Expression e }
   | CALL ; name = ID ; ASSIGN ; e = expression { VarAssign (name, e) }
   | name = ID ; ASSIGN ; e = expression { VarAssign (name, e) }
   | name = ID ; LEFT_PARENTHESIS ; args = (*hole_*)expressions ; RIGHT_PARENTHESIS ; ASSIGN ; e = expression { GeneralFunAssign (name, args, e) }
-  | IF ; e = expression ; list (EOL) ; sif = block_statement { IfElse (e, sif, NewBlock([],[])) }
+  | IF ; e = expression ; list (EOL) ; sif = block_statement { IfElse (e, sif, NewBlock([])) }
   | IF ; e = expression ; list (EOL) ; sif = block_statement ; list (EOL) ;
     ELSE ; list (EOL) ; selse = block_statement { IfElse (e, sif, selse) }
-  | IF ; SOME ; d = decl ; POINT ; e = expression ; list (EOL) ; sif = block_statement { IfSomeElse (d, e, sif, NewBlock([],[])) }
+  | IF ; SOME ; d = decl ; POINT ; e = expression ; list (EOL) ; sif = block_statement { IfSomeElse (d, e, sif, NewBlock([])) }
   | IF ; SOME ; d = decl ; POINT ; e = expression ; list (EOL) ; sif = block_statement ; list (EOL) ;
     ELSE ; list (EOL) ; selse = block_statement { IfSomeElse (d, e, sif, selse) }
   | ASSERT ; e = expression { Assert (e) }
