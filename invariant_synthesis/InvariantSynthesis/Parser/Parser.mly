@@ -8,7 +8,7 @@
 %}
 
 %token CONJECTURE TYPE ACTION RETURNS INDIVIDUAL FUNCTION RELATION MODULE OBJECT INSTANCE
-%token AFTER BEFORE DEFINITION INSTANTIATE
+%token AFTER BEFORE DEFINITION INSTANTIATE IMPLEMENT
 
 %token SEMI_COLON LEFT_BRACE RIGHT_BRACE
 %token ASSIGN CALL IF ASSERT ASSUME VAR
@@ -82,6 +82,7 @@ element:
   | DEFINITION ; name = ID ; args = action_args ; EQUAL ; e = expression { Macro (name, args, e) }
   | ACTION ; name = ID ; args = action_args ; ret = action_ret { AbstractAction (name, args, ret) }
   | ACTION ; name = ID ; args = action_args ; ret = action_ret ; EQUAL ; list(EOL) ; st = block_statement { Action (name, args, ret, st) }
+  | IMPLEMENT ; name = ID ; list(EOL) ; st = block_statement { Implement (name, st) }
   | AFTER ; name = ID ; list(EOL) ; st = block_statement { After (name, st) }
   | BEFORE ; name = ID ; list(EOL) ; st = block_statement { Before (name, st) }
   | CONJECTURE ; e = expression { Conjecture e }

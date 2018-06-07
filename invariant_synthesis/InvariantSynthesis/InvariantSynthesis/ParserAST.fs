@@ -56,6 +56,7 @@
         | Macro of string * var_decl list * parsed_expression
         | Conjecture of parsed_expression
         | AbstractAction of string * var_decl list * var_decl
+        | Implement of string * parsed_statement
         | Action of action_decl
         | After of string * parsed_statement
         | Before of string * parsed_statement
