@@ -8,8 +8,7 @@
     // If used in an expression, returns ConstVoid.
     // If used in a "call" statement, assign each value.
     // TODO: Handle functions with object as return value (case of instance a(X):b(Y))
-    // TODO: Non-macro definitions
-    // TODO: Axiom, isolate, inductive, export, extract, interpret...
+    // TODO: Axiom, isolate, inductive, export, extract, interpret, property...
 
     // TODO: Parse Ivy code
 

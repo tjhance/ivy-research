@@ -87,7 +87,7 @@ module unbounded_queue(data) =
     object spec =
     {
 		function content_f(E:incrementable.t) : data
-		before push (da:data)
+		before push
 		{
 			content_f(next_e) := da;
 		}

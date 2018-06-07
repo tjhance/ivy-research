@@ -17,7 +17,7 @@
 %token <int> INT
 %token <string> QVAR_ID
 %token <string> ID
-%token <string> INFIX_ID
+%token <string> INFIX_CMP_ID INFIX_FUN_ID
 %token SOME ELSE COMMA COLON POINT
 %token LEFT_PARENTHESIS RIGHT_PARENTHESIS
 %token FORALL EXISTS
@@ -30,7 +30,8 @@
 %right RIGHT_ARROW
 %left OR
 %left AND
-%nonassoc EQUAL DIFFERENT INFIX_ID
+%nonassoc EQUAL DIFFERENT INFIX_CMP_ID
+%nonassoc INFIX_FUN_ID
 %nonassoc NOT
 
 %start <AST.parsed_expression> next_expression
@@ -76,10 +77,11 @@ element:
   | TYPE ; name = ID { Type name }
   | INDIVIDUAL ; d = decl { Variable d }
   | FUNCTION ; name = ID ; LEFT_PARENTHESIS ; ds = qvar_decls; RIGHT_PARENTHESIS ; COLON ; t = ivy_type { Function(name, type_of_decls(ds), t, false) }
-  | FUNCTION ; LEFT_PARENTHESIS ; d1 = qvar_decl ; name = INFIX_ID ; d2 = qvar_decl ; RIGHT_PARENTHESIS ; COLON ; t = ivy_type { Function(name, type_of_decls([d1;d2]), t, true) }
+  | FUNCTION ; LEFT_PARENTHESIS ; d1 = qvar_decl ; name = INFIX_FUN_ID ; d2 = qvar_decl ; RIGHT_PARENTHESIS ; COLON ; t = ivy_type { Function(name, type_of_decls([d1;d2]), t, true) }
   | RELATION ; name = ID ; LEFT_PARENTHESIS ; ds = qvar_decls; RIGHT_PARENTHESIS { Function(name, type_of_decls(ds), Bool, false) }
-  | RELATION ; LEFT_PARENTHESIS ; d1 = qvar_decl ; name = INFIX_ID ; d2 = qvar_decl ; RIGHT_PARENTHESIS { Function(name, type_of_decls([d1;d2]), Bool, true) }
+  | RELATION ; LEFT_PARENTHESIS ; d1 = qvar_decl ; name = INFIX_CMP_ID ; d2 = qvar_decl ; RIGHT_PARENTHESIS { Function(name, type_of_decls([d1;d2]), Bool, true) }
   | DEFINITION ; name = ID ; args = action_args ; EQUAL ; e = expression { Macro (name, args, e) }
+  | DEFINITION ; name = ID ; LEFT_PARENTHESIS ; args = qvar_decls_ne ; RIGHT_PARENTHESIS ; EQUAL ; e = expression { Definition (name, args, e) }
   | ACTION ; name = ID ; args = action_args ; ret = action_ret { AbstractAction (name, args, ret) }
   | ACTION ; name = ID ; args = action_args ; ret = action_ret ; EQUAL ; list(EOL) ; st = block_statement { Action (name, args, ret, st) }
   | IMPLEMENT ; name = ID ; list(EOL) ; st = block_statement { Implement (name, st) }
@@ -88,12 +90,20 @@ element:
   | CONJECTURE ; e = expression { Conjecture e }
   | MODULE ; name = ID ; args = module_args ; EQUAL ; list(EOL) ; els = block_of_elements { Module (name, args, els) }
   | OBJECT ; name = ID ; EQUAL ; list(EOL) ; els = block_of_elements { Object (name, els) }
-  | INSTANCE ; name = ID ; COLON ; mod_name = ID ; args = module_args { ObjectFromModule (name, mod_name, args) }
-  | INSTANTIATE ; mod_name = ID ; args = module_args { ObjectFromModule ("", mod_name, args) }
+  | INSTANCE ; name = ID ; COLON ; mod_name = ID ; args = module_args_with_infix { ObjectFromModule (name, mod_name, args) }
+  | INSTANTIATE ; mod_name = ID ; args = module_args_with_infix { ObjectFromModule ("", mod_name, args) }
   ;
+
+qvar_decls_ne:
+  obj = separated_nonempty_list(COMMA, qvar_decl) { obj } ;
 
 block_of_elements:
   LEFT_BRACE ; es = elements ; RIGHT_BRACE { es } ;
+
+module_args_with_infix:
+  | LEFT_PARENTHESIS ; ds = module_decls_with_infix; RIGHT_PARENTHESIS { ds }
+  | { [] }
+  ;
 
 module_args:
   | LEFT_PARENTHESIS ; ds = module_decls; RIGHT_PARENTHESIS { ds }
@@ -111,11 +121,19 @@ action_ret:
   ;
 
 module_decls:
-  obj = separated_list(COMMA, module_decl) { obj } ;
+  obj = separated_list(COMMA, ID) { obj } ;
 
-module_decl:
+module_decls_with_infix:
+  obj = separated_list(COMMA, module_decl_with_infix) { obj } ;
+
+module_decl_with_infix:
   | name = ID { name }
-  | name = INFIX_ID { name }
+  | name = infix_id { name }
+  ;
+
+infix_id:
+  | n = INFIX_CMP_ID { n }
+  | n = INFIX_FUN_ID { n }
   ;
 
 decls:
@@ -208,7 +226,9 @@ expression:
     { SomeElse (d, e, Const ConstVoid) }
   | name = ID; LEFT_PARENTHESIS; args = expressions; RIGHT_PARENTHESIS
     { VarFunAction (name, args) }
-  | arg1 = expression; name = INFIX_ID; arg2 = expression
+  | arg1 = expression; name = INFIX_CMP_ID; arg2 = expression
+    { VarFunAction (name, [arg1;arg2]) }
+  | arg1 = expression; name = INFIX_FUN_ID; arg2 = expression
     { VarFunAction (name, [arg1;arg2]) }
   | name = ID
     { VarFunAction (name, []) }

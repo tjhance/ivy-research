@@ -7,13 +7,14 @@ exception SyntaxError of string
 
 let white = [' ' '\t']+
 let newline = '\r' | '\n' | "\r\n"
-let comment = '#' | "axiom" | "isolate" | "inductive" | "export" | "extract" | "interpret"
+let comment = '#' | "axiom" | "isolate" | "inductive" | "export" | "extract" | "interpret" | "property"
 let int = '-'? ['0'-'9'] ['0'-'9']*
 let qvar_id = ['A'-'Z']+
 let id =
     ['a'-'z' 'A'-'Z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_' '.']* ['a'-'z' 'A'-'Z' '0'-'9' '_']
   | ['a'-'z' 'A'-'Z' '_']
-let infix_id = ['<' '=' '~' '>']+
+let infix_cmp_id = ['<' '=' '~' '>']+
+let infix_fun_id = ['+' '-']+
 
 rule read ignore_nls =
   parse
@@ -67,7 +68,8 @@ rule read ignore_nls =
   | '~'      { NOT }
   | int      { INT (int_of_string (Lexing.lexeme lexbuf)) }
   | qvar_id  { QVAR_ID (Lexing.lexeme lexbuf) }
-  | infix_id { INFIX_ID (Lexing.lexeme lexbuf) }
+  | infix_cmp_id { INFIX_CMP_ID (Lexing.lexeme lexbuf) }
+  | infix_fun_id { INFIX_FUN_ID (Lexing.lexeme lexbuf) }
   | id       { ID (Lexing.lexeme lexbuf) }
   | eof      { EOF }
   | _        { raise (SyntaxError ("Unexpected char: " ^ Lexing.lexeme lexbuf)) }
