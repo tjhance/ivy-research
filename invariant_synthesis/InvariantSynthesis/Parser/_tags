@@ -1,0 +1,2 @@
+true: package(sexplib)
+true: thread,debug

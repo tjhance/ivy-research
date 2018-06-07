@@ -1,7 +1,7 @@
 
 
 all:
-	ocamlbuild -use-menhir -tag thread -use-ocamlfind main.native
+	ocamlbuild -use-menhir -use-ocamlfind main.native
 
 parser:
 	mkdir -p _build

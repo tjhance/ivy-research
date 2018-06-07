@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <PackageReference Include="FParsec" Version="1.0.3" />
+    <PackageReference Include="Prime" Version="2.8.0" />
   </ItemGroup>
 
   <ItemGroup>

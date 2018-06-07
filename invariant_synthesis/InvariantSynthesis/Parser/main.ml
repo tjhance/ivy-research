@@ -18,8 +18,8 @@ let rec parse_and_print lexbuf =
   match parse_with_error lexbuf with
   | None ->
     ()
-  | Some _ ->
-    Printf.printf "Parsed !\n";
+  | Some ast ->
+    Printf.fprintf stdout "%s" (Sexplib.Sexp.to_string (Sexplib.Conv.sexp_of_opaque ast)) ;
     parse_and_print lexbuf
 
 
