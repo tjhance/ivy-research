@@ -13,8 +13,8 @@ let read_until_line_jump () =
 [<EntryPoint>]
 let main argv =
 
-    let str = System.IO.File.ReadAllText("D:\\mini_test_parsed.sexpr");
-    let test = ParserAST.deserialize_from_janestreet_sexpr str
+    let str = System.IO.File.ReadAllText("D:\\test_parsed2.sexpr");
+    let test = ParserAST.deserialize str
     printfn "%A" test
 
     exit 0 ;

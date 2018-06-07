@@ -28,7 +28,7 @@ let rec parse_and_print action out_chan lexbuf =
   match parse_with_error action lexbuf with
   | None -> ()
   | Some sexp ->
-    Printf.fprintf out_chan "%s\n%!" (Sexplib.Sexp.to_string sexp) ;
+    Printf.fprintf out_chan "%s\n%!" (Sexp_printer.sexp_to_string sexp) ;
     parse_and_print action out_chan lexbuf
 
 let () =

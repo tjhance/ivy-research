@@ -1,2 +1,2 @@
-true: package(sexplib, ppx_sexp_conv)
+true: package(sexplib, ppx_sexp_conv, str)
 true: thread,debug
