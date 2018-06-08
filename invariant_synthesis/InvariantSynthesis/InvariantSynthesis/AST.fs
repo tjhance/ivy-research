@@ -11,6 +11,8 @@
     // TODO: Axiom, isolate, inductive, export, extract, interpret, property...
 
     // TODO: Parse Ivy code
+    // TODO: Remove formula from AST: use value instead (add quantifiers to both values and exprs)
+    // TODO: Add macro system
 
     // TODO: Use model checking tool to know whether 2steps synthesis is needed?
     // TODO: OR Use an automated method: computing weakest precondition (wp) and finding

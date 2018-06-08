@@ -65,6 +65,8 @@
         | Object of string * parsed_element list
         | ObjectFromModule of string * string * string list
 
+    (* PARSING AND CONVERSION TOOLS *)
+
     let deserialize str =
         Prime.SymbolicOperators.scvalue<parsed_element list> str
 
@@ -79,7 +81,8 @@
         then (Some (name.Substring(0,i)), name.Substring(i+1))
         else (None, name)
 
-    let resolve_reference base_name reference candidates =
+    // Resolve references
+    let resolve_reference candidates base_name reference =
         let rec aux base_name =
             let name = compose_name base_name reference
             if Set.contains name candidates
@@ -90,13 +93,19 @@
                 | (Some b, _) -> aux b
         aux base_name
 
-    let resolve_type_reference base_name reference (m:AST.ModuleDecl) =
+    let resolve_type_reference (m:AST.ModuleDecl) base_name reference =
         let candidates = List.map (fun (d:AST.TypeDecl) -> d.Name) m.Types
-        resolve_reference base_name reference (Set.ofList candidates)
+        resolve_reference (Set.ofList candidates) base_name reference
     
     // Parsing to AST converters
-    let p2a_type ptype = ()
-        
+    let p2a_type m base_name ptype =
+        match ptype with
+        | Void -> AST.Void
+        | Bool -> AST.Bool
+        | Uninterpreted str ->
+            let str = resolve_type_reference m base_name str
+            AST.Uninterpreted str
+    
     // Convert a list of ivy parser AST elements to a global AST.ModuleDecl.
     // Also add and/or adjust references to types, functions, variables or actions of the module.
     let ivy_elements_to_ast_module name elements =
@@ -104,9 +113,24 @@
             let treat acc e =
                 match e with
                 | Type name ->
-                    let name = { AST.Name = compose_name base_name name }
-                    { acc with AST.Types=(name::acc.Types) }
-                //| Function (name,args,ret,infix) ->
+                    let d = { AST.Name = compose_name base_name name }
+                    { acc with AST.Types=(d::acc.Types) }
+                | Function (name,args,ret,infix) ->
+                    let name = compose_name base_name name
+                    let args = List.map (p2a_type acc base_name) args
+                    let ret = p2a_type acc base_name ret
+                    let rep =
+                        if infix
+                        then { AST.default_representation with AST.Flags=Set.singleton AST.Infix }
+                        else AST.default_representation
+                    let d = { AST.FunDecl.Name=name ; AST.Input=args; AST.Output=ret; AST.Representation=rep }
+                    { acc with AST.Funs=(d::acc.Funs) }
+                | Variable (name,t) ->
+                    let name = compose_name base_name name
+                    let t = p2a_type acc base_name t
+                    let rep = AST.default_representation
+                    let d = { AST.VarDecl.Name=name ; AST.Type=t; AST.VarDecl.Representation=rep }
+                    { acc with AST.Vars=(d::acc.Vars) }
 
             List.fold treat acc elements
         aux (AST.empty_module name) "" elements
