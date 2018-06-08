@@ -61,7 +61,7 @@ let main argv =
             let formula = List.item nb md.Invariants
 
             printfn "Generating marks for the formula (post execution)..."
-            let (b,(m,um,ad)) = Synthesis.marks_for_value infos (Trace.final_env_of_expr tr) Set.empty formula
+            let (b,(m,um,ad)) = Synthesis.marks_for_value md infos (Trace.final_env_of_expr tr) Set.empty formula
             if verbose
             then
                 printfn "%A" b
@@ -131,7 +131,7 @@ let main argv =
                 else printfn "ERROR: Execution still fail!"
             | Some formula ->
                 let (b_al,(m_al,um_al,ad_al)) =
-                    Synthesis.marks_for_value infos_allowed (Trace.final_env_of_expr tr_allowed) Set.empty formula
+                    Synthesis.marks_for_value md infos_allowed (Trace.final_env_of_expr tr_allowed) Set.empty formula
                 if b_al <> b
                 then
                     let (m_al,_,ad_al) =

@@ -64,6 +64,8 @@
                 else sprintf "%s%s" str (list_to_args_str (List.map (fun v -> value_to_string decls v 0) vs))
             with :? System.Collections.Generic.KeyNotFoundException ->
                 sprintf "%s%s" str (list_to_args_str (List.map (fun v -> value_to_string decls v 0) vs))
+        | ValueMacro (str, vs) ->
+            sprintf "%s%s" str (list_to_args_str (List.map (fun v -> value_to_string decls v 0) vs))
         | ValueEqual (v1, v2) ->
             let str = sprintf "%s = %s" (value_to_string decls v1 5) (value_to_string decls v2 5)
             add_parenthesis_if_needed str 5 prec

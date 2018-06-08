@@ -21,7 +21,7 @@
     type parsed_expression =
         | Const of const_value
         | QVar of var_decl
-        | VarFunAction of string * parsed_expression list
+        | VarFunMacroAction of string * parsed_expression list
         | Equal of parsed_expression * parsed_expression
         | Or of parsed_expression * parsed_expression
         | And of parsed_expression * parsed_expression
@@ -71,6 +71,8 @@
         Prime.SymbolicOperators.scvalue<parsed_element list> str
 
     let separator = '.'
+
+    let local_var_prefix = "$" // We assign a prefix to non-global vars in order to avoid bugs due to vars scope
 
     let compose_name base_name name =
         sprintf "%s%c%s" base_name separator name

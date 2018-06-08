@@ -22,7 +22,7 @@ type const_value =
 type parsed_expression =
     | Const of const_value
     | QVar of var_decl
-    | VarFunAction of string * parsed_expression list
+    | VarFunMacroAction of string * parsed_expression list
     | Equal of parsed_expression * parsed_expression
     | Or of parsed_expression * parsed_expression
     | And of parsed_expression * parsed_expression

@@ -11,7 +11,6 @@
     // TODO: Axiom, isolate, inductive, export, extract, interpret, property...
 
     // TODO: Parse Ivy code
-    // TODO: Add macro system
 
     // TODO: Use model checking tool to know whether 2steps synthesis is needed?
     // TODO: OR Use an automated method: computing weakest precondition (wp) and finding
@@ -53,6 +52,7 @@
         | ValueConst of ConstValue
         | ValueVar of string
         | ValueFun of string * List<Value>
+        | ValueMacro of string * List<Value>
         | ValueEqual of Value * Value
         | ValueOr of Value * Value
         | ValueAnd of Value * Value
@@ -67,6 +67,7 @@
         | ExprConst of ConstValue
         | ExprVar of string
         | ExprFun of string * List<Expression>
+        | ExprMacro of string * List<Value>
         | ExprAction of string * List<Expression>
         | ExprEqual of Expression * Expression
         | ExprOr of Expression * Expression
@@ -92,9 +93,12 @@
         | Assert of Value
 
     type ActionDecl = { Name: string; Args: List<VarDecl>; Output: VarDecl; Content: Statement }
+
+    type MacroDecl = { Name: string; Args: List<VarDecl>; Value: Value }
+
     type ModuleDecl =
         { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; Vars: List<VarDecl>;
-            Actions: List<ActionDecl>; Invariants: List<Value>; Implications: List<ImplicationRule> }
+            Actions: List<ActionDecl>; Macros: List<MacroDecl>; Invariants: List<Value>; Implications: List<ImplicationRule> }
 
 
     let empty_module name =
@@ -104,6 +108,7 @@
             Funs=[];
             Vars=[];
             Actions=[];
+            Macros=[];
             Invariants=[];
             Implications=[];
         }
@@ -114,11 +119,42 @@
         | ConstBool _ -> Bool
         | ConstInt (s,_) -> Uninterpreted s
 
-    let find_relation<'a,'b> (m:ModuleDecl) str =
+    let find_relation (m:ModuleDecl) str =
         List.find (fun (decl:FunDecl) -> decl.Name = str) m.Funs
     
-    let find_variable<'a,'b> (m:ModuleDecl) str =
+    let find_variable (m:ModuleDecl) str =
         List.find (fun (decl:VarDecl) -> decl.Name = str) m.Vars
 
-    let find_action<'a,'b> (m:ModuleDecl) str =
+    let find_action (m:ModuleDecl) str =
         List.find (fun (decl:ActionDecl) -> decl.Name = str) m.Actions
+
+    let find_macro (m:ModuleDecl) str =
+        List.find (fun (decl:MacroDecl) -> decl.Name = str) m.Macros
+
+    let rec map_vars_in_value v dico =
+        match v with
+        | ValueConst c -> ValueConst c
+        | ValueVar str ->
+            if Map.containsKey str dico
+            then Map.find str dico
+            else ValueVar str
+        | ValueFun (str, vs) ->
+            ValueFun (str, List.map (fun v -> map_vars_in_value v dico) vs)
+        | ValueMacro (str, vs) ->
+            ValueMacro (str, List.map (fun v -> map_vars_in_value v dico) vs)
+        | ValueEqual (v1, v2) ->
+            ValueEqual (map_vars_in_value v1 dico, map_vars_in_value v2 dico)
+        | ValueOr (v1, v2) ->
+            ValueOr (map_vars_in_value v1 dico, map_vars_in_value v2 dico)
+        | ValueAnd (v1, v2) ->
+            ValueAnd (map_vars_in_value v1 dico, map_vars_in_value v2 dico)
+        | ValueNot v ->
+            ValueNot (map_vars_in_value v dico)
+        | ValueSomeElse (d, v1, v2) ->
+            ValueSomeElse (d, map_vars_in_value v1 dico, map_vars_in_value v2 dico)
+        | ValueForall (d,v) ->
+            ValueForall (d, map_vars_in_value v dico)
+        | ValueExists (d,v) ->
+            ValueExists (d, map_vars_in_value v dico)
+        | ValueImply (v1, v2) ->
+            ValueImply (map_vars_in_value v1 dico, map_vars_in_value v2 dico)

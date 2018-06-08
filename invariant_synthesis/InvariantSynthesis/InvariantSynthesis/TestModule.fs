@@ -127,6 +127,6 @@
         let queue_module : ModuleDecl =
             {
                 Name=name; Types=types; Funs=funs; Vars=vars;
-                Actions=actions; Implications=impl
+                Actions=actions; Macros=[]; Implications=impl;
                 Invariants=invariants
             }

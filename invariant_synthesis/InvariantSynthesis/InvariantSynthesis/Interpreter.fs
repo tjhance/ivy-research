@@ -25,50 +25,55 @@
         | ConstBool b1, ConstBool b2 -> ConstBool ((not b1) || b2)
         | _ -> ConstVoid
 
-    let rec if_some_value infos (env:Model.Environment) (decl:VarDecl) v : option<ConstValue> =
+    let rec if_some_value (m:ModuleDecl) infos (env:Model.Environment) (decl:VarDecl) v : option<ConstValue> =
         let possible_values = Model.all_values infos (decl.Type)
         try
-            Some (Seq.find (fun cv -> eval_value_with infos env v [decl.Name] [cv] = ConstBool true) possible_values)
+            Some (Seq.find (fun cv -> eval_value_with m infos env v [decl.Name] [cv] = ConstBool true) possible_values)
         with :? System.Collections.Generic.KeyNotFoundException -> None
 
-    and evaluate_value infos (env:Model.Environment) v =
+    and evaluate_value (m:ModuleDecl) infos (env:Model.Environment) v =
         match v with
         | ValueConst cv -> cv
         | ValueVar str -> Map.find str env.v
         | ValueFun (str, lst) ->
-            let lst = List.map (evaluate_value infos env) lst
+            let lst = List.map (evaluate_value m infos env) lst
             Map.find (str, lst) env.f
+        | ValueMacro (str, lst) -> // For now, we don't check the types
+            let macro = find_macro m str
+            let dico = List.fold2 (fun acc (d:VarDecl) v -> Map.add d.Name v acc) Map.empty macro.Args lst
+            let v = map_vars_in_value (macro.Value) dico
+            evaluate_value m infos env v
         | ValueEqual (v1, v2) ->
-            let cv1 = evaluate_value infos env v1
-            let cv2 = evaluate_value infos env v2
+            let cv1 = evaluate_value m infos env v1
+            let cv2 = evaluate_value m infos env v2
             ConstBool (value_equal env cv1 cv2)
         | ValueOr (v1, v2) -> 
-            let cv1 = evaluate_value infos env v1
-            let cv2 = evaluate_value infos env v2
+            let cv1 = evaluate_value m infos env v1
+            let cv2 = evaluate_value m infos env v2
             value_or cv1 cv2
         | ValueAnd (v1, v2) -> 
-            let cv1 = evaluate_value infos env v1
-            let cv2 = evaluate_value infos env v2
+            let cv1 = evaluate_value m infos env v1
+            let cv2 = evaluate_value m infos env v2
             value_and cv1 cv2
         | ValueNot v -> 
-            let cv = evaluate_value infos env v
+            let cv = evaluate_value m infos env v
             value_not cv
         | ValueSomeElse (d,f,v) ->
-            match if_some_value infos env d f with
+            match if_some_value m infos env d f with
             | Some v -> v
-            | None -> evaluate_value infos env v
+            | None -> evaluate_value m infos env v
         | ValueForall (d,v) ->
             let possible_values = Model.all_values infos d.Type
-            ConstBool (Seq.forall (fun cv -> eval_value_with infos env v [d.Name] [cv] = ConstBool true) possible_values)
+            ConstBool (Seq.forall (fun cv -> eval_value_with m infos env v [d.Name] [cv] = ConstBool true) possible_values)
         | ValueExists (d,v) ->
             let possible_values = Model.all_values infos d.Type
-            ConstBool (Seq.exists (fun cv -> eval_value_with infos env v [d.Name] [cv] = ConstBool true) possible_values)
+            ConstBool (Seq.exists (fun cv -> eval_value_with m infos env v [d.Name] [cv] = ConstBool true) possible_values)
         | ValueImply (v1,v2) ->
-            evaluate_value infos env (ValueOr (ValueNot v1, v2))
+            evaluate_value m infos env (ValueOr (ValueNot v1, v2))
 
-    and eval_value_with infos (env:Model.Environment) v names values =
+    and eval_value_with (m:ModuleDecl) infos (env:Model.Environment) v names values =
         let v' = List.fold2 (fun acc n v -> Map.add n v acc) env.v names values
-        evaluate_value infos { env with v=v' } v
+        evaluate_value m infos { env with v=v' } v
 
     exception AssertionFailed of Model.Environment * Value
 
@@ -128,11 +133,13 @@
     let rec evaluate_expression (m:ModuleDecl) infos (env:Model.Environment) e =
         match e with
         | ExprConst cv -> (env, cv)
-        | ExprVar v -> (env, evaluate_value infos env (ValueVar v))
+        | ExprVar v -> (env, evaluate_value m infos env (ValueVar v))
         | ExprFun (str, lst) ->
             let (env, lst) = evaluate_expressions m infos env lst
             let lst = List.map (fun cv -> ValueConst cv) lst
-            (env, evaluate_value infos env (ValueFun (str, lst)))
+            (env, evaluate_value m infos env (ValueFun (str, lst)))
+        | ExprMacro (str, lst) ->
+            (env, evaluate_value m infos env (ValueMacro (str, lst)))
         | ExprAction (str, lst) ->
             let (env, lst) = evaluate_expressions m infos env lst
             execute_action m infos env str lst
@@ -152,11 +159,11 @@
             let (env, v) = evaluate_expression m infos env e
             (env, value_not v)
         | ExprSomeElse (d,v,e) ->
-            (env, evaluate_value infos env (ValueSomeElse (d,v,e)))
+            (env, evaluate_value m infos env (ValueSomeElse (d,v,e)))
         | ExprForall (d,v) ->
-            (env, evaluate_value infos env (ValueForall (d,v)))
+            (env, evaluate_value m infos env (ValueForall (d,v)))
         | ExprExists (d,v) ->
-            (env, evaluate_value infos env (ValueExists (d,v)))
+            (env, evaluate_value m infos env (ValueExists (d,v)))
         | ExprImply (e1, e2) -> 
             let (env, v1) = evaluate_expression m infos env e1
             let (env, v2) = evaluate_expression m infos env e2
@@ -189,7 +196,7 @@
             { env with f=f' }
         | ForallFunAssign (str, hes, v) -> // For now, we don't check the types
             let compute_value_for (env:Model.Environment) exprs uvars acc inst =
-                let value = eval_value_with infos env v (List.map (fun (v:VarDecl) -> v.Name) uvars) inst
+                let value = eval_value_with m infos env v (List.map (fun (v:VarDecl) -> v.Name) uvars) inst
                 let args = reconstruct_hexpression hes exprs inst
                 Map.add (str,args) value acc
             let (exprs, uvars) = separate_hexpression hes
@@ -205,7 +212,7 @@
             | ConstBool true -> execute_statement m infos env sif
             | ConstBool false | _ -> execute_statement m infos env selse
         | IfSomeElse (decl, v, sif, selse) ->
-            match if_some_value infos env decl v with
+            match if_some_value m infos env decl v with
             | Some value ->
                 let env' = enter_new_block infos env [decl] [Some value]
                 let env' = execute_statement m infos env' sif
@@ -213,7 +220,7 @@
             | None ->
                 execute_statement m infos env selse
         | Assert v ->
-            if evaluate_value infos env v = ConstBool true then env
+            if evaluate_value m infos env v = ConstBool true then env
             else raise (AssertionFailed (env, v))
 
     and execute_statements (m:ModuleDecl) infos (env:Model.Environment) ss =

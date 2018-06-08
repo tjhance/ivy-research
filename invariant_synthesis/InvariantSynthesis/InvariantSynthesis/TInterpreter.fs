@@ -32,14 +32,17 @@
             let red = (env,env,Some cv)
             TrExprConst (red, cv)
         | ExprVar v ->
-            let red = (env,env,Some (Interpreter.evaluate_value infos env (ValueVar v)))
+            let red = (env,env,Some (Interpreter.evaluate_value m infos env (ValueVar v)))
             TrExprVar (red, v)
         | ExprFun (str, lst) ->
             let eval last_env cvs =
                 let cvs = List.map (fun cv -> ValueConst cv) cvs
-                Interpreter.evaluate_value infos last_env (ValueFun (str, cvs))
+                Interpreter.evaluate_value m infos last_env (ValueFun (str, cvs))
             let (red, trs) = apply_op env lst eval
             TrExprFun (red, str, trs)
+        | ExprMacro (str, lst) ->
+            let red = (env,env,Some (Interpreter.evaluate_value m infos env (ValueMacro (str, lst))))
+            TrExprMacro (red,str,lst)
         | ExprAction (str, lst) ->
             trace_action m infos env str lst
         | ExprEqual (e1, e2) ->
@@ -53,18 +56,18 @@
         | ExprNot e ->
             TrExprNot (unary_op env e Interpreter.value_not)
         | ExprSomeElse (d,v,e) ->
-            let red = (env,env,Some (Interpreter.evaluate_value infos env (ValueSomeElse (d,v,e))))
+            let red = (env,env,Some (Interpreter.evaluate_value m infos env (ValueSomeElse (d,v,e))))
             let (_,_,cv) = red
             let cv =
-                if Interpreter.evaluate_value infos env (ValueExists (d,v)) = ConstBool true
+                if Interpreter.evaluate_value m infos env (ValueExists (d,v)) = ConstBool true
                 then cv else None
             TrExprSomeElse (red,cv,d,v,e)
         | ExprForall (d,v) ->
-            let red = (env,env,Some (Interpreter.evaluate_value infos env (ValueForall (d,v))))
+            let red = (env,env,Some (Interpreter.evaluate_value m infos env (ValueForall (d,v))))
             TrExprForall (red,d,v)
         | ExprExists (d,v) ->
-            let red = (env,env,Some (Interpreter.evaluate_value infos env (ValueExists (d,v))))
-            TrExprForall (red,d,v)
+            let red = (env,env,Some (Interpreter.evaluate_value m infos env (ValueExists (d,v))))
+            TrExprExists (red,d,v)
         | ExprImply (e1, e2) ->
             TrExprImply (binary_op env e1 e2 Interpreter.value_imply)
 
@@ -156,7 +159,7 @@
             let rsd = (env, env', st_is_fully_executed tr_st)
             TrIfElse (rsd, tr, tr_st)
         | IfSomeElse (decl, v, sif, selse) ->
-            match Interpreter.if_some_value infos env decl v with
+            match Interpreter.if_some_value m infos env decl v with
             | Some value ->
                 let env' = Interpreter.enter_new_block infos env [decl] [Some value]
                 let tr = trace_statement m infos env' sif
@@ -170,7 +173,7 @@
                 let rsd = (env, env', st_is_fully_executed tr)
                 TrIfSomeElse (rsd, None, decl, v, tr)
         | Assert v ->
-             if Interpreter.evaluate_value infos env v = ConstBool true
+             if Interpreter.evaluate_value m infos env v = ConstBool true
              then
                 let rsd = (env, env, true)
                 TrAssert (rsd, v)

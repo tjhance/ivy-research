@@ -434,4 +434,5 @@
         | ValueImply (f1, f2) -> ValueImply (simplify_value f1, simplify_value f2)
         | ValueVar v -> ValueVar v
         | ValueFun (str, vs) -> ValueFun (str, List.map simplify_value vs)
+        | ValueMacro (str, vs) -> ValueMacro (str, List.map simplify_value vs)
         | ValueSomeElse (d, v1, v2) -> ValueSomeElse (d, simplify_value v1, simplify_value v2)

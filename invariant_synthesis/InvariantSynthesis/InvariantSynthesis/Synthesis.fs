@@ -91,34 +91,39 @@
         | _ -> failwith "Boolean value expected."
 
     // uvar: variables that can browse an arbitrary large range (depending on the model)
-    let rec marks_for_value infos env uvar v : ConstValue * (Marks * Marks * AdditionalData) =
+    let rec marks_for_value mdecl infos env uvar v : ConstValue * (Marks * Marks * AdditionalData) =
         match v with
         | ValueConst c -> (c, empty_config)
         | ValueVar str ->
-            let eval = evaluate_value infos env (ValueVar str)
+            let eval = evaluate_value mdecl infos env (ValueVar str)
             if Set.contains str uvar
             then (eval, (empty_marks, { empty_marks with v=Set.singleton str }, { empty_ad with md=true }))
             else (eval, ({ empty_marks with v=Set.singleton str }, empty_marks, empty_ad))
         | ValueFun (str, values) ->
-            let res = List.map (marks_for_value infos env uvar) values
+            let res = List.map (marks_for_value mdecl infos env uvar) values
             let (cvs, cfgs) = List.unzip res
             let (m,um,ad) = config_union_many cfgs
             let vs = List.map (fun cv -> ValueConst cv) cvs
-            let eval = evaluate_value infos env (ValueFun (str, vs))
+            let eval = evaluate_value mdecl infos env (ValueFun (str, vs))
             if ad.md
             then
                 (eval, (m, { um with f = Set.add (str, cvs) um.f }, ad))
             else
                 (eval, ({ m with f = Set.add (str, cvs) m.f }, um, ad))
+        | ValueMacro (str, values) ->
+            let macro = find_macro mdecl str
+            let dico = List.fold2 (fun acc (d:VarDecl) v -> Map.add d.Name v acc) Map.empty macro.Args values
+            let v = map_vars_in_value (macro.Value) dico
+            marks_for_value mdecl infos env uvar v
         | ValueEqual (v1, v2) ->
-            let (cv1, cfg1) = marks_for_value infos env uvar v1
-            let (cv2, cfg2) = marks_for_value infos env uvar v2
+            let (cv1, cfg1) = marks_for_value mdecl infos env uvar v1
+            let (cv2, cfg2) = marks_for_value mdecl infos env uvar v2
             let (m,um,ad) = config_union cfg1 cfg2
             if value_equal infos cv1 cv2 then (ConstBool true, (m, um, ad))
             else (ConstBool false, (m, um, add_diff_constraint infos ad cv1 cv2))
         | ValueOr (v1, v2) ->
-            let (cv1, cfg1) = marks_for_value infos env uvar v1
-            let (cv2, cfg2) = marks_for_value infos env uvar v2
+            let (cv1, cfg1) = marks_for_value mdecl infos env uvar v1
+            let (cv2, cfg2) = marks_for_value mdecl infos env uvar v2
             match cv1, cv2 with
             | ConstBool false, ConstBool false -> (ConstBool false, config_union cfg1 cfg2)
             | ConstBool true, ConstBool false -> (ConstBool true, cfg1)
@@ -127,29 +132,29 @@
             | ConstBool true, ConstBool true -> (ConstBool true, cfg1)
             | _, _ -> (ConstVoid, config_union cfg1 cfg2)
         | ValueAnd (v1, v2) ->
-            marks_for_value infos env uvar (ValueNot (ValueOr (ValueNot v1, ValueNot v2)))
+            marks_for_value mdecl infos env uvar (ValueNot (ValueOr (ValueNot v1, ValueNot v2)))
         | ValueNot v ->
-            let (cv,cfg) = marks_for_value infos env uvar v
+            let (cv,cfg) = marks_for_value mdecl infos env uvar v
             (value_not cv, cfg)
         | ValueSomeElse (d,f,v) ->
-            match if_some_value infos env d f with
+            match if_some_value mdecl infos env d f with
             | Some cv ->
                 (* NOTE: See note for IfSomeElse statement. *)
                 let is_uvar = is_model_dependent_type d.Type && not (Set.isEmpty uvar) 
                 let uvar = if is_uvar then Set.add d.Name uvar else uvar
-                let (_,cfg) = marks_for_value_with infos env uvar f [d.Name] [cv]
+                let (_,cfg) = marks_for_value_with mdecl infos env uvar f [d.Name] [cv]
                 (cv,cfg)
             | None -> 
-                let (_,cfg1) = marks_for_value infos env uvar (ValueNot (ValueExists (d,f)))
-                let (cv,cfg2) = marks_for_value infos env uvar v
+                let (_,cfg1) = marks_for_value mdecl infos env uvar (ValueNot (ValueExists (d,f)))
+                let (cv,cfg2) = marks_for_value mdecl infos env uvar v
                 (cv, config_union cfg1 cfg2)
         | ValueForall (decl, v) ->
             let is_uvar = 
                 is_model_dependent_type decl.Type && 
-                (not (Set.isEmpty uvar) || evaluate_value infos env (ValueForall (decl, v)) = ConstBool true)
+                (not (Set.isEmpty uvar) || evaluate_value mdecl infos env (ValueForall (decl, v)) = ConstBool true)
             let uvar = if is_uvar then Set.add decl.Name uvar else uvar
             let values = Model.all_values infos decl.Type
-            let all_possibilities = Seq.map (fun cv -> marks_for_value_with infos env uvar v [decl.Name] [cv]) values
+            let all_possibilities = Seq.map (fun cv -> marks_for_value_with mdecl infos env uvar v [decl.Name] [cv]) values
             if Seq.forall (fun (b,_) -> b = ConstBool true) all_possibilities
             then
                 // We mix all contraints (some will probably be model-dependent)
@@ -161,13 +166,13 @@
                 let cfg = Helper.seq_min is_better_config possibilities
                 (ConstBool false, cfg)
         | ValueExists (decl, v) ->
-            marks_for_value infos env uvar (ValueNot (ValueForall (decl, ValueNot v)))
+            marks_for_value mdecl infos env uvar (ValueNot (ValueForall (decl, ValueNot v)))
         | ValueImply (v1, v2) ->
-            marks_for_value infos env uvar (ValueOr (ValueNot v1, v2))
+            marks_for_value mdecl infos env uvar (ValueOr (ValueNot v1, v2))
 
-    and marks_for_value_with infos (env:Model.Environment) uvar v names values =
+    and marks_for_value_with mdecl infos (env:Model.Environment) uvar v names values =
         let v' = List.fold2 (fun acc n v -> Map.add n v acc) env.v names values
-        let (v, cfg) = marks_for_value infos {env with v=v'} uvar v
+        let (v, cfg) = marks_for_value mdecl infos {env with v=v'} uvar v
         (v, List.fold (remove_var_marks infos) cfg names)
 
     // env: initial environment (before the execution of the expressions)
@@ -250,34 +255,40 @@
 
     // env: initial environment (before the execution of the expr)
     // m, um: marks after the execution of the expr
-    let rec marks_before_expression module_decl infos env expr cfg mark_value =
+    let rec marks_before_expression mdecl infos env expr cfg mark_value =
         match expr with
         | ExprConst _ -> cfg
         | ExprVar str ->
-            let (_, cfg') = marks_for_value infos env Set.empty (ValueVar str)
+            let (_, cfg') = marks_for_value mdecl infos env Set.empty (ValueVar str)
             if mark_value then (config_union cfg cfg') else cfg
         | ExprFun (str, es) ->
-            let (env, envs, vs) = intermediate_environments module_decl infos env es
-            let (_, cfg') = marks_for_value infos env Set.empty (ValueFun (str, List.map (fun v -> ValueConst v) vs))
+            let (env, envs, vs) = intermediate_environments mdecl infos env es
+            let (_, cfg') = marks_for_value mdecl infos env Set.empty (ValueFun (str, List.map (fun v -> ValueConst v) vs))
             let cfg = if mark_value then (config_union cfg cfg') else cfg
-            marks_before_expressions module_decl infos envs (List.rev es) cfg (List.map (fun _ -> mark_value) es)
+            marks_before_expressions mdecl infos envs (List.rev es) cfg (List.map (fun _ -> mark_value) es)
         | ExprAction (str, es) ->
-            let (env, envs, lst) = intermediate_environments module_decl infos env es
-            let (args_marks, cfg) = marks_before_action module_decl infos env str lst cfg mark_value
-            marks_before_expressions module_decl infos envs (List.rev es) cfg (List.rev args_marks)
+            let (env, envs, lst) = intermediate_environments mdecl infos env es
+            let (args_marks, cfg) = marks_before_action mdecl infos env str lst cfg mark_value
+            marks_before_expressions mdecl infos envs (List.rev es) cfg (List.rev args_marks)
+        | ExprMacro (str, vs) ->
+            if mark_value
+            then
+                let (_,cfg') = marks_for_value mdecl infos env Set.empty (ValueMacro (str,vs))
+                config_union cfg cfg'
+            else cfg
         | ExprEqual (e1, e2) ->
-            let (env1, v1) = evaluate_expression module_decl infos env e1
-            let (env2, v2) = evaluate_expression module_decl infos env1 e2
-            let (_, cfg') = marks_for_value infos env2 Set.empty (ValueEqual (ValueConst v1,ValueConst v2))
+            let (env1, v1) = evaluate_expression mdecl infos env e1
+            let (env2, v2) = evaluate_expression mdecl infos env1 e2
+            let (_, cfg') = marks_for_value mdecl infos env2 Set.empty (ValueEqual (ValueConst v1,ValueConst v2))
             let cfg = if mark_value then (config_union cfg cfg') else cfg
-            let cfg = marks_before_expression module_decl infos env1 e2 cfg mark_value
-            marks_before_expression module_decl infos env e1 cfg mark_value
+            let cfg = marks_before_expression mdecl infos env1 e2 cfg mark_value
+            marks_before_expression mdecl infos env e1 cfg mark_value
         | ExprOr (e1, e2) ->
-            let (env1, v1) = evaluate_expression module_decl infos env e1
-            let (_, v2) = evaluate_expression module_decl infos env1 e2
+            let (env1, v1) = evaluate_expression mdecl infos env e1
+            let (_, v2) = evaluate_expression mdecl infos env1 e2
             let aux mark1 mark2 =
-                let cfg' = marks_before_expression module_decl infos env1 e2 cfg (mark_value && mark2)
-                marks_before_expression module_decl infos env e1 cfg' (mark_value && mark1)
+                let cfg' = marks_before_expression mdecl infos env1 e2 cfg (mark_value && mark2)
+                marks_before_expression mdecl infos env e1 cfg' (mark_value && mark1)
             match v1, v2 with
             | ConstBool true, ConstBool false -> aux true false
             | ConstBool false, ConstBool true -> aux false true
@@ -286,27 +297,27 @@
                 let cfg2 = aux false true
                 if is_better_config cfg2 cfg1 then cfg2 else cfg1
             | ConstBool false, ConstBool false | _, _ -> aux true true
-        | ExprAnd (e1, e2) -> marks_before_expression module_decl infos env (ExprNot (ExprOr (ExprNot e1, ExprNot e2))) cfg mark_value
-        | ExprNot e -> marks_before_expression module_decl infos env e cfg mark_value
+        | ExprAnd (e1, e2) -> marks_before_expression mdecl infos env (ExprNot (ExprOr (ExprNot e1, ExprNot e2))) cfg mark_value
+        | ExprNot e -> marks_before_expression mdecl infos env e cfg mark_value
         | ExprSomeElse (d,f,v) ->
             if mark_value
             then
-                let (_,cfg') = marks_for_value infos env Set.empty (ValueSomeElse (d,f,v))
+                let (_,cfg') = marks_for_value mdecl infos env Set.empty (ValueSomeElse (d,f,v))
                 config_union cfg cfg'
             else cfg
         | ExprExists (d,v) ->
             if mark_value
             then
-                let (_,cfg') = marks_for_value infos env Set.empty (ValueExists (d,v))
+                let (_,cfg') = marks_for_value mdecl infos env Set.empty (ValueExists (d,v))
                 config_union cfg cfg'
             else cfg
         | ExprForall (d,v) ->
             if mark_value
             then
-                let (_,cfg') = marks_for_value infos env Set.empty (ValueForall (d,v))
+                let (_,cfg') = marks_for_value mdecl infos env Set.empty (ValueForall (d,v))
                 config_union cfg cfg'
             else cfg
-        | ExprImply (e1, e2) -> marks_before_expression module_decl infos env (ExprOr (ExprNot e1, e2)) cfg mark_value
+        | ExprImply (e1, e2) -> marks_before_expression mdecl infos env (ExprOr (ExprNot e1, e2)) cfg mark_value
 
     // envs: the env before each expression
     and marks_before_expressions module_decl infos envs es cfg mark_values =
@@ -314,19 +325,19 @@
             marks_before_expression module_decl infos env e cfg mark
         List.fold2 aux cfg (List.zip envs es) mark_values
 
-    and marks_before_statement module_decl infos env st cfg =
+    and marks_before_statement mdecl infos env st cfg =
         match st with
         | NewBlock (decls, sts) ->
             let env' = enter_new_block infos env decls (List.map (fun _ -> None) decls)
             let cfg' = config_enter_block infos cfg decls
-            let (_, envs) = intermediate_environments_st module_decl infos env' sts
-            let cfg' = marks_before_statements module_decl infos envs (List.rev sts) cfg'
+            let (_, envs) = intermediate_environments_st mdecl infos env' sts
+            let cfg' = marks_before_statements mdecl infos envs (List.rev sts) cfg'
             config_leave_block infos cfg' decls cfg
-        | Expression e -> marks_before_expression module_decl infos env e cfg false
+        | Expression e -> marks_before_expression mdecl infos env e cfg false
         | VarAssign (str, e) ->
             let marked = is_var_marked infos cfg str
             let cfg = remove_var_marks infos cfg str
-            marks_before_expression module_decl infos env e cfg marked
+            marks_before_expression mdecl infos env e cfg marked
         | FunAssign (str, es, e) ->
             (*
             fun(ei)=e
@@ -338,7 +349,7 @@
             otherwise ->    We mark all ei s.t. there exists wi different from ei with fun(...wi...) marked, 
                             we add necessary inequalities
             *)
-            let (env, envs, vs) = intermediate_environments module_decl infos env es
+            let (env, envs, vs) = intermediate_environments mdecl infos env es
             let marked = is_fun_marked infos cfg str vs
             let cfg = remove_fun_marks infos cfg str vs
 
@@ -346,11 +357,11 @@
             let permutations = Helper.all_permutations n
             let possibilities = Seq.map (compute_neighbors_with_perm infos cfg marked str vs Helper.identity Helper.identity) permutations
 
-            let cfg = marks_before_expression module_decl infos env e cfg marked
+            let cfg = marks_before_expression mdecl infos env e cfg marked
 
             let treat_possibility (marks, neighbors) =
                 let (m,um,ad) = cfg
-                let (m,um,ad) = marks_before_expressions module_decl infos envs (List.rev es) (m,um,ad) (List.rev marks)
+                let (m,um,ad) = marks_before_expressions mdecl infos envs (List.rev es) (m,um,ad) (List.rev marks)
                 let ad = Seq.fold2 (fun ad v ns -> add_ineq_between infos ad (Set.singleton v) ns) ad vs neighbors
                 (m,um,ad)
 
@@ -375,7 +386,7 @@
             We add necessary inequalities.
             *)
             let (es, uvars) = separate_hexpression hes
-            let (env, envs, vs) = intermediate_environments module_decl infos env es
+            let (env, envs, vs) = intermediate_environments mdecl infos env es
             let m_marks = fun_marks_matching infos cfg str (reconstruct_hexpression_opt hes vs)
             let um_marks = fun_marks_matching infos cfg str (reconstruct_hexpression_opt hes vs)
             let all_marks = Set.union m_marks um_marks
@@ -395,7 +406,7 @@
                         let md_decls = Set.filter (fun (d:VarDecl) -> is_model_dependent_type d.Type) (Set.ofList unames)
                         Set.map (fun (d:VarDecl) -> d.Name) md_decls
                     else Set.empty
-                marks_for_value_with infos env uvars v (List.map (fun (d:VarDecl) -> d.Name) unames) hole_vs
+                marks_for_value_with mdecl infos env uvars v (List.map (fun (d:VarDecl) -> d.Name) unames) hole_vs
             let add_marks_for_all (env:Model.Environment) v uvars model_dependent hole_vss cfg =
                 let aux acc hole_vs =
                     let (_,cfg) = compute_marks_for env v uvars model_dependent hole_vs
@@ -412,42 +423,42 @@
             let treat_possibility (marks, neighbors) =
                 let (m,um,ad) = cfg
                 // exprs
-                let (m, um, ad) = marks_before_expressions module_decl infos envs (List.rev es) (m, um, ad) (List.rev marks)
+                let (m, um, ad) = marks_before_expressions mdecl infos envs (List.rev es) (m, um, ad) (List.rev marks)
                 let ad = Seq.fold2 (fun ad v ns -> add_ineq_between infos ad (Set.singleton v) ns) ad vs neighbors
                 (m,um,ad)
 
             let results = Seq.map treat_possibility expr_possibilities
             Helper.seq_min is_better_config results
         | IfElse (e, sif, selse) ->
-            let (env', v) = evaluate_expression module_decl infos env e
+            let (env', v) = evaluate_expression mdecl infos env e
             let cfg =
                 match v with
-                | ConstBool true -> marks_before_statement module_decl infos env' sif cfg
-                | ConstBool false | _ -> marks_before_statement module_decl infos env' selse cfg
-            marks_before_expression module_decl infos env e cfg true
+                | ConstBool true -> marks_before_statement mdecl infos env' sif cfg
+                | ConstBool false | _ -> marks_before_statement mdecl infos env' selse cfg
+            marks_before_expression mdecl infos env e cfg true
         | IfSomeElse (decl, v, sif, selse) ->
-            match if_some_value infos env decl v with
+            match if_some_value mdecl infos env decl v with
             | Some value ->
                 let env' = enter_new_block infos env [decl] [Some value]
                 let cfg' = config_enter_block infos cfg [decl]
-                let cfg' = marks_before_statement module_decl infos env' sif cfg'
+                let cfg' = marks_before_statement mdecl infos env' sif cfg'
                 let (_, cfg'2) =
                     if is_var_marked infos cfg' decl.Name
-                    then marks_for_value infos env' Set.empty v
+                    then marks_for_value mdecl infos env' Set.empty v
                     (* NOTE: In the case above, we may also ensure that every other value doesn't satisfy the predicate.
                        However, it is a different problem than garanteeing the invariant value,
                        since we are bound to an execution (maybe there is no uniqueness in this execution).
                        Therefore, we suppose that the choice made is always the value we choose here (if it satisfies the condition).
                        An assertion can also be added by the user to ensure this uniqueness. *)
-                    else marks_for_value infos env Set.empty (ValueExists (decl, v))
+                    else marks_for_value mdecl infos env Set.empty (ValueExists (decl, v))
                 let cfg' = config_union cfg' cfg'2
                 config_leave_block infos cfg' [decl] cfg
             | None ->
-                 let cfg1 = marks_before_statement module_decl infos env selse cfg
-                 let (_, cfg2) = marks_for_value infos env Set.empty (ValueNot (ValueExists (decl, v)))
+                 let cfg1 = marks_before_statement mdecl infos env selse cfg
+                 let (_, cfg2) = marks_for_value mdecl infos env Set.empty (ValueNot (ValueExists (decl, v)))
                  config_union cfg1 cfg2
         | Assert v ->
-            let (_, cfg') = marks_for_value infos env Set.empty v
+            let (_, cfg') = marks_for_value mdecl infos env Set.empty v
             config_union cfg cfg'
             
     // envs: the env before each statement

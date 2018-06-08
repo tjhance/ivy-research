@@ -10,6 +10,7 @@
         | TrExprConst of RuntimeExprData * ConstValue
         | TrExprVar of RuntimeExprData * string
         | TrExprFun of RuntimeExprData * string * List<TrExpression>
+        | TrExprMacro of RuntimeExprData * string * List<Value>
         | TrExprAction of RuntimeExprData * List<VarDecl> * VarDecl * List<TrExpression> * TrStatement
         | TrExprEqual of RuntimeExprData * TrExpression * TrExpression
         | TrExprOr of RuntimeExprData * TrExpression * TrExpression
@@ -41,6 +42,7 @@
         | TrExprConst (red,_)
         | TrExprVar (red,_)
         | TrExprFun (red,_,_)
+        | TrExprMacro (red,_,_)
         | TrExprAction (red,_,_,_,_)
         | TrExprEqual (red,_,_)
         | TrExprOr (red,_,_)
