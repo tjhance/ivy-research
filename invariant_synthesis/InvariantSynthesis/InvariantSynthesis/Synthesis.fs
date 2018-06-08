@@ -133,69 +133,42 @@
             (value_not cv, cfg)
         | ValueSomeElse (d,f,v) ->
             match if_some_value infos env d f with
-            | Some v ->
+            | Some cv ->
                 (* NOTE: See note for IfSomeElse statement. *)
                 let is_uvar = is_model_dependent_type d.Type && not (Set.isEmpty uvar) 
                 let uvar = if is_uvar then Set.add d.Name uvar else uvar
-                let (_,cfg) = marks_for_formula_with infos env uvar f [d.Name] [v]
-                (v,cfg)
+                let (_,cfg) = marks_for_value_with infos env uvar f [d.Name] [cv]
+                (cv,cfg)
             | None -> 
-                let (_,cfg1) = marks_for_formula infos env uvar (Not (Exists (d,f)))
-                let (v,cfg2) = marks_for_value infos env uvar v
-                (v, config_union cfg1 cfg2)
-    
-    // uvar: variables that can browse an arbitrary large range (depending on the model)
-    and marks_for_formula infos env uvar f : bool * (Marks * Marks * AdditionalData) =
-        match f with
-        | Const  b -> (b, empty_config)
-        | Equal (v1, v2) ->
-            let (cv, cfg) = marks_for_value infos env uvar (ValueEqual (v1, v2))
-            (bool_of_cv cv, cfg)
-        | Or (f1, f2) ->
-            let (b1, cfg1) = marks_for_formula infos env uvar f1
-            let (b2,cfg2) = marks_for_formula infos env uvar f2
-            match b1, b2 with
-            | false, false -> (false, config_union cfg1 cfg2)
-            | true, false -> (true, cfg1)
-            | false, true -> (true, cfg2)
-            | true, true when is_better_config cfg2 cfg1 -> (true, cfg2)
-            | true, true -> (true, cfg1)
-        | And (f1, f2) ->
-            marks_for_formula infos env uvar (Not (Or (Not f1, Not f2)))
-        | Not f ->
-            let (b,cfg) = marks_for_formula infos env uvar f
-            (not b, cfg)
-        | Forall (decl, f) ->
+                let (_,cfg1) = marks_for_value infos env uvar (ValueNot (ValueExists (d,f)))
+                let (cv,cfg2) = marks_for_value infos env uvar v
+                (cv, config_union cfg1 cfg2)
+        | ValueForall (decl, v) ->
             let is_uvar = 
                 is_model_dependent_type decl.Type && 
-                (not (Set.isEmpty uvar) || evaluate_formula infos env (Forall (decl, f)))
+                (not (Set.isEmpty uvar) || evaluate_value infos env (ValueForall (decl, v)) = ConstBool true)
             let uvar = if is_uvar then Set.add decl.Name uvar else uvar
             let values = Model.all_values infos decl.Type
-            let all_possibilities = Seq.map (fun v -> marks_for_formula_with infos env uvar f [decl.Name] [v]) values
-            if Seq.forall (fun (b,_) -> b) all_possibilities
+            let all_possibilities = Seq.map (fun cv -> marks_for_value_with infos env uvar v [decl.Name] [cv]) values
+            if Seq.forall (fun (b,_) -> b = ConstBool true) all_possibilities
             then
                 // We mix all contraints (some will probably be model-dependent)
-                (true, config_union_many (Seq.map (fun (_,cfg) -> cfg) all_possibilities))
+                (ConstBool true, config_union_many (Seq.map (fun (_,cfg) -> cfg) all_possibilities))
             else
                 // We pick one constraint that breaks the forall
-                let possibilities = Seq.filter (fun (b, _) -> not b) all_possibilities
+                let possibilities = Seq.filter (fun (b, _) -> b = ConstBool false) all_possibilities
                 let possibilities = Seq.map (fun (_,cfg) -> cfg) possibilities
                 let cfg = Helper.seq_min is_better_config possibilities
-                (false, cfg)
-        | Exists (decl, f) ->
-            marks_for_formula infos env uvar (Not (Forall (decl, Not f)))
-        | Imply (f1, f2) ->
-            marks_for_formula infos env uvar (Or (Not f1, f2))
+                (ConstBool false, cfg)
+        | ValueExists (decl, v) ->
+            marks_for_value infos env uvar (ValueNot (ValueForall (decl, ValueNot v)))
+        | ValueImply (v1, v2) ->
+            marks_for_value infos env uvar (ValueOr (ValueNot v1, v2))
 
     and marks_for_value_with infos (env:Model.Environment) uvar v names values =
         let v' = List.fold2 (fun acc n v -> Map.add n v acc) env.v names values
         let (v, cfg) = marks_for_value infos {env with v=v'} uvar v
         (v, List.fold (remove_var_marks infos) cfg names)
-
-    and marks_for_formula_with infos (env:Model.Environment) uvar f names values =
-        let v' = List.fold2 (fun acc n v -> Map.add n v acc) env.v names values
-        let (b, cfg) = marks_for_formula infos {env with v=v'} uvar f
-        (b, List.fold (remove_var_marks infos) cfg names)
 
     // env: initial environment (before the execution of the expressions)
     // Returns the final environment
@@ -295,7 +268,7 @@
         | ExprEqual (e1, e2) ->
             let (env1, v1) = evaluate_expression module_decl infos env e1
             let (env2, v2) = evaluate_expression module_decl infos env1 e2
-            let (_, cfg') = marks_for_formula infos env2 Set.empty (Equal (ValueConst v1,ValueConst v2))
+            let (_, cfg') = marks_for_value infos env2 Set.empty (ValueEqual (ValueConst v1,ValueConst v2))
             let cfg = if mark_value then (config_union cfg cfg') else cfg
             let cfg = marks_before_expression module_decl infos env1 e2 cfg mark_value
             marks_before_expression module_decl infos env e1 cfg mark_value
@@ -321,6 +294,19 @@
                 let (_,cfg') = marks_for_value infos env Set.empty (ValueSomeElse (d,f,v))
                 config_union cfg cfg'
             else cfg
+        | ExprExists (d,v) ->
+            if mark_value
+            then
+                let (_,cfg') = marks_for_value infos env Set.empty (ValueExists (d,v))
+                config_union cfg cfg'
+            else cfg
+        | ExprForall (d,v) ->
+            if mark_value
+            then
+                let (_,cfg') = marks_for_value infos env Set.empty (ValueForall (d,v))
+                config_union cfg cfg'
+            else cfg
+        | ExprImply (e1, e2) -> marks_before_expression module_decl infos env (ExprOr (ExprNot e1, e2)) cfg mark_value
 
     // envs: the env before each expression
     and marks_before_expressions module_decl infos envs es cfg mark_values =
@@ -439,29 +425,29 @@
                 | ConstBool true -> marks_before_statement module_decl infos env' sif cfg
                 | ConstBool false | _ -> marks_before_statement module_decl infos env' selse cfg
             marks_before_expression module_decl infos env e cfg true
-        | IfSomeElse (decl, f, sif, selse) ->
-            match if_some_value infos env decl f with
+        | IfSomeElse (decl, v, sif, selse) ->
+            match if_some_value infos env decl v with
             | Some value ->
                 let env' = enter_new_block infos env [decl] [Some value]
                 let cfg' = config_enter_block infos cfg [decl]
                 let cfg' = marks_before_statement module_decl infos env' sif cfg'
                 let (_, cfg'2) =
                     if is_var_marked infos cfg' decl.Name
-                    then marks_for_formula infos env' Set.empty f
+                    then marks_for_value infos env' Set.empty v
                     (* NOTE: In the case above, we may also ensure that every other value doesn't satisfy the predicate.
                        However, it is a different problem than garanteeing the invariant value,
                        since we are bound to an execution (maybe there is no uniqueness in this execution).
                        Therefore, we suppose that the choice made is always the value we choose here (if it satisfies the condition).
                        An assertion can also be added by the user to ensure this uniqueness. *)
-                    else marks_for_formula infos env Set.empty (Exists (decl, f))
+                    else marks_for_value infos env Set.empty (ValueExists (decl, v))
                 let cfg' = config_union cfg' cfg'2
                 config_leave_block infos cfg' [decl] cfg
             | None ->
                  let cfg1 = marks_before_statement module_decl infos env selse cfg
-                 let (_, cfg2) = marks_for_formula infos env Set.empty (Not (Exists (decl, f)))
+                 let (_, cfg2) = marks_for_value infos env Set.empty (ValueNot (ValueExists (decl, v)))
                  config_union cfg1 cfg2
-        | Assert f ->
-            let (_, cfg') = marks_for_formula infos env Set.empty f
+        | Assert v ->
+            let (_, cfg') = marks_for_value infos env Set.empty v
             config_union cfg cfg'
             
     // envs: the env before each statement

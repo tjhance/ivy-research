@@ -61,7 +61,7 @@ let main argv =
             let formula = List.item nb md.Invariants
 
             printfn "Generating marks for the formula (post execution)..."
-            let (b,(m,um,ad)) = Synthesis.marks_for_formula infos (Trace.final_env_of_expr tr) Set.empty formula
+            let (b,(m,um,ad)) = Synthesis.marks_for_value infos (Trace.final_env_of_expr tr) Set.empty formula
             if verbose
             then
                 printfn "%A" b
@@ -72,7 +72,7 @@ let main argv =
         else
             printfn "Assertion failed... No invariant to analyze."
             printfn "Analyzing the reason of failure."
-            (Synthesis.empty_config, None, false)
+            (Synthesis.empty_config, None, ConstVoid)
 
     printfn "Going back through the action..."
     let (m,um,ad) = TSynthesis.marks_before_expression md infos tr (m,um,ad) false
@@ -86,8 +86,8 @@ let main argv =
     let (m', diff1) = Formula.simplify_marks infos md.Implications decls env m ad.d
     let (um', diff2) = Formula.simplify_marks infos md.Implications decls env um ad.d
     let f = Formula.formula_from_marks env (m', diff1) []
-    let f = Formula.simplify_formula f
-    printfn "%s" (Printer.formula_to_string decls f 0)
+    let f = Formula.simplify_value f
+    printfn "%s" (Printer.value_to_string decls f 0)
     printfn ""
 
     let allowed_paths = ref []
@@ -117,7 +117,7 @@ let main argv =
                 TInterpreter.trace_action md infos_allowed env_allowed name (List.map (fun cv -> ExprConst cv) args)
             match formula with
             | None ->
-                if Trace.expr_is_fully_evaluated tr_allowed <> b
+                if Trace.expr_is_fully_evaluated tr_allowed
                 then
                     let (m_al,_,ad_al) =
                         TSynthesis.marks_before_expression md infos_allowed tr_allowed Synthesis.empty_config false
@@ -131,7 +131,7 @@ let main argv =
                 else printfn "ERROR: Execution still fail!"
             | Some formula ->
                 let (b_al,(m_al,um_al,ad_al)) =
-                    Synthesis.marks_for_formula infos_allowed (Trace.final_env_of_expr tr_allowed) Set.empty formula
+                    Synthesis.marks_for_value infos_allowed (Trace.final_env_of_expr tr_allowed) Set.empty formula
                 if b_al <> b
                 then
                     let (m_al,_,ad_al) =
@@ -154,12 +154,12 @@ let main argv =
         if not (List.isEmpty (!allowed_paths))
         then
             let f = Formula.formula_from_marks env (m', diff1) (!allowed_paths)
-            Formula.simplify_formula f
+            Formula.simplify_value f
         else f
 
     printfn ""
     printfn "Invariant to add:"
-    printfn "%s" (Printer.formula_to_string decls f 0)
+    printfn "%s" (Printer.value_to_string decls f 0)
     
     ignore (Console.ReadLine())
     0

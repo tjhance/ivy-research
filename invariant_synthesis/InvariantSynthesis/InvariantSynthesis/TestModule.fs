@@ -51,12 +51,12 @@
                 ]
 
         let relation_formula name vars =
-            Equal (ValueFun(name,vars), ValueConst (ConstBool true)) ;
+            ValueEqual (ValueFun(name,vars), ValueConst (ConstBool true)) ;
 
         let empty_formula =
-            Or
+            ValueOr
                 (
-                    Equal (ValueVar("q.next_e"),ValueVar("q.first_e")),
+                    ValueEqual (ValueVar("q.next_e"),ValueVar("q.first_e")),
                     relation_formula "incrementable.t.<" [ValueVar "q.next_e"; ValueVar "q.first_e"]
                 )
         
@@ -98,7 +98,7 @@
                                 (
                                     [],
                                     [
-                                        Assert (Not empty_formula) ;
+                                        Assert (ValueNot empty_formula) ;
                                         VarAssign ("res", ExprVar "q.first") ;
                                         FunAssign ("q.content", [ExprVar "q.first";ExprVar "q.first_e"], ExprConst (ConstBool false)) ;
                                         VarAssign ("q.first_e", ExprAction("incrementable.next", [ExprVar "q.first_e"])) ;
@@ -117,10 +117,10 @@
 
         let invariants =
             [
-                Or
+                ValueOr
                     (
                         empty_formula,
-                        Equal (ValueVar "q.first", ValueFun ("q.spec.content_f", [ValueVar "q.first_e"]))
+                        ValueEqual (ValueVar "q.first", ValueFun ("q.spec.content_f", [ValueVar "q.first_e"]))
                     )
             ]
 

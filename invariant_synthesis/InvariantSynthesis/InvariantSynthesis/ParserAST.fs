@@ -116,14 +116,14 @@
                     let d = { AST.Name = compose_name base_name name }
                     { acc with AST.Types=(d::acc.Types) }
                 | Function (name,args,ret,infix) ->
-                    let name = compose_name base_name name
+                    let full_name = compose_name base_name name
                     let args = List.map (p2a_type acc base_name) args
                     let ret = p2a_type acc base_name ret
                     let rep =
                         if infix
-                        then { AST.default_representation with AST.Flags=Set.singleton AST.Infix }
+                        then { AST.DisplayName=Some name ; AST.Flags=Set.singleton AST.Infix }
                         else AST.default_representation
-                    let d = { AST.FunDecl.Name=name ; AST.Input=args; AST.Output=ret; AST.Representation=rep }
+                    let d = { AST.FunDecl.Name=full_name ; AST.Input=args; AST.Output=ret; AST.Representation=rep }
                     { acc with AST.Funs=(d::acc.Funs) }
                 | Variable (name,t) ->
                     let name = compose_name base_name name

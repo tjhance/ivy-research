@@ -2,7 +2,6 @@
 
     open AST
     open Model
-    open System.Drawing
 
     type RuntimeStData = Environment * Environment * bool
     type RuntimeExprData = Environment * Environment * ConstValue option
@@ -16,7 +15,10 @@
         | TrExprOr of RuntimeExprData * TrExpression * TrExpression
         | TrExprAnd of RuntimeExprData * TrExpression * TrExpression
         | TrExprNot of RuntimeExprData * TrExpression
-        | TrExprSomeElse of RuntimeExprData * Option<ConstValue> * VarDecl * Formula * Value
+        | TrExprSomeElse of RuntimeExprData * Option<ConstValue> * VarDecl * Value * Value
+        | TrExprForall of RuntimeExprData * VarDecl * Value
+        | TrExprExists of RuntimeExprData * VarDecl * Value
+        | TrExprImply of RuntimeExprData * TrExpression * TrExpression
         | TrExprNotEvaluated of RuntimeExprData
 
     and TrHoleExpression =
@@ -30,8 +32,8 @@
         | TrFunAssign of RuntimeStData * string * List<TrExpression> * TrExpression
         | TrForallFunAssign of RuntimeStData * string * List<TrHoleExpression> * Value
         | TrIfElse of RuntimeStData * TrExpression * TrStatement
-        | TrIfSomeElse of RuntimeStData * Option<ConstValue> * VarDecl * Formula * TrStatement
-        | TrAssert of RuntimeStData * Formula
+        | TrIfSomeElse of RuntimeStData * Option<ConstValue> * VarDecl * Value * TrStatement
+        | TrAssert of RuntimeStData * Value
         | TrNotEvaluated of RuntimeStData
 
     let runtime_data_of_expr expr =
@@ -45,6 +47,9 @@
         | TrExprAnd (red,_,_)
         | TrExprNot (red,_)
         | TrExprSomeElse (red,_,_,_,_)
+        | TrExprForall (red, _, _)
+        | TrExprExists (red, _, _)
+        | TrExprImply (red, _, _)
         | TrExprNotEvaluated red -> red
 
     let runtime_data_of_st s =

@@ -52,13 +52,21 @@
             TrExprAnd (binary_op env e1 e2 Interpreter.value_and)
         | ExprNot e ->
             TrExprNot (unary_op env e Interpreter.value_not)
-        | ExprSomeElse (d,f,e) ->
-            let red = (env,env,Some (Interpreter.evaluate_value infos env (ValueSomeElse (d,f,e))))
+        | ExprSomeElse (d,v,e) ->
+            let red = (env,env,Some (Interpreter.evaluate_value infos env (ValueSomeElse (d,v,e))))
             let (_,_,cv) = red
             let cv =
-                if Interpreter.evaluate_formula infos env (Exists (d,f))
-                then cv else None 
-            TrExprSomeElse (red,cv,d,f,e)
+                if Interpreter.evaluate_value infos env (ValueExists (d,v)) = ConstBool true
+                then cv else None
+            TrExprSomeElse (red,cv,d,v,e)
+        | ExprForall (d,v) ->
+            let red = (env,env,Some (Interpreter.evaluate_value infos env (ValueForall (d,v))))
+            TrExprForall (red,d,v)
+        | ExprExists (d,v) ->
+            let red = (env,env,Some (Interpreter.evaluate_value infos env (ValueExists (d,v))))
+            TrExprForall (red,d,v)
+        | ExprImply (e1, e2) ->
+            TrExprImply (binary_op env e1 e2 Interpreter.value_imply)
 
     and trace_expressions (m:ModuleDecl) infos (env:Model.Environment) es =
         let aux trs e =
@@ -147,28 +155,28 @@
                 else (env', TrNotEvaluated(env',env',false))
             let rsd = (env, env', st_is_fully_executed tr_st)
             TrIfElse (rsd, tr, tr_st)
-        | IfSomeElse (decl, f, sif, selse) ->
-            match Interpreter.if_some_value infos env decl f with
+        | IfSomeElse (decl, v, sif, selse) ->
+            match Interpreter.if_some_value infos env decl v with
             | Some value ->
                 let env' = Interpreter.enter_new_block infos env [decl] [Some value]
                 let tr = trace_statement m infos env' sif
                 let env' = final_env_of_sts [tr] env'
                 let env' = Interpreter.leave_block infos env' [decl] env
                 let rsd = (env, env', st_is_fully_executed tr)
-                TrIfSomeElse (rsd, Some value, decl, f, tr)
+                TrIfSomeElse (rsd, Some value, decl, v, tr)
             | None ->
                 let tr = trace_statement m infos env selse
                 let env' = final_env_of_sts [tr] env
                 let rsd = (env, env', st_is_fully_executed tr)
-                TrIfSomeElse (rsd, None, decl, f, tr)
-        | Assert f ->
-             if Interpreter.evaluate_formula infos env f
+                TrIfSomeElse (rsd, None, decl, v, tr)
+        | Assert v ->
+             if Interpreter.evaluate_value infos env v = ConstBool true
              then
                 let rsd = (env, env, true)
-                TrAssert (rsd, f)
+                TrAssert (rsd, v)
              else
                 let rsd = (env, env, false)
-                TrAssert (rsd, f)
+                TrAssert (rsd, v)
 
     and trace_statements (m:ModuleDecl) infos (env:Model.Environment) ss =
         let rec aux env ss =

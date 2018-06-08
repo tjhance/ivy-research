@@ -343,7 +343,7 @@
                     (
                         fun str ->
                             let cv = Map.find str env.v
-                            Equal (ValueVar str, value_of_association (value2var cv))
+                            ValueEqual (ValueVar str, value_of_association (value2var cv))
                     ) m.v
             let constraints_fun =
                 Set.map
@@ -351,7 +351,7 @@
                         fun (str,cvs) ->
                             let cv = Map.find (str,cvs) env.f
                             let cvs = List.map (fun cv -> value_of_association (value2var cv)) cvs
-                            Equal (ValueFun (str, cvs), value_of_association (value2var cv))
+                            ValueEqual (ValueFun (str, cvs), value_of_association (value2var cv))
                     ) m.f
             let constraints = Set.union constraints_var constraints_fun
 
@@ -363,7 +363,7 @@
                     (
                         fun (cv1,cv2) ->
                             let (cv1,cv2) = Helper.order_tuple (cv1,cv2)
-                            Not (Equal (value_of_association (value2var cv1), value_of_association (value2var cv2)))
+                            ValueNot (ValueEqual (value_of_association (value2var cv1), value_of_association (value2var cv2)))
                     ) ineq_constraints
             let constraints = Set.union constraints ineq_constraints
             constraints
@@ -382,10 +382,10 @@
         let formula_for cs vars =
             let cs = Set.toList cs
             match cs with
-            | [] -> Const true
+            | [] -> ValueConst (ConstBool true)
             | h::constraints ->
-                let formula = List.fold (fun acc c -> And (acc,c)) h constraints
-                Set.fold (fun acc vd -> Exists (vd, acc)) formula vars
+                let formula = List.fold (fun acc c -> ValueAnd (acc,c)) h constraints
+                Set.fold (fun acc vd -> ValueExists (vd, acc)) formula vars
 
         let (formulas, _) =
             List.fold
@@ -396,39 +396,42 @@
 
         let formulas =
             match formulas with
-            | [] -> Const false
-            | h::formulas -> List.fold (fun acc c -> Or (acc,c)) h formulas
+            | [] ->  ValueConst (ConstBool false)
+            | h::formulas -> List.fold (fun acc c -> ValueOr (acc,c)) h formulas
 
         // Construct the formula with the quantifiers
         let constraints = Set.toList constraints
         match constraints with
-        | [] -> Const true
+        | [] -> ValueConst (ConstBool true)
         | h::constraints ->
-            let formula = List.fold (fun acc c -> And (acc,c)) h constraints
-            let formula = Imply (formula, formulas)
-            Set.fold (fun acc vd -> Forall (vd, acc)) formula vars
+            let formula = List.fold (fun acc c -> ValueAnd (acc,c)) h constraints
+            let formula = ValueImply (formula, formulas)
+            Set.fold (fun acc vd -> ValueForall (vd, acc)) formula vars
 
-    let rec simplify_formula f =
+    let rec simplify_value f =
         match f with
         // Implication
-        | Imply (f1, Const false) -> simplify_formula (Not f1)
+        | ValueImply (f1, ValueConst (ConstBool false)) -> simplify_value (ValueNot f1)
         // Negation
-        | Not (Equal (v, ValueConst (ConstBool b)))
-        | Not (Equal (ValueConst (ConstBool b), v))
-            -> simplify_formula (Equal (v, ValueConst (ConstBool (not b))))
-        | Not (Const b) -> simplify_formula (Const (not b))
-        | Not (Not f) -> simplify_formula f
-        | Not (Or (f1, f2)) -> simplify_formula (And (Not f1, Not f2))
-        | Not (And (f1, f2)) -> simplify_formula (Or (Not f1, Not f2))
-        | Not (Forall (d,f)) -> simplify_formula (Exists (d, Not f))
-        | Not (Exists (d,f)) -> simplify_formula (Forall (d, Not f))
-        | Not (Imply (f1, f2)) -> simplify_formula (And (f1, Not f2))
+        | ValueNot (ValueEqual (v, ValueConst (ConstBool b)))
+        | ValueNot (ValueEqual (ValueConst (ConstBool b), v))
+            -> simplify_value (ValueEqual (v, ValueConst (ConstBool (not b))))
+        | ValueNot (ValueConst (ConstBool b)) -> simplify_value (ValueConst (ConstBool (not b)))
+        | ValueNot (ValueNot f) -> simplify_value f
+        | ValueNot (ValueOr (f1, f2)) -> simplify_value (ValueAnd (ValueNot f1, ValueNot f2))
+        | ValueNot (ValueAnd (f1, f2)) -> simplify_value (ValueOr (ValueNot f1, ValueNot f2))
+        | ValueNot (ValueForall (d,f)) -> simplify_value (ValueExists (d, ValueNot f))
+        | ValueNot (ValueExists (d,f)) -> simplify_value (ValueForall (d, ValueNot f))
+        | ValueNot (ValueImply (f1, f2)) -> simplify_value (ValueAnd (f1, ValueNot f2))
         // Identity cases
-        | Const b -> Const b
-        | Equal (v1, v2) -> Equal (v1, v2)
-        | Or (f1, f2) -> Or (simplify_formula f1, simplify_formula f2)
-        | And (f1, f2) -> And (simplify_formula f1, simplify_formula f2)
-        | Not f -> Not (simplify_formula f)
-        | Forall (v, f) -> Forall (v, simplify_formula f)
-        | Exists (v, f) -> Exists (v, simplify_formula f)
-        | Imply (f1, f2) -> Imply (simplify_formula f1, simplify_formula f2)
+        | ValueConst b -> ValueConst b
+        | ValueEqual (v1, v2) -> ValueEqual (simplify_value v1, simplify_value v2)
+        | ValueOr (f1, f2) -> ValueOr (simplify_value f1, simplify_value f2)
+        | ValueAnd (f1, f2) -> ValueAnd (simplify_value f1, simplify_value f2)
+        | ValueNot f -> ValueNot (simplify_value f)
+        | ValueForall (v, f) -> ValueForall (v, simplify_value f)
+        | ValueExists (v, f) -> ValueExists (v, simplify_value f)
+        | ValueImply (f1, f2) -> ValueImply (simplify_value f1, simplify_value f2)
+        | ValueVar v -> ValueVar v
+        | ValueFun (str, vs) -> ValueFun (str, List.map simplify_value vs)
+        | ValueSomeElse (d, v1, v2) -> ValueSomeElse (d, simplify_value v1, simplify_value v2)

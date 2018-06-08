@@ -5,7 +5,6 @@
 
     let marks_for_value = Synthesis.marks_for_value
     let marks_for_value_with = Synthesis.marks_for_value_with
-    let marks_for_formula = Synthesis.marks_for_formula
     let config_union = Synthesis.config_union
     let is_var_marked = Synthesis.is_var_marked
     let is_fun_marked = Synthesis.is_fun_marked
@@ -97,7 +96,7 @@
                 if mark_value && v <> None then
                     let v1 = ret_value_of_expr tr_e1
                     let v2 = ret_value_of_expr tr_e2
-                    let (_, cfg') = marks_for_formula infos env' Set.empty (Equal (ValueConst v1,ValueConst v2))
+                    let (_, cfg') = marks_for_value infos env' Set.empty (ValueEqual (ValueConst v1,ValueConst v2))
                     (config_union cfg cfg', true)
                 else (cfg, false)
             marks_before_expressions module_decl infos [tr_e1;tr_e2] cfg [args_mark;args_mark]
@@ -130,6 +129,23 @@
                 let (_,cfg') = marks_for_value infos env Set.empty (ValueSomeElse (d,f,v))
                 config_union cfg cfg'
             else cfg
+        | TrExprExists ((env,_,rv),d,v) ->
+            if mark_value && rv <> None
+            then
+                let (_,cfg') = marks_for_value infos env Set.empty (ValueExists (d,v))
+                config_union cfg cfg'
+            else cfg
+        | TrExprForall ((env,_,rv),d,v) ->
+            if mark_value && rv <> None
+            then
+                let (_,cfg') = marks_for_value infos env Set.empty (ValueForall (d,v))
+                config_union cfg cfg'
+            else cfg
+        | TrExprImply ((env,env',cv), tr_e1, tr_e2) ->
+            let (env1,env1',v1) = runtime_data_of_expr tr_e1
+            let tr_not_e1 = TrExprNot ((env1,env1',Option.map Interpreter.value_not v1), tr_e1)
+            let tr_or = TrExprOr ((env, env', cv), tr_not_e1, tr_e2)
+            marks_before_expression module_decl infos tr_or cfg mark_value
 
     // Expressions are analysed in reverse order
     and marks_before_expressions module_decl infos trs cfg mark_values =
@@ -258,28 +274,28 @@
                     marks_before_statement module_decl infos tr_st cfg
                 else cfg
             marks_before_expression module_decl infos tr_e cfg true
-        | TrIfSomeElse ((env,_,_), cv, decl, f, tr_s) ->
+        | TrIfSomeElse ((env,_,_), cv, decl, v, tr_s) ->
             match cv with
             | Some _ ->
                 let cfg' = config_enter_block infos cfg [decl]
                 let cfg' = marks_before_statement module_decl infos tr_s cfg'
                 let (_, cfg'') =
                     if is_var_marked infos cfg' decl.Name
-                    then marks_for_formula infos (initial_env_of_st tr_s) Set.empty f
+                    then marks_for_value infos (initial_env_of_st tr_s) Set.empty v
                     (* NOTE: In the case above, we may also ensure that every other value doesn't satisfy the predicate.
                        However, it is a different problem than garanteeing the invariant value,
                        since we are bound to an execution (maybe there is no uniqueness in this execution).
                        Therefore, we suppose that the choice made is always the value we choose here (if it satisfies the condition).
                        An assertion can also be added by the user to ensure this uniqueness. *)
-                    else marks_for_formula infos env Set.empty (Exists (decl, f))
+                    else marks_for_value infos env Set.empty (ValueExists (decl, v))
                 let cfg' = config_union cfg' cfg''
                 config_leave_block infos cfg' [decl] cfg
             | None ->
                 let cfg = marks_before_statement module_decl infos tr_s cfg
-                let (_,cfg') = marks_for_formula infos env Set.empty (Not (Exists (decl, f)))
+                let (_,cfg') = marks_for_value infos env Set.empty (ValueNot (ValueExists (decl, v)))
                 config_union cfg cfg'
-        | TrAssert ((env,_,_),f) ->
-            let (_, cfg') = marks_for_formula infos env Set.empty f
+        | TrAssert ((env,_,_),v) ->
+            let (_, cfg') = marks_for_value infos env Set.empty v
             config_union cfg cfg'
 
     // Statements are analysed in reverse order

@@ -20,10 +20,15 @@
         | ConstBool b -> ConstBool (not b)
         | _ -> ConstVoid
 
-    let rec if_some_value infos (env:Model.Environment) (decl:VarDecl) f : option<ConstValue> =
+    let value_imply v1 v2 =
+        match v1, v2 with
+        | ConstBool b1, ConstBool b2 -> ConstBool ((not b1) || b2)
+        | _ -> ConstVoid
+
+    let rec if_some_value infos (env:Model.Environment) (decl:VarDecl) v : option<ConstValue> =
         let possible_values = Model.all_values infos (decl.Type)
         try
-            Some (Seq.find (fun v -> eval_formula_with infos env f [decl.Name] [v]) possible_values)
+            Some (Seq.find (fun cv -> eval_value_with infos env v [decl.Name] [cv] = ConstBool true) possible_values)
         with :? System.Collections.Generic.KeyNotFoundException -> None
 
     and evaluate_value infos (env:Model.Environment) v =
@@ -52,41 +57,20 @@
             match if_some_value infos env d f with
             | Some v -> v
             | None -> evaluate_value infos env v
+        | ValueForall (d,v) ->
+            let possible_values = Model.all_values infos d.Type
+            ConstBool (Seq.forall (fun cv -> eval_value_with infos env v [d.Name] [cv] = ConstBool true) possible_values)
+        | ValueExists (d,v) ->
+            let possible_values = Model.all_values infos d.Type
+            ConstBool (Seq.exists (fun cv -> eval_value_with infos env v [d.Name] [cv] = ConstBool true) possible_values)
+        | ValueImply (v1,v2) ->
+            evaluate_value infos env (ValueOr (ValueNot v1, v2))
 
     and eval_value_with infos (env:Model.Environment) v names values =
         let v' = List.fold2 (fun acc n v -> Map.add n v acc) env.v names values
         evaluate_value infos { env with v=v' } v
 
-    and eval_formula_with infos (env:Model.Environment) f names values =
-        let v' = List.fold2 (fun acc n v -> Map.add n v acc) env.v names values
-        evaluate_formula infos { env with v=v' } f
-
-    and evaluate_formula infos (env:Model.Environment) f =
-        match f with
-        | Const b -> b
-        | Equal (v1,v2) ->
-            let v1 = evaluate_value infos env v1
-            let v2 = evaluate_value infos env v2
-            value_equal env v1 v2
-        | Or (f1,f2) ->
-            let f1 = evaluate_formula infos env f1
-            let f2 = evaluate_formula infos env f2
-            f1 || f2
-        | And (f1,f2) ->
-            let f1 = evaluate_formula infos env f1
-            let f2 = evaluate_formula infos env f2
-            f1 && f2
-        | Not f -> not (evaluate_formula infos env f)
-        | Forall (d,f) ->
-            let possible_values = Model.all_values infos d.Type
-            Seq.forall (fun v -> eval_formula_with infos env f [d.Name] [v]) possible_values
-        | Exists (d,f) ->
-            let possible_values = Model.all_values infos d.Type
-            Seq.exists (fun v -> eval_formula_with infos env f [d.Name] [v]) possible_values
-        | Imply (f1,f2) ->
-            evaluate_formula infos env (Or (Not f1, f2))
-
-    exception AssertionFailed of Model.Environment * Formula
+    exception AssertionFailed of Model.Environment * Value
 
     let enter_new_block infos (env:Model.Environment) lvars lvalues : Model.Environment =
         let add_decl acc (decl:VarDecl) v =
@@ -167,8 +151,16 @@
         | ExprNot e -> 
             let (env, v) = evaluate_expression m infos env e
             (env, value_not v)
-        | ExprSomeElse (d,f,e) ->
-            (env, evaluate_value infos env (ValueSomeElse (d,f,e)))
+        | ExprSomeElse (d,v,e) ->
+            (env, evaluate_value infos env (ValueSomeElse (d,v,e)))
+        | ExprForall (d,v) ->
+            (env, evaluate_value infos env (ValueForall (d,v)))
+        | ExprExists (d,v) ->
+            (env, evaluate_value infos env (ValueExists (d,v)))
+        | ExprImply (e1, e2) -> 
+            let (env, v1) = evaluate_expression m infos env e1
+            let (env, v2) = evaluate_expression m infos env e2
+            (env, value_imply v1 v2)
 
     and evaluate_expressions (m:ModuleDecl) infos (env:Model.Environment) es =
         let aux (env, res) e =
@@ -212,17 +204,17 @@
             match v with
             | ConstBool true -> execute_statement m infos env sif
             | ConstBool false | _ -> execute_statement m infos env selse
-        | IfSomeElse (decl, f, sif, selse) ->
-            match if_some_value infos env decl f with
+        | IfSomeElse (decl, v, sif, selse) ->
+            match if_some_value infos env decl v with
             | Some value ->
                 let env' = enter_new_block infos env [decl] [Some value]
                 let env' = execute_statement m infos env' sif
                 leave_block infos env' [decl] env
             | None ->
                 execute_statement m infos env selse
-        | Assert f ->
-            if evaluate_formula infos env f then env
-            else raise (AssertionFailed (env, f))
+        | Assert v ->
+            if evaluate_value infos env v = ConstBool true then env
+            else raise (AssertionFailed (env, v))
 
     and execute_statements (m:ModuleDecl) infos (env:Model.Environment) ss =
         let aux env s =

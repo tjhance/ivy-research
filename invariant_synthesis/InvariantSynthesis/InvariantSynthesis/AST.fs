@@ -11,7 +11,6 @@
     // TODO: Axiom, isolate, inductive, export, extract, interpret, property...
 
     // TODO: Parse Ivy code
-    // TODO: Remove formula from AST: use value instead (add quantifiers to both values and exprs)
     // TODO: Add macro system
 
     // TODO: Use model checking tool to know whether 2steps synthesis is needed?
@@ -58,17 +57,10 @@
         | ValueOr of Value * Value
         | ValueAnd of Value * Value
         | ValueNot of Value
-        | ValueSomeElse of VarDecl * Formula * Value
-
-    and Formula =
-        | Const of bool
-        | Equal of Value * Value
-        | Or of Formula * Formula
-        | And of Formula * Formula
-        | Not of Formula
-        | Forall of VarDecl * Formula
-        | Exists of VarDecl * Formula
-        | Imply of Formula * Formula
+        | ValueSomeElse of VarDecl * Value * Value
+        | ValueForall of VarDecl * Value
+        | ValueExists of VarDecl * Value
+        | ValueImply of Value * Value
 
     (* With side effects *)
     type Expression =
@@ -80,7 +72,10 @@
         | ExprOr of Expression * Expression
         | ExprAnd of Expression * Expression
         | ExprNot of Expression
-        | ExprSomeElse of VarDecl * Formula * Value
+        | ExprSomeElse of VarDecl * Value * Value
+        | ExprForall of VarDecl * Value
+        | ExprExists of VarDecl * Value
+        | ExprImply of Expression * Expression
 
     type HoleExpression =
         | Hole of VarDecl
@@ -93,13 +88,13 @@
         | FunAssign of string * List<Expression> * Expression
         | ForallFunAssign of string * List<HoleExpression> * Value
         | IfElse of Expression * Statement * Statement
-        | IfSomeElse of VarDecl * Formula * Statement * Statement
-        | Assert of Formula
+        | IfSomeElse of VarDecl * Value * Statement * Statement
+        | Assert of Value
 
     type ActionDecl = { Name: string; Args: List<VarDecl>; Output: VarDecl; Content: Statement }
     type ModuleDecl =
         { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; Vars: List<VarDecl>;
-            Actions: List<ActionDecl>; Invariants: List<Formula>; Implications: List<ImplicationRule> }
+            Actions: List<ActionDecl>; Invariants: List<Value>; Implications: List<ImplicationRule> }
 
 
     let empty_module name =
