@@ -84,7 +84,7 @@ let main argv =
 
     let decls = Model.declarations_of_module md
     let (m', diff1) = Formula.simplify_marks infos md.Implications decls env m ad.d
-    let (um', diff2) = Formula.simplify_marks infos md.Implications decls env um ad.d
+    let (um', _) = Formula.simplify_marks infos md.Implications decls env um ad.d
     let f = Formula.formula_from_marks env (m', diff1) []
     let f = Formula.simplify_value f
     printfn "%s" (Printer.value_to_string decls f 0)
