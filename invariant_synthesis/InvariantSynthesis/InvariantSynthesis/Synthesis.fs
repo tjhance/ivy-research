@@ -112,8 +112,7 @@
                 (eval, ({ m with f = Set.add (str, cvs) m.f }, um, ad))
         | ValueMacro (str, values) ->
             let macro = find_macro mdecl str
-            let dico = List.fold2 (fun acc (d:VarDecl) v -> Map.add d.Name v acc) Map.empty macro.Args values
-            let v = map_vars_in_value (macro.Value) dico
+            let v = expand_macro macro values
             marks_for_value mdecl infos env uvar v
         | ValueEqual (v1, v2) ->
             let (cv1, cfg1) = marks_for_value mdecl infos env uvar v1

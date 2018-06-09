@@ -17,7 +17,7 @@ type var_decl = string * ivy_type [@@deriving sexp]
 type const_value =
     | ConstVoid
     | ConstBool of bool
-    | ConstInt of int
+    | ConstInt of string * int
     [@@deriving sexp]
 
 type parsed_expression =

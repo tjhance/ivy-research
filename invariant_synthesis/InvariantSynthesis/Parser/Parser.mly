@@ -197,7 +197,7 @@ expression:
   | FALSE
     { Const (ConstBool false) }
   | i = INT
-    { Const (ConstInt i) }
+    { Const (ConstInt ("", i)) }
   | LEFT_PARENTHESIS; obj = expression; RIGHT_PARENTHESIS
     { obj }
   | e1 = expression; EQUAL; e2 = expression

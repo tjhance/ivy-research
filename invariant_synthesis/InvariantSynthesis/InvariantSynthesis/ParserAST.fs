@@ -17,7 +17,7 @@
     type const_value =
         | ConstVoid
         | ConstBool of bool
-        | ConstInt of int
+        | ConstInt of string * int
 
     type parsed_expression =
         | Const of const_value
@@ -114,7 +114,7 @@
         let candidates = List.map (fun (d:AST.TypeDecl) -> d.Name) m.Types
         resolve_reference (Set.ofList candidates) base_name reference
     
-    // Parsing to AST converters
+    // Parsed to AST converters
     let p2a_type m base_name ptype =
         match ptype with
         | Unknown -> failwith "Unknown type !"
@@ -124,26 +124,122 @@
             let str = resolve_type_reference m base_name str
             AST.Uninterpreted str
 
-    let p2a_cv pcv =
-        match pcv with
-        | ConstVoid -> AST.ConstVoid
-        | ConstBool b -> AST.ConstBool b
-        | ConstInt _ -> AST.ConstInt ("", 0) // Note: Type is not really useful for now. The int constant has no sense without a model, so we put 0.
+    exception NoMatch
+    let p2a_cv pcv t = // Note: parsed ConstInt have always an empty type
+        match pcv, t with
+        | ConstVoid, AST.Void -> AST.ConstVoid
+        | ConstBool b, AST.Bool -> AST.ConstBool b
+        | ConstInt _, AST.Uninterpreted str -> AST.ConstInt (str, 0) // Note: The int constant has no sense without a model, so we put 0.
+        | _, _ -> raise NoMatch
 
-    // Resolve types
-    let rec resolve_local_types (m:AST.ModuleDecl) base_name local_vars_types v =
-        match v with
-        | Const cv ->
-            let t = AST.type_of_const_value (p2a_cv cv)
-            if t = AST.Uninterpreted "" then (local_vars_types, None) else (local_vars_types, Some t)
-        | QVar (str, t) ->
-            let str = local_name str
-            if t <> Unknown
-            then
-                let t = p2a_type m base_name t
-                (Map.add str t local_vars_types, Some t)
-            else (local_vars_types, None)
-        //| VarFunMacroAction (str, es) -> // TODO
+    // Resolve references
+    let resolve_references (m:AST.ModuleDecl) base_name local_vars_types v =
+
+        let match_expected_ret_type expected ret =
+            match expected, ret with
+            | _, None -> true
+            | None, _ -> true
+            | Some t1, Some t2 -> Interpreter.type_equal t1 t2
+
+        let return_if_match expected ret result =
+            if match_expected_ret_type expected ret
+            then result else raise NoMatch
+
+        let rec aux local_vars_types v ret_val =
+
+            let proceed_if_compatible lvt rets es =
+                if List.length rets <> List.length es then None
+                else
+                    try
+                        let (lvt, res_es) =
+                            List.fold2
+                                (
+                                    fun (lvt, res_es) ret e ->
+                                        let (lvt, res_e) = aux lvt e (Some ret)
+                                        (lvt, res_e::res_es)
+                                ) (lvt,[]) rets es
+                        Some (lvt, List.rev res_es)
+                    with :? NoMatch -> None
+
+            match v with
+            | Const cv -> // Note: cv type is always empty initially.
+                match ret_val with
+                | None -> failwith "Can't resolve local types: many matches !"
+                | Some ret_val ->
+                    let cv = (p2a_cv cv ret_val)
+                    (local_vars_types, AST.ExprConst cv)
+
+            | QVar (str, t) ->
+                let str = local_name str
+
+                if Map.containsKey str local_vars_types
+                then // In this case, we ignore t
+                    return_if_match ret_val (Some t) (local_vars_types, AST.ExprVar str)
+                else
+                    if t <> Unknown
+                    then
+                        let t = p2a_type m base_name t
+                        return_if_match ret_val (Some t) (Map.add str t local_vars_types, AST.ExprVar str)
+                    else
+                        match ret_val with
+                        | None -> failwith "Can't resolve local types: many matches !"
+                        | Some t -> (Map.add str t local_vars_types, AST.ExprVar str)
+
+            | VarFunMacroAction (str, es) ->
+
+                let candidates_v = Set.map (fun (d:AST.VarDecl) -> (d.Name, [], d.Type, "v")) (Set.ofList m.Vars)
+                let candidates_f = Set.map (fun (d:AST.FunDecl) -> (d.Name, d.Input, d.Output, "f")) (Set.ofList m.Funs)
+                let candidates_m = Set.map (fun (d:AST.MacroDecl) -> (d.Name, List.map (fun (d:AST.VarDecl) -> d.Type) d.Args, d.Output, "m")) (Set.ofList m.Macros)
+                let candidates_a = Set.map (fun (d:AST.ActionDecl) -> (d.Name, List.map (fun (d:AST.VarDecl) -> d.Type) d.Args, d.Output.Type, "a")) (Set.ofList m.Actions)
+                let candidates = Set.unionMany [candidates_v;candidates_f;candidates_m;candidates_a]
+                let candidates = Set.filter (fun (name,_,_,_) -> has_reference_name name str) candidates
+                let candidates = Set.filter (fun (_,_,ret,_) -> match_expected_ret_type ret_val (Some ret)) candidates
+                let results = Set.fold (fun acc (str,args,_,descr) -> match proceed_if_compatible local_vars_types args es with None -> acc | Some r -> (descr,str,r)::acc) [] candidates
+
+                if List.length results = 1
+                then
+                    let (descr,str,(lvt, res_es)) = List.head results
+                    match descr with
+                    | "v" -> (lvt, AST.ExprVar str)
+                    | "f" -> (lvt, AST.ExprFun (str,res_es))
+                    | "m" -> (lvt, AST.ExprMacro (str,List.map AST.expr_to_value res_es))
+                    | "a" -> (lvt, AST.ExprAction (str, res_es))
+                    | _ -> failwith "Invalid description."
+                else if List.length results = 0
+                then raise NoMatch
+                else failwith "Can't resolve local types: many matches !"
+
+            | Equal (e1, e2) ->
+
+                let candidates = List.map (fun (d:AST.TypeDecl) -> AST.Uninterpreted d.Name) m.Types
+                let candidates = AST.Void::AST.Bool::candidates
+                let results = List.fold (fun acc ret -> match proceed_if_compatible local_vars_types [ret;ret] [e1;e2] with None -> acc | Some r -> r::acc) [] candidates
+
+                if List.length results = 1
+                then
+                    let (lvt, res_es) = List.head results
+                    return_if_match ret_val (Some AST.Bool) (lvt, AST.ExprEqual (Helper.lst_to_couple res_es))
+                else if List.length results = 0
+                then raise NoMatch
+                else failwith "Can't resolve local types: many matches !"
+
+            | Or (e1, e2) ->
+                match proceed_if_compatible local_vars_types [AST.Bool;AST.Bool] [e1;e2] with
+                | None -> raise NoMatch
+                | Some (lvt, res_es) -> return_if_match ret_val (Some AST.Bool) (lvt, AST.ExprOr (Helper.lst_to_couple res_es))
+
+            | And (e1, e2) ->
+                match proceed_if_compatible local_vars_types [AST.Bool;AST.Bool] [e1;e2] with
+                | None -> raise NoMatch
+                | Some (lvt, res_es) -> return_if_match ret_val (Some AST.Bool) (lvt, AST.ExprAnd (Helper.lst_to_couple res_es))
+
+            | Not e ->
+                match proceed_if_compatible local_vars_types [AST.Bool] [e] with
+                | None -> raise NoMatch
+                | Some (lvt, res_es) -> return_if_match ret_val (Some AST.Bool) (lvt, AST.ExprNot (List.head res_es))
+
+        aux local_vars_types v None
+
     
     // Convert a list of ivy parser AST elements to a global AST.ModuleDecl.
     // Also add and/or adjust references to types, functions, variables or actions of the module.

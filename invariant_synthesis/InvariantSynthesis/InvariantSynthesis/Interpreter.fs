@@ -4,6 +4,7 @@
 
     // Note: In synthesis.fs, operations like Set.contains or Set.remove doesn't take value_equal into account.
     let value_equal _ v1 v2 = v1=v2
+    let type_equal t1 t2 = t2=t2
 
     let value_or v1 v2 =
         match v1, v2 with
@@ -25,6 +26,10 @@
         | ConstBool b1, ConstBool b2 -> ConstBool ((not b1) || b2)
         | _ -> ConstVoid
 
+    let expand_macro macro args =
+        let dico = List.fold2 (fun acc (d:VarDecl) v -> Map.add d.Name v acc) Map.empty macro.Args args
+        map_vars_in_value (macro.Value) dico
+
     let rec if_some_value (m:ModuleDecl) infos (env:Model.Environment) (decl:VarDecl) v : option<ConstValue> =
         let possible_values = Model.all_values infos (decl.Type)
         try
@@ -40,8 +45,7 @@
             Map.find (str, lst) env.f
         | ValueMacro (str, lst) -> // For now, we don't check the types
             let macro = find_macro m str
-            let dico = List.fold2 (fun acc (d:VarDecl) v -> Map.add d.Name v acc) Map.empty macro.Args lst
-            let v = map_vars_in_value (macro.Value) dico
+            let v = expand_macro macro lst
             evaluate_value m infos env v
         | ValueEqual (v1, v2) ->
             let cv1 = evaluate_value m infos env v1

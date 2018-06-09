@@ -94,7 +94,7 @@
 
     type ActionDecl = { Name: string; Args: List<VarDecl>; Output: VarDecl; Content: Statement }
 
-    type MacroDecl = { Name: string; Args: List<VarDecl>; Value: Value }
+    type MacroDecl = { Name: string; Args: List<VarDecl>; Output: Type; Value: Value }
 
     type ModuleDecl =
         { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; Vars: List<VarDecl>;
@@ -158,3 +158,19 @@
             ValueExists (d, map_vars_in_value v dico)
         | ValueImply (v1, v2) ->
             ValueImply (map_vars_in_value v1 dico, map_vars_in_value v2 dico)
+
+    let rec expr_to_value expr =
+        match expr with
+        | ExprConst c -> ValueConst c
+        | ExprVar v -> ValueVar v
+        | ExprFun (str,args) -> ValueFun (str, List.map expr_to_value args)
+        | ExprMacro (str, args) -> ValueMacro (str, args)
+        | ExprAction _ -> failwith "Value expected, side-effects found!"
+        | ExprEqual (e1, e2) -> ValueEqual (expr_to_value e1, expr_to_value e2)
+        | ExprOr (e1, e2) -> ValueOr (expr_to_value e1, expr_to_value e2)
+        | ExprAnd (e1, e2) -> ValueAnd (expr_to_value e1, expr_to_value e2)
+        | ExprNot e -> ValueNot (expr_to_value e)
+        | ExprSomeElse (d, v1, v2) -> ValueSomeElse (d, v1, v2)
+        | ExprForall (d,v) -> ValueForall (d,v)
+        | ExprExists (d,v) -> ValueExists (d,v)
+        | ExprImply (e1, e2) -> ValueImply (expr_to_value e1, expr_to_value e2)
