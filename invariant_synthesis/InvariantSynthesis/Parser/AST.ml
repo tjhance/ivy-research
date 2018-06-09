@@ -4,6 +4,7 @@ open Ppx_sexp_conv
 (* EXPRESSION *)
 
 type ivy_type =
+    | Unknown
     | Void
     | Bool
     | Uninterpreted of string

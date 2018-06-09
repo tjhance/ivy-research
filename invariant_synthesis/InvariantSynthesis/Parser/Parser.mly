@@ -176,7 +176,7 @@ decl:
   | name = ID ; COLON ; t = ivy_type
     { (name, t) }
   | name = ID
-    { (name, Uninterpreted "") }
+    { (name, Unknown) }
   ;
 
 (*
@@ -225,13 +225,13 @@ expression:
   | SOME; d = qvar_decl; POINT; e=expression
     { SomeElse (d, e, Const ConstVoid) }
   | name = ID; LEFT_PARENTHESIS; args = expressions; RIGHT_PARENTHESIS
-    { VarFunAction (name, args) }
+    { VarFunMacroAction (name, args) }
   | arg1 = expression; name = INFIX_CMP_ID; arg2 = expression
-    { VarFunAction (name, [arg1;arg2]) }
+    { VarFunMacroAction (name, [arg1;arg2]) }
   | arg1 = expression; name = INFIX_FUN_ID; arg2 = expression
-    { VarFunAction (name, [arg1;arg2]) }
+    { VarFunMacroAction (name, [arg1;arg2]) }
   | name = ID
-    { VarFunAction (name, []) }
+    { VarFunMacroAction (name, []) }
   | d = qvar_decl
     { QVar d }
   ;
@@ -250,7 +250,7 @@ qvar_decl:
   | name = QVAR_ID ; COLON ; t = ivy_type
     { (name, t) }
   | name = QVAR_ID
-    { (name, Uninterpreted "") }
+    { (name, Unknown) }
   ;
 
 qvar_decls:
