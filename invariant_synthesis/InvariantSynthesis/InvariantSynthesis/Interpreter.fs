@@ -4,7 +4,7 @@
 
     // Note: In synthesis.fs, operations like Set.contains or Set.remove doesn't take value_equal into account.
     let value_equal _ v1 v2 = v1=v2
-    let type_equal t1 t2 = t2=t2
+    let type_equal t1 t2 = t1=t2
 
     let value_or v1 v2 =
         match v1, v2 with
