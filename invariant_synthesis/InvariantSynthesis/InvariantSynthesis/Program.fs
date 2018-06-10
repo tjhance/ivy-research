@@ -39,11 +39,10 @@ let main argv =
             (
                 fun vd ->
                     printfn "Please enter next arg:"
-                    let a = Console.ReadLine()
                     match vd.Type with
                     | Void -> ConstVoid
-                    | Bool -> ConstBool (Convert.ToBoolean a)
-                    | Uninterpreted str -> ConstInt (str, Convert.ToInt32 a)
+                    | Bool -> ConstBool (Convert.ToBoolean (Console.ReadLine()))
+                    | Uninterpreted str -> ConstInt (str, Convert.ToInt32 (Console.ReadLine()))
             )
             (find_action md name).Args
     printfn "Executing..."

@@ -129,7 +129,7 @@
             | ConstBool false, ConstBool true -> (ConstBool true, cfg2)
             | ConstBool true, ConstBool true when is_better_config cfg2 cfg1 -> (ConstBool true, cfg2)
             | ConstBool true, ConstBool true -> (ConstBool true, cfg1)
-            | _, _ -> (ConstVoid, config_union cfg1 cfg2)
+            | _, _ -> raise TypeError
         | ValueAnd (v1, v2) ->
             marks_for_value mdecl infos env uvar (ValueNot (ValueOr (ValueNot v1, ValueNot v2)))
         | ValueNot v ->

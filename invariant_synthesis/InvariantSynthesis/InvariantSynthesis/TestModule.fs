@@ -81,7 +81,7 @@
                                                     (
                                                         {Name="y";Type=Uninterpreted("incrementable.t");Representation=default_representation},
                                                         relation_formula "incrementable.succ" [ValueVar "x"; ValueVar "y"],
-                                                        ValueConst ConstVoid
+                                                        ValueConst (ConstInt("incrementable.t",0))
                                                     )
                                             )
                                     ]

@@ -31,7 +31,7 @@ type parsed_expression =
     | Forall of var_decl * parsed_expression
     | Exists of var_decl * parsed_expression
     | Imply of parsed_expression * parsed_expression
-    | SomeElse of var_decl * parsed_expression * parsed_expression
+    | SomeElse of var_decl * parsed_expression * parsed_expression option
     [@@deriving sexp]
 
 (* STATEMENT *)

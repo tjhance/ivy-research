@@ -4,27 +4,75 @@
 
     // Note: In synthesis.fs, operations like Set.contains or Set.remove doesn't take value_equal into account.
     let value_equal _ v1 v2 = v1=v2
+
     let type_equal t1 t2 = t1=t2
 
+    (*
+
+        type Expression =
+        | ExprConst of ConstValue
+        | ExprVar of string
+        | ExprFun of string * List<Expression>
+        | ExprMacro of string * List<Value>
+        | ExprAction of string * List<Expression>
+        | ExprEqual of Expression * Expression
+        | ExprOr of Expression * Expression
+        | ExprAnd of Expression * Expression
+        | ExprNot of Expression
+        | ExprSomeElse of VarDecl * Value * Value
+        | ExprForall of VarDecl * Value
+        | ExprExists of VarDecl * Value
+        | ExprImply of Expression * Expression
+
+    *)
+
+    let rec type_of_value (m:ModuleDecl) value dico =
+        match value with
+        | ValueConst cv -> type_of_const_value cv
+        | ValueVar v ->
+            match Map.tryFind v dico with
+            | None -> (find_variable m v).Type
+            | Some t -> t
+        | ValueFun (f,_) -> (find_function m f).Output
+        | ValueMacro (str,_) -> (find_macro m str).Output
+        | ValueEqual _ | ValueOr _ | ValueAnd _ | ValueNot _ | ValueImply _
+        | ValueForall _ | ValueExists _ -> Bool
+        | ValueSomeElse (_,_,v) -> type_of_value m v dico
+
+    let rec type_of_expr (m:ModuleDecl) expr dico =
+        match expr with
+        | ExprConst cv -> type_of_const_value cv
+        | ExprVar v ->
+            match Map.tryFind v dico with
+            | None -> (find_variable m v).Type
+            | Some t -> t
+        | ExprFun (f,_) -> (find_function m f).Output
+        | ExprMacro (str,_) -> (find_macro m str).Output
+        | ExprAction (str, _) -> (find_action m str).Output.Type
+        | ExprEqual _ | ExprOr _ | ExprAnd _ | ExprNot _ | ExprImply _
+        | ExprForall _ | ExprExists _ -> Bool
+        | ExprSomeElse (_,_,v) -> type_of_value m v dico
+
+    exception TypeError
     let value_or v1 v2 =
         match v1, v2 with
         | ConstBool b1, ConstBool b2 -> ConstBool (b1 || b2)
-        | _ -> ConstVoid
+        | _ -> raise TypeError
 
     let value_and v1 v2 =
         match v1, v2 with
         | ConstBool b1, ConstBool b2 -> ConstBool (b1 && b2)
-        | _ -> ConstVoid
+        | _ -> raise TypeError
 
     let value_not v =
         match v with
         | ConstBool b -> ConstBool (not b)
-        | _ -> ConstVoid
+        | _ -> raise TypeError
 
     let value_imply v1 v2 =
         match v1, v2 with
         | ConstBool b1, ConstBool b2 -> ConstBool ((not b1) || b2)
-        | _ -> ConstVoid
+        | _ -> raise TypeError
 
     let expand_macro macro args =
         let dico = List.fold2 (fun acc (d:VarDecl) v -> Map.add d.Name v acc) Map.empty macro.Args args
@@ -237,7 +285,7 @@
         let env' = effect env'
         let res =
             match Map.tryFind output.Name env'.v with
-            | None -> ConstVoid
+            | None -> Model.type_default_value output.Type
             | Some cv -> cv
         (leave_block infos env' (output::input) env, res)
 

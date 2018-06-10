@@ -32,7 +32,7 @@ open Prime
         | Forall of var_decl * parsed_expression
         | Exists of var_decl * parsed_expression
         | Imply of parsed_expression * parsed_expression
-        | SomeElse of var_decl * parsed_expression * parsed_expression
+        | SomeElse of var_decl * parsed_expression * parsed_expression option
 
     (* STATEMENT *)
 
@@ -115,6 +115,25 @@ open Prime
     let resolve_type_reference (m:AST.ModuleDecl) base_name reference =
         let candidates = List.map (fun (d:AST.TypeDecl) -> d.Name) m.Types
         resolve_reference (Set.ofList candidates) base_name reference
+
+    // Some helpers
+    exception NoMatch
+    let types_match expected ret =
+        match expected, ret with
+        | _, None -> true
+        | None, _ -> true
+        | Some t1, Some t2 -> Interpreter.type_equal t1 t2
+
+    let conciliate_types t1 t2 =
+        match t1, t2 with
+        | None, t | t, None -> t
+        | t1, t2 ->
+            if types_match t1 t2
+            then t1 else raise NoMatch
+
+    let conciliate_types3 t1 t2 t3 =
+        conciliate_types (conciliate_types t1 t2) t3
+
     
     // Parsed to AST converters
     let try_p2a_type m base_name ptype =
@@ -131,32 +150,27 @@ open Prime
         | None -> failwith "Unknown type !"
         | Some t -> t
 
-    exception NoMatch
     let p2a_cv pcv t = // Note: parsed ConstInt have always an empty type
         match pcv, t with
-        | ConstVoid, AST.Void -> AST.ConstVoid
-        | ConstBool b, AST.Bool -> AST.ConstBool b
-        | ConstInt _, AST.Uninterpreted str -> AST.ConstInt (str, 0) // Note: The int constant has no sense without a model, so we put 0.
+        | ConstVoid, Some AST.Void -> AST.ConstVoid
+        | ConstBool b, Some AST.Bool -> AST.ConstBool b
+        | ConstVoid, None -> AST.ConstVoid
+        | ConstBool b, None -> AST.ConstBool b
+        | ConstInt _, Some (AST.Uninterpreted str) -> AST.ConstInt (str, 0) // Note: The int constant has no sense without a model, so we put 0.
+        | ConstInt _, None -> failwith "Can't guess constant value type!"
         | _, _ -> raise NoMatch
 
-    // Resolve references
-    let resolve_references (m:AST.ModuleDecl) base_name local_vars_types v =
+    let p2a_args (m:AST.ModuleDecl) base_name args dico =
+        let p2a_arg (str,t) =
+            let str = local_name str
+            let t = conciliate_types (try_p2a_type m base_name t) (Some (Map.find str dico))
+            match t with
+            | None -> failwith "Can't infer argument type!"
+            | Some t -> { AST.VarDecl.Name=str ; AST.VarDecl.Type=t ; AST.VarDecl.Representation = AST.default_representation }
+        List.map p2a_arg args
 
-        let types_match expected ret =
-            match expected, ret with
-            | _, None -> true
-            | None, _ -> true
-            | Some t1, Some t2 -> Interpreter.type_equal t1 t2
-
-        let conciliate_types t1 t2 =
-            match t1, t2 with
-            | None, t | t, None -> t
-            | t1, t2 ->
-                if types_match t1 t2
-                then t1 else raise NoMatch
-
-        let conciliate_types3 t1 t2 t3 =
-            conciliate_types (conciliate_types t1 t2) t3
+    // Convert a parsed expression to an AST one, and resolve references & types
+    let p2a_expr (m:AST.ModuleDecl) base_name local_vars_types v =
 
         let rec aux local_vars_types v ret_val =
 
@@ -202,19 +216,14 @@ open Prime
                     | Some (local_vars_types, res_es) -> (local_vars_types, constructor res_es)
 
             match v with
-            | Const cv -> // Note: cv type is always empty initially.
-                match ret_val with
-                | None -> failwith "Can't resolve local types: many matches !"
-                | Some ret_val ->
-                    let cv = (p2a_cv cv ret_val)
-                    (local_vars_types, AST.ExprConst cv)
+            | Const cv -> (local_vars_types, AST.ExprConst (p2a_cv cv ret_val))
 
             | QVar (str, t) ->
                 let str = local_name str
                 let t = conciliate_types3 (Map.tryFind str local_vars_types) ret_val (try_p2a_type m base_name t)
                 match t with
                 | None -> failwith "Can't resolve local types: many matches !"
-                | Some t -> Map.add str t local_vars_types, AST.ExprVar str
+                | Some t -> (Map.add str t local_vars_types, AST.ExprVar str)
 
             | VarFunMacroAction (str, es) ->
 
@@ -283,10 +292,40 @@ open Prime
                     | None -> Map.remove str local_vars_types
                     | Some t -> Map.add str t local_vars_types
                 let decl = { AST.VarDecl.Name=str; AST.VarDecl.Type=new_type; AST.VarDecl.Representation=AST.default_representation}
-                let (local_vars_types, res_e2) = aux local_vars_types e2 (Some new_type)
+                let (local_vars_types, res_e2) =
+                    match e2 with
+                    | Some e2 -> aux local_vars_types e2 (Some new_type)
+                    | None -> (local_vars_types, AST.ExprConst (Model.type_default_value new_type))
                 (local_vars_types, AST.ExprSomeElse (decl, AST.expr_to_value res_e1, AST.expr_to_value res_e2))
 
         aux local_vars_types v None
+    
+    // Add universal quantifiers if needed
+    let close_formula local_vars_types args_name f =
+        
+        let add_quantifier_if_needed acc (name,t) =
+            if Set.contains name args_name
+            then acc
+            else
+                let decl = { AST.VarDecl.Name=name; AST.VarDecl.Type=t; AST.VarDecl.Representation=AST.default_representation}
+                AST.ExprForall (decl, AST.expr_to_value acc)
+
+        let free_vars = Map.toList local_vars_types
+        List.fold add_quantifier_if_needed f free_vars
+
+    // Prepare env dictionnary for the given args
+    // Also returns the set of args names
+    let env_dictionnary_for (m:AST.ModuleDecl) base_name args =
+        let add_arg acc arg =
+            match arg with
+            | (_, Unknown) -> acc
+            | (str, t) ->
+                let str = local_name str
+                let t = p2a_type m base_name t
+                Map.add str t acc
+        let dico = List.fold add_arg Map.empty args
+        let args_names = List.map (fun (str,_) -> local_name str) args
+        (dico, Set.ofList args_names)
     
     // Convert a list of ivy parser AST elements to a global AST.ModuleDecl.
     // Also add and/or adjust references to types, functions, variables or actions of the module.
@@ -315,8 +354,14 @@ open Prime
                     { acc with AST.Vars=(d::acc.Vars) }
                 | Macro (name, args, expr) ->
                     let name = compose_name base_name name
-                    // TODO: resolve types on the parsed expression, then convert it to a value
-                    acc
+                    let (dico, args_names) = env_dictionnary_for acc base_name args
+                    let (dico, expr) = p2a_expr acc base_name dico expr
+                    let expr = close_formula dico args_names expr
+                    let v = AST.expr_to_value expr
+                    let args = p2a_args acc base_name args dico
+                    let output_t = Interpreter.type_of_value acc v dico
+                    let macro = { AST.MacroDecl.Name = name; AST.MacroDecl.Args = args; AST.MacroDecl.Output = output_t; AST.MacroDecl.Value = v }
+                    { acc with AST.Macros=(macro::acc.Macros) }
 
             List.fold treat acc elements
         aux (AST.empty_module name) "" elements

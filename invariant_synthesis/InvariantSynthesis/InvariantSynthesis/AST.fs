@@ -43,7 +43,7 @@
     let default_representation : RepresentationInfos = { DisplayName = None; Flags = Set.empty }
 
     type ConstValue =
-        | ConstVoid // Only used for actions that return nothing (or sometimes for errors)
+        | ConstVoid // Only used for actions that return nothing
         | ConstBool of bool // Type name, value
         | ConstInt of string * int // Type name, value
 
@@ -119,7 +119,7 @@
         | ConstBool _ -> Bool
         | ConstInt (s,_) -> Uninterpreted s
 
-    let find_relation (m:ModuleDecl) str =
+    let find_function (m:ModuleDecl) str =
         List.find (fun (decl:FunDecl) -> decl.Name = str) m.Funs
     
     let find_variable (m:ModuleDecl) str =

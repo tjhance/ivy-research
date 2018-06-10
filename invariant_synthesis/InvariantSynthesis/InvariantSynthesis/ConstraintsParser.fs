@@ -60,7 +60,7 @@
             (many (pstring "," >>. spaces >>. pint32))
             (pstring ")" >>. spaces >>. pstring "=" >>. spaces >>. pint32 .>> nl)
             (fun i h l v ->
-                let rel = find_relation m i
+                let rel = find_function m i
                 let args = List.map2 (fun t v -> ConstInt(string_of_type t, v)) rel.Input (h::l)
                 let output = ConstInt(string_of_type rel.Output, v)
                 [Model.Function(i,args,output)]
@@ -80,7 +80,7 @@
             (pint32)
             (many (pstring "," >>. spaces >>. pint32) .>> pstring ")" .>> nl)
             (fun i h l ->
-                let rel = find_relation m i
+                let rel = find_function m i
                 let args = List.map2 (fun t v -> ConstInt(string_of_type t, v)) rel.Input (h::l)
                 [Model.Function(i,args,ConstBool true)]
             )
@@ -91,7 +91,7 @@
             (pint32)
             (many (pstring "," >>. spaces >>. pint32) .>> pstring ")" .>> nl)
             (fun i h l ->
-                let rel = find_relation m i
+                let rel = find_function m i
                 let args = List.map2 (fun t v -> ConstInt(string_of_type t, v)) rel.Input (h::l)
                 [Model.Function(i,args,ConstBool false)]
             )

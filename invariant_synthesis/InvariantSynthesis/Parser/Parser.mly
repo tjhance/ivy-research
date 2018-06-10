@@ -221,9 +221,9 @@ expression:
       List.fold_left (fun acc d -> Exists (d, acc)) e (List.rev ds)
     }
   | SOME; d = qvar_decl; POINT; e1=expression; ELSE; e2=expression
-    { SomeElse (d, e1, e2) }
+    { SomeElse (d, e1, Some e2) }
   | SOME; d = qvar_decl; POINT; e=expression
-    { SomeElse (d, e, Const ConstVoid) }
+    { SomeElse (d, e, None) }
   | name = ID; LEFT_PARENTHESIS; args = expressions; RIGHT_PARENTHESIS
     { VarFunMacroAction (name, args) }
   | arg1 = expression; name = INFIX_CMP_ID; arg2 = expression
