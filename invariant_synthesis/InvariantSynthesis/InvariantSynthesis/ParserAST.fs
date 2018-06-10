@@ -209,8 +209,8 @@ open Prime
                 let decl = { AST.VarDecl.Name=str; AST.VarDecl.Type=new_type; AST.VarDecl.Representation=AST.default_representation}
                 (local_vars_types, constructor (decl, AST.expr_to_value res_e))
 
-            let proceed_boolean_operator ts es constructor =
-                if not (types_match ret_val (Some AST.Bool)) then raise NoMatch
+            let proceed_operator ret_type ts es constructor =
+                if not (types_match ret_val (Some ret_type)) then raise NoMatch
                 match proceed_if_possible local_vars_types ts es with
                     | None -> raise NoMatch
                     | Some (local_vars_types, res_es) -> (local_vars_types, constructor res_es)
@@ -264,15 +264,15 @@ open Prime
                 then raise NoMatch
                 else failwith "Can't resolve local types: many matches !"
 
-            | Or (e1, e2) -> proceed_boolean_operator [AST.Bool;AST.Bool] [e1;e2] (fun res_es -> AST.ExprOr (Helper.lst_to_couple res_es))
-            | And (e1, e2) -> proceed_boolean_operator [AST.Bool;AST.Bool] [e1;e2] (fun res_es -> AST.ExprAnd (Helper.lst_to_couple res_es))
+            | Or (e1, e2) -> proceed_operator AST.Bool [AST.Bool;AST.Bool] [e1;e2] (fun res_es -> AST.ExprOr (Helper.lst_to_couple res_es))
+            | And (e1, e2) -> proceed_operator AST.Bool [AST.Bool;AST.Bool] [e1;e2] (fun res_es -> AST.ExprAnd (Helper.lst_to_couple res_es))
 
-            | Not e -> proceed_boolean_operator [AST.Bool] [e] (fun res_es -> AST.ExprNot (List.head res_es))
+            | Not e -> proceed_operator AST.Bool [AST.Bool] [e] (fun res_es -> AST.ExprNot (List.head res_es))
 
             | Forall ((str,t),e) -> proceed_quantifier ((str,t),e) AST.ExprForall
             | Exists ((str,t),e) -> proceed_quantifier ((str,t),e) AST.ExprExists
 
-            | Imply (e1, e2) -> proceed_boolean_operator [AST.Bool;AST.Bool] [e1;e2] (fun res_es -> AST.ExprImply (Helper.lst_to_couple res_es))
+            | Imply (e1, e2) -> proceed_operator AST.Bool [AST.Bool;AST.Bool] [e1;e2] (fun res_es -> AST.ExprImply (Helper.lst_to_couple res_es))
 
             | SomeElse ((str,t),e1,e2) ->
                 let str = local_name str
