@@ -169,6 +169,11 @@ open Prime
             | Some t -> { AST.VarDecl.Name=str ; AST.VarDecl.Type=t ; AST.VarDecl.Representation = AST.default_representation }
         List.map p2a_arg args
 
+    let p2a_local_var (m:AST.ModuleDecl) base_name (str,t) =
+        let str = local_name str
+        let t = p2a_type m base_name t
+        { AST.VarDecl.Name = str ; AST.VarDecl.Type = t ; AST.VarDecl.Representation = AST.default_representation }
+
     // Convert a parsed expression to an AST one, and resolve references & types
     let p2a_expr (m:AST.ModuleDecl) base_name local_vars_types v =
 
@@ -299,7 +304,7 @@ open Prime
                 (local_vars_types, AST.ExprSomeElse (decl, AST.expr_to_value res_e1, AST.expr_to_value res_e2))
 
         aux local_vars_types v None
-    
+
     // Add universal quantifiers if needed
     let close_formula local_vars_types args_name f =
         
@@ -312,6 +317,27 @@ open Prime
 
         let free_vars = Map.toList local_vars_types
         List.fold add_quantifier_if_needed f free_vars
+
+    // Convert a parsed statement to an AST one, and resolve references & types
+    let p2a_stats (m:AST.ModuleDecl) base_name sts =
+        let rec aux sts =
+            match sts with
+            | [] -> []
+            | (NewBlock sts1)::sts2 -> (aux sts1)@(aux sts2)
+            | (NewVar (d, e_opt))::sts ->
+                let d = p2a_local_var m base_name d
+                let sts = aux sts
+                let sts =
+                    match e_opt with
+                    | None -> sts
+                    | Some e ->
+                        let (dico, e) = p2a_expr m base_name Map.empty e
+                        let e = close_formula dico Set.empty e
+                        let s = AST.VarAssign (d.Name, e)
+                        s::sts
+                [AST.NewBlock ([d], sts)]
+
+        aux sts
 
     // Prepare env dictionnary for the given args
     // Also returns the set of args names
@@ -362,6 +388,12 @@ open Prime
                     let output_t = Interpreter.type_of_value acc v dico
                     let macro = { AST.MacroDecl.Name = name; AST.MacroDecl.Args = args; AST.MacroDecl.Output = output_t; AST.MacroDecl.Value = v }
                     { acc with AST.Macros=(macro::acc.Macros) }
+                | Definition _ -> acc
+                | Conjecture expr ->
+                    let (dico, expr) = p2a_expr acc base_name Map.empty expr
+                    let expr = close_formula dico Set.empty expr
+                    let v = AST.expr_to_value expr
+                    { acc with AST.Invariants=(v::acc.Invariants) }
 
             List.fold treat acc elements
         aux (AST.empty_module name) "" elements
