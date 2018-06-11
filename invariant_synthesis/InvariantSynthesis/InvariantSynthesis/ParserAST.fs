@@ -169,7 +169,7 @@ open Prime
         List.map p2a_arg args
 
     // Convert a parsed expression to an AST one, and resolve references & types
-    let p2a_expr (m:AST.ModuleDecl) base_name local_vars_types ret_val v =
+    let p2a_expr (m:AST.ModuleDecl) base_name st_local_vars local_vars_types ret_val v =
 
         let rec aux local_vars_types v ret_val =
 
@@ -225,28 +225,34 @@ open Prime
                 | Some t -> (Map.add str t local_vars_types, AST.ExprVar str)
 
             | VarFunMacroAction (str, es) ->
-
-                let candidates_v = Set.map (fun (d:AST.VarDecl) -> (d.Name, [], d.Type, "v")) (Set.ofList m.Vars)
-                let candidates_f = Set.map (fun (d:AST.FunDecl) -> (d.Name, d.Input, d.Output, "f")) (Set.ofList m.Funs)
-                let candidates_m = Set.map (fun (d:AST.MacroDecl) -> (d.Name, List.map (fun (d:AST.VarDecl) -> d.Type) d.Args, d.Output, "m")) (Set.ofList m.Macros)
-                let candidates_a = Set.map (fun (d:AST.ActionDecl) -> (d.Name, List.map (fun (d:AST.VarDecl) -> d.Type) d.Args, d.Output.Type, "a")) (Set.ofList m.Actions)
-                let candidates = Set.unionMany [candidates_v;candidates_f;candidates_m;candidates_a]
-                let candidates = Set.filter (fun (name,_,_,_) -> has_reference_name name str) candidates
-                let candidates = Set.filter (fun (_,_,ret,_) -> types_match ret_val (Some ret)) candidates
-                let results = Set.fold (fun acc (str,args,_,descr) -> match proceed_if_possible local_vars_types args es with None -> acc | Some r -> (descr,str,r)::acc) [] candidates
-
-                if List.length results = 1
+                // If a st_local_var match, priority to it!
+                if List.length es = 0 && Map.containsKey (local_name str) st_local_vars
                 then
-                    let (descr,str,(local_vars_types, res_es)) = List.head results
-                    match descr with
-                    | "v" -> (local_vars_types, AST.ExprVar str)
-                    | "f" -> (local_vars_types, AST.ExprFun (str,res_es))
-                    | "m" -> (local_vars_types, AST.ExprMacro (str,List.map AST.expr_to_value res_es))
-                    | "a" -> (local_vars_types, AST.ExprAction (str, res_es))
-                    | _ -> failwith "Invalid description."
-                else if List.length results = 0
-                then raise NoMatch
-                else failwith "Can't resolve local types: many matches !"
+                    let str = local_name str
+                    if not (types_match ret_val (Some (Map.find str st_local_vars))) then raise NoMatch
+                    (local_vars_types, AST.ExprVar str)
+                else
+                    let candidates_v = Set.map (fun (d:AST.VarDecl) -> (d.Name, [], d.Type, "v")) (Set.ofList m.Vars)
+                    let candidates_f = Set.map (fun (d:AST.FunDecl) -> (d.Name, d.Input, d.Output, "f")) (Set.ofList m.Funs)
+                    let candidates_m = Set.map (fun (d:AST.MacroDecl) -> (d.Name, List.map (fun (d:AST.VarDecl) -> d.Type) d.Args, d.Output, "m")) (Set.ofList m.Macros)
+                    let candidates_a = Set.map (fun (d:AST.ActionDecl) -> (d.Name, List.map (fun (d:AST.VarDecl) -> d.Type) d.Args, d.Output.Type, "a")) (Set.ofList m.Actions)
+                    let candidates = Set.unionMany [candidates_v;candidates_f;candidates_m;candidates_a]
+                    let candidates = Set.filter (fun (name,_,_,_) -> has_reference_name name str) candidates
+                    let candidates = Set.filter (fun (_,_,ret,_) -> types_match ret_val (Some ret)) candidates
+                    let results = Set.fold (fun acc (str,args,_,descr) -> match proceed_if_possible local_vars_types args es with None -> acc | Some r -> (descr,str,r)::acc) [] candidates
+
+                    if List.length results = 1
+                    then
+                        let (descr,str,(local_vars_types, res_es)) = List.head results
+                        match descr with
+                        | "v" -> (local_vars_types, AST.ExprVar str)
+                        | "f" -> (local_vars_types, AST.ExprFun (str,res_es))
+                        | "m" -> (local_vars_types, AST.ExprMacro (str,List.map AST.expr_to_value res_es))
+                        | "a" -> (local_vars_types, AST.ExprAction (str, res_es))
+                        | _ -> failwith "Invalid description."
+                    else if List.length results = 0
+                    then raise NoMatch
+                    else failwith "Can't resolve local types: many matches !"
 
             | Equal (e1, e2) ->
                 if not (types_match ret_val (Some AST.Bool)) then raise NoMatch
@@ -337,7 +343,7 @@ open Prime
             | (NewVar ((str,t), e_opt))::sts ->
                 // decl & e
                 let compute_formula t e =
-                    let (dico, e) = p2a_expr m base_name Map.empty (try_p2a_type m base_name t) e
+                    let (dico, e) = p2a_expr m base_name local_vars Map.empty (try_p2a_type m base_name t) e
                     close_formula m dico Set.empty e
                 let str = local_name str
                 let e_opt = Option.map (compute_formula t) e_opt
@@ -348,7 +354,7 @@ open Prime
                     | Some t -> t
                 let d = AST.default_var_decl str t
                 // sts
-                let sts = aux sts (Set.add d.Name local_vars)
+                let sts = aux sts (Map.add d.Name d.Type local_vars)
                 let sts =
                     match e_opt with
                     | None -> sts
@@ -356,19 +362,18 @@ open Prime
                 [AST.NewBlock ([d], sts)]
 
             | (Expression e)::sts ->
-                let (dico, e) = p2a_expr m base_name Map.empty None e
+                let (dico, e) = p2a_expr m base_name local_vars Map.empty None e
                 let e = close_formula m dico Set.empty e
                 (AST.Expression e)::(aux sts local_vars)
 
             | (VarAssign (str,e))::sts ->
-                let str = // Resolve reference. Priority to local vars.
-                    if Set.contains (local_name str) local_vars
-                    then local_name str
+                let (str,t) = // Resolve reference. Priority to local vars.
+                    if Map.containsKey (local_name str) local_vars
+                    then (local_name str, Map.find (local_name str) local_vars)
                     else
                         let candidates = List.map (fun (d:AST.VarDecl) -> d.Name) m.Vars
-                        resolve_reference (Set.ofList candidates) base_name str
-                let var_def = AST.find_variable m str
-                let (dico, e) = p2a_expr m base_name Map.empty (Some var_def.Type) e
+                        (resolve_reference (Set.ofList candidates) base_name str, (AST.find_variable m str).Type)
+                let (dico, e) = p2a_expr m base_name local_vars Map.empty (Some t) e
                 let e = close_formula m dico Set.empty e
                 (AST.VarAssign (str, e))::(aux sts local_vars)
 
@@ -390,7 +395,7 @@ open Prime
                     // v
                     let dico = List.fold (fun acc (str,t) -> Map.add str t acc) Map.empty free_vars
                     let args_name = List.map (fun (str,_) -> str) free_vars
-                    let (dico, e) = p2a_expr m base_name dico (Some fun_def.Output) e
+                    let (dico, e) = p2a_expr m base_name local_vars dico (Some fun_def.Output) e
                     let e = close_formula m dico (Set.ofList args_name) e
                     let v = AST.expr_to_value e
                     // hes
@@ -400,22 +405,20 @@ open Prime
                             let str = local_name str
                             AST.Hole (AST.default_var_decl str t)
                         | e ->
-                            let (dico, e) = p2a_expr m base_name Map.empty (Some t) e
+                            let (dico, e) = p2a_expr m base_name local_vars Map.empty (Some t) e
                             let e = close_formula m dico Set.empty e
                             AST.Expr e
                     let hes = List.map2 treat_he es fun_def.Input
                     (AST.ForallFunAssign (str, hes, v))::(aux sts local_vars)
                 else
-                    let es = List.map2 (fun e t -> p2a_expr m base_name Map.empty (Some t) e) es fun_def.Input
+                    let es = List.map2 (fun e t -> p2a_expr m base_name local_vars Map.empty (Some t) e) es fun_def.Input
                     let es = List.map (fun (dico, e) -> close_formula m dico Set.empty e) es
-                    let (dico, e) = p2a_expr m base_name Map.empty (Some fun_def.Output) e
+                    let (dico, e) = p2a_expr m base_name local_vars Map.empty (Some fun_def.Output) e
                     let e = close_formula m dico Set.empty e
                     (AST.FunAssign (str, es, e))::(aux sts local_vars)
 
 
         aux sts local_vars
-
-        // TODO: local_vars_st when converting statement to handle the case of a local var (not qvar)
 
         (*
         type parsed_statement =
@@ -457,7 +460,7 @@ open Prime
                 | Macro (name, args, expr) ->
                     let name = compose_name base_name name
                     let (dico, args_names) = env_dictionnary_for acc base_name args
-                    let (dico, expr) = p2a_expr acc base_name dico None expr
+                    let (dico, expr) = p2a_expr acc base_name Map.empty dico None expr
                     let expr = close_formula acc dico args_names expr
                     let v = AST.expr_to_value expr
                     let args = p2a_args acc base_name args dico
@@ -466,7 +469,7 @@ open Prime
                     { acc with AST.Macros=(macro::acc.Macros) }
                 | Definition _ -> acc
                 | Conjecture expr ->
-                    let (dico, expr) = p2a_expr acc base_name Map.empty (Some AST.Bool) expr
+                    let (dico, expr) = p2a_expr acc base_name Map.empty Map.empty (Some AST.Bool) expr
                     let expr = close_formula acc dico Set.empty expr
                     let v = AST.expr_to_value expr
                     { acc with AST.Invariants=(v::acc.Invariants) }
