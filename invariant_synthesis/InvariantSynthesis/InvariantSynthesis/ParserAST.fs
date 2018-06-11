@@ -417,21 +417,40 @@ open Prime
                     let e = close_formula m dico Set.empty e
                     (AST.FunAssign (str, es, e))::(aux sts local_vars)
 
+            | (IfElse (e, sif, selse))::sts ->
+                let (dico, e) = p2a_expr m base_name local_vars Map.empty (Some AST.Bool) e
+                let e = close_formula m dico Set.empty e
+                let sif = aux [sif] local_vars
+                let selse = aux [selse] local_vars
+                (AST.IfElse (e,AST.NewBlock([],sif),AST.NewBlock([],selse)))::(aux sts local_vars)
+
+            | (IfSomeElse ((str,t),e,sif,selse))::sts ->
+                // decl & v
+                let str = local_name str
+                let dico =
+                    match try_p2a_type m base_name t with
+                    | None -> Map.empty
+                    | Some t -> Map.singleton str t
+                let (dico, e) = p2a_expr m base_name local_vars dico (Some AST.Bool) e
+                let e = close_formula m dico (Set.singleton str) e
+                let v = AST.expr_to_value e
+                let t = Map.find str dico
+                // sif & selse
+                let sif = aux [sif] (Map.add str t local_vars)
+                let selse = aux [selse] local_vars
+                (AST.IfSomeElse (AST.default_var_decl str t, v, AST.NewBlock([],sif),AST.NewBlock([],selse)))::(aux sts local_vars)
+
+            | (Assert e)::sts ->
+                let (dico, e) = p2a_expr m base_name local_vars Map.empty (Some AST.Bool) e
+                let e = close_formula m dico Set.empty e
+                let v = AST.expr_to_value e
+                (AST.Assert v)::(aux sts local_vars)
+
+            | (Assume _)::sts ->
+                printfn "Assume ignored."
+                aux sts local_vars
 
         aux sts local_vars
-
-        (*
-        type parsed_statement =
-        | NewBlock of parsed_statement list
-        | NewVar of var_decl * parsed_expression option
-        | Expression of parsed_expression
-        | VarAssign of string * parsed_expression
-        | GeneralFunAssign of string * parsed_expression list * parsed_expression
-        | IfElse of parsed_expression * parsed_statement * parsed_statement
-        | IfSomeElse of var_decl * parsed_expression * parsed_statement * parsed_statement
-        | Assert of parsed_expression
-        | Assume of parsed_expression
-        *)
     
     // Convert a list of ivy parser AST elements to a global AST.ModuleDecl.
     // Also add and/or adjust references to types, functions, variables or actions of the module.
