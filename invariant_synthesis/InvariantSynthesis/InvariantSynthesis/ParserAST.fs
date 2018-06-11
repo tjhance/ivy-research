@@ -134,7 +134,6 @@ open Prime
     let conciliate_types3 t1 t2 t3 =
         conciliate_types (conciliate_types t1 t2) t3
 
-    
     // Parsed to AST converters
     let try_p2a_type m base_name ptype =
         match ptype with
@@ -166,16 +165,11 @@ open Prime
             let t = conciliate_types (try_p2a_type m base_name t) (Some (Map.find str dico))
             match t with
             | None -> failwith "Can't infer argument type!"
-            | Some t -> { AST.VarDecl.Name=str ; AST.VarDecl.Type=t ; AST.VarDecl.Representation = AST.default_representation }
+            | Some t -> AST.default_var_decl str t
         List.map p2a_arg args
 
-    let p2a_local_var (m:AST.ModuleDecl) base_name (str,t) =
-        let str = local_name str
-        let t = p2a_type m base_name t
-        { AST.VarDecl.Name = str ; AST.VarDecl.Type = t ; AST.VarDecl.Representation = AST.default_representation }
-
     // Convert a parsed expression to an AST one, and resolve references & types
-    let p2a_expr (m:AST.ModuleDecl) base_name local_vars_types v =
+    let p2a_expr (m:AST.ModuleDecl) base_name local_vars_types ret_val v =
 
         let rec aux local_vars_types v ret_val =
 
@@ -211,7 +205,7 @@ open Prime
                     match old_type with
                     | None -> Map.remove str local_vars_types
                     | Some t -> Map.add str t local_vars_types
-                let decl = { AST.VarDecl.Name=str; AST.VarDecl.Type=new_type; AST.VarDecl.Representation=AST.default_representation}
+                let decl = AST.default_var_decl str new_type
                 (local_vars_types, constructor (decl, AST.expr_to_value res_e))
 
             let proceed_operator ret_type ts es constructor =
@@ -296,48 +290,29 @@ open Prime
                     match old_type with
                     | None -> Map.remove str local_vars_types
                     | Some t -> Map.add str t local_vars_types
-                let decl = { AST.VarDecl.Name=str; AST.VarDecl.Type=new_type; AST.VarDecl.Representation=AST.default_representation}
+                let decl = AST.default_var_decl str new_type
                 let (local_vars_types, res_e2) =
                     match e2 with
                     | Some e2 -> aux local_vars_types e2 (Some new_type)
                     | None -> (local_vars_types, AST.ExprConst (Model.type_default_value new_type))
                 (local_vars_types, AST.ExprSomeElse (decl, AST.expr_to_value res_e1, AST.expr_to_value res_e2))
 
-        aux local_vars_types v None
+        aux local_vars_types v ret_val
 
     // Add universal quantifiers if needed
-    let close_formula local_vars_types args_name f =
+    let close_formula (m:AST.ModuleDecl) local_vars_types args_name f =
         
         let add_quantifier_if_needed acc (name,t) =
             if Set.contains name args_name
             then acc
             else
-                let decl = { AST.VarDecl.Name=name; AST.VarDecl.Type=t; AST.VarDecl.Representation=AST.default_representation}
-                AST.ExprForall (decl, AST.expr_to_value acc)
+                if Interpreter.type_of_expr m acc local_vars_types <> AST.Bool then failwith "Can't close the value because it is not a formula!"
+                else
+                    let decl = AST.default_var_decl name t
+                    AST.ExprForall (decl, AST.expr_to_value acc)
 
         let free_vars = Map.toList local_vars_types
         List.fold add_quantifier_if_needed f free_vars
-
-    // Convert a parsed statement to an AST one, and resolve references & types
-    let p2a_stats (m:AST.ModuleDecl) base_name sts =
-        let rec aux sts =
-            match sts with
-            | [] -> []
-            | (NewBlock sts1)::sts2 -> (aux sts1)@(aux sts2)
-            | (NewVar (d, e_opt))::sts ->
-                let d = p2a_local_var m base_name d
-                let sts = aux sts
-                let sts =
-                    match e_opt with
-                    | None -> sts
-                    | Some e ->
-                        let (dico, e) = p2a_expr m base_name Map.empty e
-                        let e = close_formula dico Set.empty e
-                        let s = AST.VarAssign (d.Name, e)
-                        s::sts
-                [AST.NewBlock ([d], sts)]
-
-        aux sts
 
     // Prepare env dictionnary for the given args
     // Also returns the set of args names
@@ -352,6 +327,108 @@ open Prime
         let dico = List.fold add_arg Map.empty args
         let args_names = List.map (fun (str,_) -> local_name str) args
         (dico, Set.ofList args_names)
+
+    // Convert a parsed statement to an AST one, and resolve references & types
+    let p2a_stats (m:AST.ModuleDecl) base_name sts local_vars =
+        let rec aux sts local_vars =
+            match sts with
+            | [] -> []
+            | (NewBlock sts1)::sts2 -> (aux sts1 local_vars)@(aux sts2 local_vars)
+            | (NewVar ((str,t), e_opt))::sts ->
+                // decl & e
+                let compute_formula t e =
+                    let (dico, e) = p2a_expr m base_name Map.empty (try_p2a_type m base_name t) e
+                    close_formula m dico Set.empty e
+                let str = local_name str
+                let e_opt = Option.map (compute_formula t) e_opt
+                let t = conciliate_types (try_p2a_type m base_name t) (Option.map (fun e ->Interpreter.type_of_expr m e Map.empty) e_opt)
+                let t =
+                    match t with
+                    | None -> failwith "Can't infer type of new var !"
+                    | Some t -> t
+                let d = AST.default_var_decl str t
+                // sts
+                let sts = aux sts (Set.add d.Name local_vars)
+                let sts =
+                    match e_opt with
+                    | None -> sts
+                    | Some e -> (AST.VarAssign (d.Name, e))::sts
+                [AST.NewBlock ([d], sts)]
+
+            | (Expression e)::sts ->
+                let (dico, e) = p2a_expr m base_name Map.empty None e
+                let e = close_formula m dico Set.empty e
+                (AST.Expression e)::(aux sts local_vars)
+
+            | (VarAssign (str,e))::sts ->
+                let str = // Resolve reference. Priority to local vars.
+                    if Set.contains (local_name str) local_vars
+                    then local_name str
+                    else
+                        let candidates = List.map (fun (d:AST.VarDecl) -> d.Name) m.Vars
+                        resolve_reference (Set.ofList candidates) base_name str
+                let var_def = AST.find_variable m str
+                let (dico, e) = p2a_expr m base_name Map.empty (Some var_def.Type) e
+                let e = close_formula m dico Set.empty e
+                (AST.VarAssign (str, e))::(aux sts local_vars)
+
+            | (GeneralFunAssign (str,es,e))::sts ->
+                let candidates = List.filter (fun (f:AST.FunDecl) -> List.length f.Input = List.length es) m.Funs
+                let candidates = List.map (fun (f:AST.FunDecl) -> f.Name) candidates
+                let str = resolve_reference (Set.ofList candidates) base_name str
+                let fun_def = AST.find_function m str
+
+                let qvar_of e t =
+                    match e with
+                    | QVar (str, t') ->
+                        let t = match conciliate_types (Some t) (try_p2a_type m base_name t') with None -> failwith "Internal error." | Some t -> t
+                        Some (local_name str, t)
+                    | _ -> None
+                let free_vars = Helper.option_lst_to_lst (List.map2 qvar_of es fun_def.Input)
+                if List.length free_vars > 0
+                then
+                    // v
+                    let dico = List.fold (fun acc (str,t) -> Map.add str t acc) Map.empty free_vars
+                    let args_name = List.map (fun (str,_) -> str) free_vars
+                    let (dico, e) = p2a_expr m base_name dico (Some fun_def.Output) e
+                    let e = close_formula m dico (Set.ofList args_name) e
+                    let v = AST.expr_to_value e
+                    // hes
+                    let treat_he e t =
+                        match e with
+                        | QVar (str,_) ->
+                            let str = local_name str
+                            AST.Hole (AST.default_var_decl str t)
+                        | e ->
+                            let (dico, e) = p2a_expr m base_name Map.empty (Some t) e
+                            let e = close_formula m dico Set.empty e
+                            AST.Expr e
+                    let hes = List.map2 treat_he es fun_def.Input
+                    (AST.ForallFunAssign (str, hes, v))::(aux sts local_vars)
+                else
+                    let es = List.map2 (fun e t -> p2a_expr m base_name Map.empty (Some t) e) es fun_def.Input
+                    let es = List.map (fun (dico, e) -> close_formula m dico Set.empty e) es
+                    let (dico, e) = p2a_expr m base_name Map.empty (Some fun_def.Output) e
+                    let e = close_formula m dico Set.empty e
+                    (AST.FunAssign (str, es, e))::(aux sts local_vars)
+
+
+        aux sts local_vars
+
+        // TODO: local_vars_st when converting statement to handle the case of a local var (not qvar)
+
+        (*
+        type parsed_statement =
+        | NewBlock of parsed_statement list
+        | NewVar of var_decl * parsed_expression option
+        | Expression of parsed_expression
+        | VarAssign of string * parsed_expression
+        | GeneralFunAssign of string * parsed_expression list * parsed_expression
+        | IfElse of parsed_expression * parsed_statement * parsed_statement
+        | IfSomeElse of var_decl * parsed_expression * parsed_statement * parsed_statement
+        | Assert of parsed_expression
+        | Assume of parsed_expression
+        *)
     
     // Convert a list of ivy parser AST elements to a global AST.ModuleDecl.
     // Also add and/or adjust references to types, functions, variables or actions of the module.
@@ -375,14 +452,13 @@ open Prime
                 | Variable (name,t) ->
                     let name = compose_name base_name name
                     let t = p2a_type acc base_name t
-                    let rep = AST.default_representation
-                    let d = { AST.VarDecl.Name=name ; AST.Type=t; AST.VarDecl.Representation=rep }
+                    let d = AST.default_var_decl name t
                     { acc with AST.Vars=(d::acc.Vars) }
                 | Macro (name, args, expr) ->
                     let name = compose_name base_name name
                     let (dico, args_names) = env_dictionnary_for acc base_name args
-                    let (dico, expr) = p2a_expr acc base_name dico expr
-                    let expr = close_formula dico args_names expr
+                    let (dico, expr) = p2a_expr acc base_name dico None expr
+                    let expr = close_formula acc dico args_names expr
                     let v = AST.expr_to_value expr
                     let args = p2a_args acc base_name args dico
                     let output_t = Interpreter.type_of_value acc v dico
@@ -390,8 +466,8 @@ open Prime
                     { acc with AST.Macros=(macro::acc.Macros) }
                 | Definition _ -> acc
                 | Conjecture expr ->
-                    let (dico, expr) = p2a_expr acc base_name Map.empty expr
-                    let expr = close_formula dico Set.empty expr
+                    let (dico, expr) = p2a_expr acc base_name Map.empty (Some AST.Bool) expr
+                    let expr = close_formula acc dico Set.empty expr
                     let v = AST.expr_to_value expr
                     { acc with AST.Invariants=(v::acc.Invariants) }
 

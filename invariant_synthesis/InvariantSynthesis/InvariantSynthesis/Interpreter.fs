@@ -39,7 +39,7 @@
         | ValueForall _ | ValueExists _ -> Bool
         | ValueSomeElse (_,_,v) -> type_of_value m v dico
 
-    let rec type_of_expr (m:ModuleDecl) expr dico =
+    let type_of_expr (m:ModuleDecl) expr dico =
         match expr with
         | ExprConst cv -> type_of_const_value cv
         | ExprVar v ->
@@ -52,6 +52,11 @@
         | ExprEqual _ | ExprOr _ | ExprAnd _ | ExprNot _ | ExprImply _
         | ExprForall _ | ExprExists _ -> Bool
         | ExprSomeElse (_,_,v) -> type_of_value m v dico
+
+    let type_of_hole_expr (m:ModuleDecl) hexpr dico =
+        match hexpr with
+        | Expr e -> type_of_expr m e dico
+        | Hole d -> d.Type
 
     exception TypeError
     let value_or v1 v2 =

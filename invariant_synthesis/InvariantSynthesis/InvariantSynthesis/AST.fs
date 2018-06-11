@@ -131,6 +131,9 @@
     let find_macro (m:ModuleDecl) str =
         List.find (fun (decl:MacroDecl) -> decl.Name = str) m.Macros
 
+    let default_var_decl name t =
+        { VarDecl.Name = name ; VarDecl.Type = t ; VarDecl.Representation = default_representation }
+
     let rec map_vars_in_value v dico =
         match v with
         | ValueConst c -> ValueConst c

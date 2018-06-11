@@ -73,7 +73,7 @@
             let aux acc t v =
                 match v with
                 | PatternVar name ->
-                    Set.add ({Name=name;Type=t;Representation=default_representation}) acc
+                    Set.add (AST.default_var_decl name t) acc
                 | PatternConst _ -> acc
             match p with
             | VarPattern _ -> Set.empty
@@ -300,7 +300,7 @@
                 List.map
                     (fun (cv,assoc) ->
                         match assoc with
-                        | New str -> { Name=str ; Type=type_of_const_value cv ; Representation=default_representation }
+                        | New str -> AST.default_var_decl str (type_of_const_value cv)
                         | _ -> failwith "Invalid association."
                     ) content
             Set.ofList vars

@@ -48,6 +48,12 @@
         let (last, lst) = separate_hd (List.rev lst)
         (List.rev lst, last)
 
+    let rec option_lst_to_lst olst =
+        match olst with
+        | [] -> []
+        | None::olst -> option_lst_to_lst olst
+        | (Some h)::olst -> h::(option_lst_to_lst olst)
+
     // Misc
 
     let identity a = a
