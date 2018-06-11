@@ -7,25 +7,6 @@
 
     let type_equal t1 t2 = t1=t2
 
-    (*
-
-        type Expression =
-        | ExprConst of ConstValue
-        | ExprVar of string
-        | ExprFun of string * List<Expression>
-        | ExprMacro of string * List<Value>
-        | ExprAction of string * List<Expression>
-        | ExprEqual of Expression * Expression
-        | ExprOr of Expression * Expression
-        | ExprAnd of Expression * Expression
-        | ExprNot of Expression
-        | ExprSomeElse of VarDecl * Value * Value
-        | ExprForall of VarDecl * Value
-        | ExprExists of VarDecl * Value
-        | ExprImply of Expression * Expression
-
-    *)
-
     let rec type_of_value (m:ModuleDecl) value dico =
         match value with
         | ValueConst cv -> type_of_const_value cv

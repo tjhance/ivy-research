@@ -7,7 +7,9 @@
     // TODO: Allow multiple return values for actions.
     // If used in an expression, returns ConstVoid.
     // If used in a "call" statement, assign each value.
-    // TODO: Handle functions with object as return value (case of instance a(X):b(Y))
+    // TODO: Handle functions with an object as return value (case of instance a(X):b(Y))
+    // For that, we can consider those functions an instance of the corresponding module,
+    // with an additionals first parameters for every var/fun/action/etc (that corresponds the parameters of the initial function)
     // TODO: Axiom, isolate, inductive, export, extract, interpret, property...
 
     // TODO: Parse Ivy code

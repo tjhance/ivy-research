@@ -49,7 +49,7 @@ open Prime
 
     (* ELEMENTS *)
 
-    type action_decl = string * var_decl list * var_decl * parsed_statement
+    type action_decl = string * var_decl list * var_decl option * parsed_statement
     and module_decl = string * string list * parsed_element list
 
     and parsed_element =
@@ -59,7 +59,7 @@ open Prime
         | Macro of string * var_decl list * parsed_expression
         | Definition of string * var_decl list * parsed_expression
         | Conjecture of parsed_expression
-        | AbstractAction of string * var_decl list * var_decl
+        | AbstractAction of string * var_decl list * var_decl option
         | Implement of string * parsed_statement
         | Action of action_decl
         | After of string * parsed_statement
@@ -78,11 +78,19 @@ open Prime
 
     let local_var_prefix = "$" // We assign a prefix to non-global vars in order to avoid bugs due to vars scope
 
+    let impossible_var_name = "$$"
+
+    let void_return_decl = AST.default_var_decl impossible_var_name AST.Void
+
     let local_name name =
         sprintf "%s%s" local_var_prefix name
 
     let compose_name base_name name =
-        sprintf "%s%c%s" base_name separator name
+        if name = ""
+        then base_name
+        else if base_name = ""
+        then name
+        else sprintf "%s%c%s" base_name separator name
 
     let decompose_name (name:string) =
         let i = name.LastIndexOf(separator)
@@ -159,14 +167,15 @@ open Prime
         | ConstInt _, None -> failwith "Can't guess constant value type!"
         | _, _ -> raise NoMatch
 
+    let p2a_decl (m:AST.ModuleDecl) base_name (str,t) dico =
+        let str = local_name str
+        let t = conciliate_types (try_p2a_type m base_name t) (Map.tryFind str dico)
+        match t with
+        | None -> failwith "Can't infer argument type!"
+        | Some t -> AST.default_var_decl str t
+
     let p2a_args (m:AST.ModuleDecl) base_name args dico =
-        let p2a_arg (str,t) =
-            let str = local_name str
-            let t = conciliate_types (try_p2a_type m base_name t) (Some (Map.find str dico))
-            match t with
-            | None -> failwith "Can't infer argument type!"
-            | Some t -> AST.default_var_decl str t
-        List.map p2a_arg args
+        List.map (fun arg -> p2a_decl m base_name arg dico) args
 
     // Convert a parsed expression to an AST one, and resolve references & types
     let p2a_expr (m:AST.ModuleDecl) base_name st_local_vars local_vars_types ret_val v =
@@ -452,48 +461,70 @@ open Prime
 
         aux sts local_vars
     
+    type template_elements = { AbstractActions: Map<string, List<AST.VarDecl> * AST.VarDecl> }
+    let empty_template_elements = { AbstractActions = Map.empty }
+
     // Convert a list of ivy parser AST elements to a global AST.ModuleDecl.
     // Also add and/or adjust references to types, functions, variables or actions of the module.
     let ivy_elements_to_ast_module name elements =
-        let rec aux acc base_name elements =
-            let treat acc e =
+        let rec aux m tmp_elements base_name elements =
+            let treat_action name args ret st =
+                // TODO
+                { AST.ActionDecl.Name = name; AST.ActionDecl.Args = args ; AST.ActionDecl.Output = ret ; AST.ActionDecl.Content = AST.NewBlock([],[]) }
+            let treat (m,tmp_elements) e =
                 match e with
                 | Type name ->
                     let d = { AST.Name = compose_name base_name name }
-                    { acc with AST.Types=(d::acc.Types) }
+                    ({ m with AST.Types=(d::m.Types) }, tmp_elements)
                 | Function (name,args,ret,infix) ->
                     let full_name = compose_name base_name name
-                    let args = List.map (p2a_type acc base_name) args
-                    let ret = p2a_type acc base_name ret
+                    let args = List.map (p2a_type m base_name) args
+                    let ret = p2a_type m base_name ret
                     let rep =
                         if infix
                         then { AST.DisplayName=Some name ; AST.Flags=Set.singleton AST.Infix }
                         else AST.default_representation
                     let d = { AST.FunDecl.Name=full_name ; AST.Input=args; AST.Output=ret; AST.Representation=rep }
-                    { acc with AST.Funs=(d::acc.Funs) }
+                    ({ m with AST.Funs=(d::m.Funs) }, tmp_elements)
                 | Variable (name,t) ->
                     let name = compose_name base_name name
-                    let t = p2a_type acc base_name t
+                    let t = p2a_type m base_name t
                     let d = AST.default_var_decl name t
-                    { acc with AST.Vars=(d::acc.Vars) }
+                    ({ m with AST.Vars=(d::m.Vars) }, tmp_elements)
                 | Macro (name, args, expr) ->
                     let name = compose_name base_name name
-                    let (dico, args_names) = env_dictionnary_for acc base_name args
-                    let (dico, expr) = p2a_expr acc base_name Map.empty dico None expr
-                    let expr = close_formula acc dico args_names expr
+                    let (dico, args_names) = env_dictionnary_for m base_name args
+                    let (dico, expr) = p2a_expr m base_name Map.empty dico None expr
+                    let expr = close_formula m dico args_names expr
                     let v = AST.expr_to_value expr
-                    let args = p2a_args acc base_name args dico
-                    let output_t = Interpreter.type_of_value acc v dico
+                    let args = p2a_args m base_name args dico
+                    let output_t = Interpreter.type_of_value m v dico
                     let macro = { AST.MacroDecl.Name = name; AST.MacroDecl.Args = args; AST.MacroDecl.Output = output_t; AST.MacroDecl.Value = v }
-                    { acc with AST.Macros=(macro::acc.Macros) }
-                | Definition _ -> acc
+                    ({ m with AST.Macros=(macro::m.Macros) }, tmp_elements)
+                | Definition _ ->
+                    printfn "Definition ignored."
+                    (m, tmp_elements)
                 | Conjecture expr ->
-                    let (dico, expr) = p2a_expr acc base_name Map.empty Map.empty (Some AST.Bool) expr
-                    let expr = close_formula acc dico Set.empty expr
+                    let (dico, expr) = p2a_expr m base_name Map.empty Map.empty (Some AST.Bool) expr
+                    let expr = close_formula m dico Set.empty expr
                     let v = AST.expr_to_value expr
-                    { acc with AST.Invariants=(v::acc.Invariants) }
+                    ({ m with AST.Invariants=(v::m.Invariants) }, tmp_elements)
+                | AbstractAction (name, args, ret_opt) ->
+                    let name = compose_name base_name name
+                    let args = p2a_args m base_name args Map.empty
+                    let ret =
+                        match ret_opt with
+                        | None -> void_return_decl
+                        | Some (str,t) -> p2a_decl m base_name (str,t) Map.empty
+                    (m, { tmp_elements with AbstractActions = (Map.add name (args,ret) tmp_elements.AbstractActions) })
+                | Implement (name, st) ->
+                    let candidates = List.map (fun (n,_) -> n) (Map.toList tmp_elements.AbstractActions)
+                    let name = resolve_reference (Set.ofList candidates) base_name name
+                    let (args, ret) = Map.find name tmp_elements.AbstractActions
+                    let action = treat_action name args ret st
+                    ({ m with AST.Actions=(action::m.Actions) }, tmp_elements)
 
-            List.fold treat acc elements
-        aux (AST.empty_module name) "" elements
+            List.fold treat (m,tmp_elements) elements
+        aux (AST.empty_module name) empty_template_elements "" elements
 
 

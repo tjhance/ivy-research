@@ -50,7 +50,7 @@ type parsed_statement =
 
 (* ELEMENTS *)
 
-type action_decl = string * var_decl list * var_decl * parsed_statement [@@deriving sexp]
+type action_decl = string * var_decl list * var_decl option * parsed_statement [@@deriving sexp]
 and module_decl = string * string list * parsed_element list [@@deriving sexp]
 
 and parsed_element =
@@ -60,7 +60,7 @@ and parsed_element =
     | Macro of string * var_decl list * parsed_expression
     | Definition of string * var_decl list * parsed_expression
     | Conjecture of parsed_expression
-    | AbstractAction of string * var_decl list * var_decl
+    | AbstractAction of string * var_decl list * var_decl option
     | Implement of string * parsed_statement
     | Action of action_decl
     | After of string * parsed_statement

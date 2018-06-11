@@ -116,8 +116,8 @@ action_args:
   ;
 
 action_ret:
-  | RETURNS ; LEFT_PARENTHESIS ; d = decl; RIGHT_PARENTHESIS { d }
-  | { ("", Void) }
+  | RETURNS ; LEFT_PARENTHESIS ; d = decl; RIGHT_PARENTHESIS { Some d }
+  | { None }
   ;
 
 module_decls:
