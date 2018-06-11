@@ -76,6 +76,8 @@ open Prime
 
     let separator = '.'
 
+    let name_variant_char = ':'
+
     let local_var_prefix = "$" // We assign a prefix to non-global vars in order to avoid bugs due to vars scope
 
     let impossible_var_name = "$$"
@@ -84,6 +86,11 @@ open Prime
 
     let local_name name =
         sprintf "%s%s" local_var_prefix name
+
+    let variant_name name variant =
+        if variant = ""
+        then name
+        else sprintf "%s%c%s" name name_variant_char variant
 
     let compose_name base_name name =
         if name = ""
@@ -461,17 +468,24 @@ open Prime
 
         aux sts local_vars
     
-    type template_elements = { AbstractActions: Map<string, List<AST.VarDecl> * AST.VarDecl> }
-    let empty_template_elements = { AbstractActions = Map.empty }
+    type template_elements = { AbstractActions: Map<string, List<AST.VarDecl> * AST.VarDecl> ; Modules: Map<string * int, List<string> * List<parsed_element>> }
+    let empty_template_elements = { AbstractActions = Map.empty ; Modules = Map.empty }
 
     // Convert a list of ivy parser AST elements to a global AST.ModuleDecl.
     // Also add and/or adjust references to types, functions, variables or actions of the module.
     let ivy_elements_to_ast_module name elements =
         let rec aux m tmp_elements base_name elements =
-            let treat_action name args ret st =
-                // TODO
-                { AST.ActionDecl.Name = name; AST.ActionDecl.Args = args ; AST.ActionDecl.Output = ret ; AST.ActionDecl.Content = AST.NewBlock([],[]) }
-            let treat (m,tmp_elements) e =
+
+            let implement_action (m,tmp_elements) (name, st) variant =
+                let candidates = List.map (fun (n,_) -> n) (Map.toList tmp_elements.AbstractActions)
+                let name = resolve_reference (Set.ofList candidates) base_name name
+                let (args, ret) = Map.find name tmp_elements.AbstractActions
+                let local_vars = List.fold (fun acc (v:AST.VarDecl) -> Map.add v.Name v.Type acc) Map.empty (ret::args)
+                let st = p2a_stats m base_name [st] local_vars
+                let action = { AST.ActionDecl.Name = variant_name name variant; AST.ActionDecl.Args = args ; AST.ActionDecl.Output = ret ; AST.ActionDecl.Content = AST.NewBlock([],st) }
+                ({ m with AST.Actions=(action::m.Actions) }, tmp_elements)
+
+            let rec treat (m,tmp_elements) e =
                 match e with
                 | Type name ->
                     let d = { AST.Name = compose_name base_name name }
@@ -518,13 +532,23 @@ open Prime
                         | Some (str,t) -> p2a_decl m base_name (str,t) Map.empty
                     (m, { tmp_elements with AbstractActions = (Map.add name (args,ret) tmp_elements.AbstractActions) })
                 | Implement (name, st) ->
-                    let candidates = List.map (fun (n,_) -> n) (Map.toList tmp_elements.AbstractActions)
-                    let name = resolve_reference (Set.ofList candidates) base_name name
-                    let (args, ret) = Map.find name tmp_elements.AbstractActions
-                    let action = treat_action name args ret st
-                    ({ m with AST.Actions=(action::m.Actions) }, tmp_elements)
+                    implement_action (m,tmp_elements) (name,st) ""
+                | Action (name, args, ret_opt, st) ->
+                    let (m, tmp_elements) = treat (m, tmp_elements) (AbstractAction (name, args, ret_opt))
+                    treat (m, tmp_elements) (Implement (name, st))
+                | Before (name, st) ->
+                    implement_action (m,tmp_elements) (name,st) "before"
+                | After (name, st) ->
+                    implement_action (m,tmp_elements) (name,st) "after"
+                | Module (name, args, elts) ->
+                    let name = compose_name base_name name
+                    (m, { tmp_elements with Modules=(Map.add (name, List.length args) (args, elts) tmp_elements.Modules) })
+                | Object (name, elts) ->
+                    let name = compose_name base_name name
+                    aux m tmp_elements name elts
 
             List.fold treat (m,tmp_elements) elements
-        aux (AST.empty_module name) empty_template_elements "" elements
+        let (m,_) = aux (AST.empty_module name) empty_template_elements "" elements
+        m
 
 

@@ -2,6 +2,7 @@
 
     (* A VERY BASIC AST FOR IVY *)
 
+    // TODO: Handle "before" and "after" actions in the interpreter/synthesis
     // TODO: "For" loops
     // TODO: "if some" with multiple var decls
     // TODO: Allow multiple return values for actions.
