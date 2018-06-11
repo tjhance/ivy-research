@@ -70,6 +70,122 @@ open Prime
 
     (* PARSING AND CONVERSION TOOLS *)
 
+    // Elements rewriting (for parametric modules)
+    let rewrite_elements elts dico =
+
+        let exists dico str =
+            Map.containsKey str dico
+
+        let test dico str =
+            if exists dico str then failwith "Parametric module overrides a parameter !"
+
+        let rewrite dico str =
+            match Map.tryFind str dico with
+            | None -> str
+            | Some str -> str
+
+        let rewrite_t dico t =
+            match t with
+            | Uninterpreted str -> Uninterpreted (rewrite dico str)
+            | Bool -> Bool | Void -> Void | Unknown -> Unknown
+
+        let rewrite_arg_strict dico (str, t) =
+            test dico str
+            (str, rewrite_t dico t)
+
+        let rewrite_args_strict dico args =
+            List.map (rewrite_arg_strict dico) args
+
+        let rewrite_arg dico (str, t) =
+            (Map.remove str dico, (str, rewrite_t dico t))
+
+        let rewrite_args dico args =
+            let (dico, args) = List.fold (fun (dico,args) arg -> let (dico, arg) = rewrite_arg dico arg in (dico, arg::args) ) (dico,[]) args
+            (dico, List.rev args)
+
+        let rewrite_cv dico cv =
+            match cv with
+            | ConstVoid -> ConstVoid | ConstBool b -> ConstBool b
+            | ConstInt (str,i) -> ConstInt (rewrite dico str,i)
+
+        let rec rewrite_expr dico expr =
+            match expr with
+            | Const cv -> Const (rewrite_cv dico cv) | QVar d -> QVar d
+            | VarFunMacroAction (str, exprs) -> VarFunMacroAction (rewrite dico str, List.map (rewrite_expr dico) exprs)
+            | Equal (expr1, expr2) -> Equal (rewrite_expr dico expr1, rewrite_expr dico expr2)
+            | Or (expr1, expr2) -> Or (rewrite_expr dico expr1, rewrite_expr dico expr2)
+            | And (expr1, expr2) -> And (rewrite_expr dico expr1, rewrite_expr dico expr2)
+            | Not expr -> Not (rewrite_expr dico expr)
+            | Forall (d, expr) -> let (_, d) = rewrite_arg dico d in Forall (d, rewrite_expr dico expr)
+            | Exists (d, expr) -> let (_, d) = rewrite_arg dico d in Forall (d, rewrite_expr dico expr)
+            | Imply (expr1, expr2) -> Imply (rewrite_expr dico expr1, rewrite_expr dico expr2)
+            | SomeElse (d, expr, expr_opt) -> let (_, d) = rewrite_arg dico d in SomeElse (d, rewrite_expr dico expr, Option.map (rewrite_expr dico) expr_opt)
+
+        let rec rewrite_stat dico s =
+            let sts = rewrite_stats dico [s]
+            if List.length sts <> 1 then failwith "Internal error."
+            else List.head sts
+        and rewrite_stats dico sts =
+            match sts with
+            | [] -> []
+            | (NewBlock sts1)::sts -> (NewBlock (rewrite_stats dico sts1))::(rewrite_stats dico sts)
+            | (NewVar (d, expr_opt))::sts ->
+                let expr_opt = Option.map (rewrite_expr dico) expr_opt
+                let (dico, d) = rewrite_arg dico d
+                (NewVar (d, expr_opt))::(rewrite_stats dico sts)
+            | (Expression e)::sts -> (Expression (rewrite_expr dico e))::(rewrite_stats dico sts)
+            | (VarAssign (str, expr))::sts -> (VarAssign (rewrite dico str, rewrite_expr dico expr))::(rewrite_stats dico sts)
+            | (GeneralFunAssign (str, exprs, expr))::sts ->
+                (GeneralFunAssign (rewrite dico str, List.map (rewrite_expr dico) exprs , rewrite_expr dico expr))::(rewrite_stats dico sts)
+            | (IfElse (expr, st1, st2))::sts -> (IfElse (rewrite_expr dico expr, rewrite_stat dico st1, rewrite_stat dico st2))::(rewrite_stats dico sts)
+            | (IfSomeElse (d, expr, st1, st2))::sts ->
+                let (dico', d) = rewrite_arg dico d
+                (IfSomeElse (d, rewrite_expr dico' expr, rewrite_stat dico' st1, rewrite_stat dico st2))::(rewrite_stats dico sts)
+            | (Assert expr)::sts -> (Assert (rewrite_expr dico expr))::(rewrite_stats dico sts)
+            | (Assume expr)::sts -> (Assume (rewrite_expr dico expr))::(rewrite_stats dico sts)
+
+        let rec rewrite_element dico elt =
+            match elt with
+            | Type str -> test dico str ; Type str
+            | Function (str, args, ret_t, b) ->
+                test dico str
+                Function (str, List.map (rewrite_t dico) args, rewrite_t dico ret_t, b)
+            | Variable (str, t) ->
+                test dico str
+                Variable (str, rewrite_t dico t)
+            | Macro (str, args, expr) ->
+                test dico str
+                let (dico, args) = rewrite_args dico args
+                Macro (str, args, rewrite_expr dico expr)
+            | Definition (str, args, expr) ->
+                let str = rewrite dico str
+                let (dico, args) = rewrite_args dico args
+                Definition (str, args, rewrite_expr dico expr)
+            | Conjecture expr -> Conjecture (rewrite_expr dico expr)
+            | AbstractAction (str, args, ret_opt) ->
+                test dico str
+                let args = rewrite_args_strict dico args
+                let ret_opt = Option.map (rewrite_arg_strict dico) ret_opt
+                AbstractAction (str, args, ret_opt)
+            | Implement (str, st) -> test dico str ; Implement (str, rewrite_stat dico st)
+            | Action (str, args, ret_opt, st) ->
+                test dico str
+                let args = rewrite_args_strict dico args
+                let ret_opt = Option.map (rewrite_arg_strict dico) ret_opt
+                Action (str, args, ret_opt, rewrite_stat dico st)
+            | After (str, st) -> test dico str ; After (str, rewrite_stat dico st)
+            | Before (str, st) -> test dico str ; Before (str, rewrite_stat dico st)
+            | Module (str, args, elts) ->
+                test dico str
+                let dico = List.fold (fun acc arg -> Map.remove arg acc) dico args
+                Module (str, args, List.map (rewrite_element dico) elts)
+            | Object (str, elts) -> test dico str ; Object (str, List.map (rewrite_element dico) elts)
+            | ObjectFromModule (str, module_name, args) ->
+                test dico str
+                ObjectFromModule (str, rewrite dico module_name, List.map (rewrite dico) args)
+
+        List.map (rewrite_element dico) elts
+
     // Operations on names
     let deserialize str =
         Prime.SymbolicOperators.scvalue<parsed_element list> str
@@ -546,9 +662,32 @@ open Prime
                 | Object (name, elts) ->
                     let name = compose_name base_name name
                     aux m tmp_elements name elts
+                | ObjectFromModule (name, module_name, args) ->
+                    let name = compose_name base_name name
+                    let candidates_t = Set.ofList (List.map (fun (t:AST.TypeDecl) -> t.Name) m.Types)
+                    let candidates_v = Set.ofList (List.map (fun (v:AST.VarDecl) -> v.Name) m.Vars)
+                    let candidates_f = Set.ofList (List.map (fun (f:AST.FunDecl) -> f.Name) m.Funs)
+                    let candidates_ma = Set.ofList (List.map (fun (m:AST.MacroDecl) -> m.Name) m.Macros)
+                    let candidates_a = Set.ofList (List.map (fun (a:AST.ActionDecl) -> a.Name) m.Actions)
+                    let candidates_mo = Set.ofList (List.map (fun ((str,_),_) -> str) (Map.toList tmp_elements.Modules))
+                    let resolve_arg_if_possible arg =
+                        let candidates = Set.unionMany [candidates_t;candidates_v;candidates_f;candidates_ma;candidates_a;candidates_mo]
+                        match resolve_reference_all (Set.toList candidates) arg with
+                        | [arg] -> arg
+                        | _ -> arg
+                    let args = List.map resolve_arg_if_possible args
+                    let candidates_mo = Set.filter (fun n -> Map.containsKey (n,List.length args) tmp_elements.Modules) candidates_mo
+                    let module_name = resolve_reference candidates_mo base_name module_name
+
+                    let (prev_args, elts) = Map.find (module_name,List.length args) tmp_elements.Modules
+                    let dico = List.fold2 (fun acc p n -> Map.add p n acc) Map.empty prev_args args
+                    let elts = rewrite_elements elts dico
+                    aux m tmp_elements name elts
 
             List.fold treat (m,tmp_elements) elements
         let (m,_) = aux (AST.empty_module name) empty_template_elements "" elements
         m
 
 
+    // TODO: resolve_reference_all with a set instead of a list
+    // TODO: check object_from_module code
