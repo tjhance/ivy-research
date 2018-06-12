@@ -241,7 +241,7 @@ open Prime
         aux base_name
 
     let resolve_reference_all candidates reference =
-        List.filter (fun c -> has_reference_name c reference) candidates
+        Set.filter (fun c -> has_reference_name c reference) candidates
 
     let resolve_type_reference (m:AST.ModuleDecl) base_name reference =
         let candidates = List.map (fun (d:AST.TypeDecl) -> d.Name) m.Types
@@ -672,7 +672,7 @@ open Prime
                     let candidates_mo = Set.ofList (List.map (fun ((str,_),_) -> str) (Map.toList tmp_elements.Modules))
                     let resolve_arg_if_possible arg =
                         let candidates = Set.unionMany [candidates_t;candidates_v;candidates_f;candidates_ma;candidates_a;candidates_mo]
-                        match resolve_reference_all (Set.toList candidates) arg with
+                        match Set.toList (resolve_reference_all candidates arg) with
                         | [arg] -> arg
                         | _ -> arg
                     let args = List.map resolve_arg_if_possible args
@@ -687,7 +687,3 @@ open Prime
             List.fold treat (m,tmp_elements) elements
         let (m,_) = aux (AST.empty_module name) empty_template_elements "" elements
         m
-
-
-    // TODO: resolve_reference_all with a set instead of a list
-    // TODO: check object_from_module code

@@ -59,8 +59,9 @@
                     | Some str -> str
                 if Set.contains Infix d.Representation.Flags
                 then
-                    let str = sprintf "(%s %s %s)" ((fun v -> value_to_string decls v 6) (List.head vs)) str ((fun v -> value_to_string decls v 6) (List.head (List.tail vs)))
-                    add_parenthesis_if_needed str 6 prec
+                    (*let str = *)
+                    sprintf "(%s %s %s)" ((fun v -> value_to_string decls v 6) (List.head vs)) str ((fun v -> value_to_string decls v 6) (List.head (List.tail vs)))
+                    //add_parenthesis_if_needed str 6 prec
                 else sprintf "%s%s" str (list_to_args_str (List.map (fun v -> value_to_string decls v 0) vs))
             with :? System.Collections.Generic.KeyNotFoundException ->
                 sprintf "%s%s" str (list_to_args_str (List.map (fun v -> value_to_string decls v 0) vs))
@@ -96,7 +97,7 @@
     (*
     Precedence:
     ~ : 7
-    infix : 6
+    infix : 6 (parenthesis forced)
     = ~= : 5
     & : 4
     | : 3
