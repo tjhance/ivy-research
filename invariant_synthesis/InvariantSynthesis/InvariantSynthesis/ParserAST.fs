@@ -217,14 +217,15 @@ open Prime
         then name
         else sprintf "%s%c%s" base_name separator name
 
+    // Decompose a name and returns a tuple of the form (parent_name,last_name)
     let decompose_name (name:string) =
         let i = name.LastIndexOf(separator)
         if i >= 0
-        then (Some (name.Substring(0,i)), name.Substring(i+1))
-        else (None, name)
+        then (name.Substring(0,i), name.Substring(i+1))
+        else ("", name)
 
     let has_base_name (name:string) (base_name:string) =
-        name = base_name || name.StartsWith(sprintf "%s%c" base_name separator)
+        base_name = "" || name = base_name || name.StartsWith(sprintf "%s%c" base_name separator)
 
     let has_reference_name (name:string) reference_name =
         name = reference_name || name.EndsWith(sprintf "%c%s" separator reference_name)
@@ -236,10 +237,11 @@ open Prime
             if not (Set.isEmpty matching_candidates)
             then
                 Helper.seq_min (fun (a:string) (b:string) -> a.Length < b.Length) (Set.toSeq matching_candidates)
+            else if base_name = ""
+            then failwith ("Can't resolve reference: "+reference)
             else
-                match decompose_name base_name with
-                | (None, _) -> failwith ("Can't resolve reference: "+reference)
-                | (Some b, _) -> aux b
+                let (b, _) = decompose_name base_name
+                aux b
         aux base_name
 
     let resolve_reference_all candidates reference =
@@ -250,7 +252,7 @@ open Prime
         resolve_reference (Set.ofList candidates) base_name reference
 
     // Some helpers
-    exception NoMatch
+    exception NoMatch of string
     let types_match expected ret =
         match expected, ret with
         | _, None -> true
@@ -262,7 +264,7 @@ open Prime
         | None, t | t, None -> t
         | t1, t2 ->
             if types_match t1 t2
-            then t1 else raise NoMatch
+            then t1 else raise (NoMatch (sprintf "Types %A and %A don't match!" t1 t2))
 
     let conciliate_types3 t1 t2 t3 =
         conciliate_types (conciliate_types t1 t2) t3
@@ -290,7 +292,7 @@ open Prime
         | ConstBool b, None -> AST.ConstBool b
         | ConstInt _, Some (AST.Uninterpreted str) -> AST.ConstInt (str, 0) // Note: The int constant has no sense without a model, so we put 0.
         | ConstInt _, None -> failwith "Can't guess constant value type!"
-        | _, _ -> raise NoMatch
+        | _, _ -> raise (NoMatch (sprintf "Const value %A don't match the type %A!" pcv t))
 
     let p2a_decl (m:AST.ModuleDecl) base_name (str,t) dico =
         let str = local_name str
@@ -322,7 +324,7 @@ open Prime
                     with :? NoMatch -> None
 
             let proceed_quantifier ((str,t),e) constructor =
-                if not (types_match ret_val (Some AST.Bool)) then raise NoMatch
+                if not (types_match ret_val (Some AST.Bool)) then raise (NoMatch "Can't quantify a non-boolean value.")
                 let str = local_name str
                 let old_type = Map.tryFind str local_vars_types
                 let local_vars_types = Map.remove str local_vars_types
@@ -343,9 +345,9 @@ open Prime
                 (local_vars_types, constructor (decl, AST.expr_to_value res_e))
 
             let proceed_operator ret_type ts es constructor =
-                if not (types_match ret_val (Some ret_type)) then raise NoMatch
+                if not (types_match ret_val (Some ret_type)) then raise (NoMatch "Operator has wrong return type!")
                 match proceed_if_possible local_vars_types ts es with
-                    | None -> raise NoMatch
+                    | None -> raise (NoMatch "Operator applied to wrong args type!")
                     | Some (local_vars_types, res_es) -> (local_vars_types, constructor res_es)
 
             match v with
@@ -363,7 +365,7 @@ open Prime
                 if List.length es = 0 && Map.containsKey (local_name str) st_local_vars
                 then
                     let str = local_name str
-                    if not (types_match ret_val (Some (Map.find str st_local_vars))) then raise NoMatch
+                    if not (types_match ret_val (Some (Map.find str st_local_vars))) then raise (NoMatch (sprintf "Local var %A has wrong return type!" str))
                     (local_vars_types, AST.ExprVar str)
                 else
                     let candidates_v = Set.map (fun (d:AST.VarDecl) -> (d.Name, [], d.Type, "v")) (Set.ofList m.Vars)
@@ -385,11 +387,11 @@ open Prime
                         | "a" -> (local_vars_types, AST.ExprAction (str, res_es))
                         | _ -> failwith "Invalid description."
                     else if List.length results = 0
-                    then raise NoMatch
+                    then raise (NoMatch "Can't find any var/fun/macro/action that match the required return and args types!")
                     else failwith "Can't resolve local types: many matches !"
 
             | Equal (e1, e2) ->
-                if not (types_match ret_val (Some AST.Bool)) then raise NoMatch
+                if not (types_match ret_val (Some AST.Bool)) then raise (NoMatch "Equal operator should have boolean return type!")
 
                 let candidates = List.map (fun (d:AST.TypeDecl) -> AST.Uninterpreted d.Name) m.Types
                 let candidates = AST.Void::AST.Bool::candidates
@@ -400,7 +402,7 @@ open Prime
                     let (local_vars_types, res_es) = List.head results
                     (local_vars_types, AST.ExprEqual (Helper.lst_to_couple res_es))
                 else if List.length results = 0
-                then raise NoMatch
+                then raise (NoMatch "Can't test equality on args of diffrent types!")
                 else failwith "Can't resolve local types: many matches !"
 
             | Or (e1, e2) -> proceed_operator AST.Bool [AST.Bool;AST.Bool] [e1;e2] (fun res_es -> AST.ExprOr (Helper.lst_to_couple res_es))
