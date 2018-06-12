@@ -51,6 +51,7 @@ let main argv =
                 let parsed_elts = ParserAST.deserialize content
                 printfn "Converting parsed AST..."
                 ParserAST.ivy_elements_to_ast_module filename parsed_elts
+    let decls = Model.declarations_of_module md
         
     printfn "Please enter constraints:"
     let str = read_until_line_jump ()
@@ -78,7 +79,6 @@ let main argv =
             (find_action md name).Args
     printfn "Executing..."
     let tr = TInterpreter.trace_action md infos env name (List.map (fun cv -> ExprConst cv) args)
-    printfn "Success !"
     if verbose
     then
         printfn "%A" tr
@@ -87,6 +87,18 @@ let main argv =
         if Trace.expr_is_fully_evaluated tr
         then
             printfn "Please enter the index of the invariant to analyze:"
+
+            List.iteri
+                (
+                    fun i v ->
+                        match Interpreter.evaluate_value md infos (Trace.final_env_of_expr tr) v with
+                        | ConstBool true -> Console.ForegroundColor <- ConsoleColor.Green
+                        | ConstBool false -> Console.ForegroundColor <- ConsoleColor.Red
+                        | _ -> Console.ResetColor()
+                        printfn "%i. %s" i (Printer.value_to_string decls v 0)
+                ) md.Invariants
+            Console.ResetColor()
+
             let nb = Convert.ToInt32 (Console.ReadLine())
             let formula = List.item nb md.Invariants
 
@@ -112,7 +124,6 @@ let main argv =
         printfn "%A" um
         printfn "%A" ad
 
-    let decls = Model.declarations_of_module md
     let (m', diff1) = Formula.simplify_marks infos md.Implications decls env m ad.d
     let (um', _) = Formula.simplify_marks infos md.Implications decls env um ad.d
     let f = Formula.formula_from_marks env (m', diff1) []
