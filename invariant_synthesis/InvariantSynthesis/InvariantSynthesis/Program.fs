@@ -10,11 +10,48 @@ let read_until_line_jump () =
         ignore (str.Append(!line + Environment.NewLine))
     str.ToString()
 
+let parser_cmd = "lin"
+let parser_args = "parser.native all %IN% %OUT% %ERR%"
+let parser_output_path = "parser.out"
+let parser_error_path = "parser.err"
+
 [<EntryPoint>]
 let main argv =
 
     let verbose = Array.contains "-v" argv
-    let md = TestModule.Queue.queue_module
+
+    let filename = 
+        match Array.tryLast argv with
+        | None -> ""
+        | Some str ->
+            if str.EndsWith(".ivy")
+            then str else ""
+
+    let md =
+        if filename = ""
+        then
+            printfn "Loading hardcoded test module 'queue'..."
+            TestModule.Queue.queue_module
+        else
+            printfn "Parsing module..."
+            let args = parser_args.Replace("%IN%", "\"" + filename + "\"").Replace("%OUT%", "\"" + parser_output_path + "\"").Replace("%ERR%", "\"" + parser_error_path + "\"")
+            System.IO.File.Delete(parser_output_path)
+            System.IO.File.Delete(parser_error_path)
+            System.Diagnostics.Process.Start(parser_cmd, args).WaitForExit()
+            let err =
+                try System.IO.File.ReadAllText(parser_error_path)
+                with :? System.IO.FileNotFoundException -> ""
+            if err <> ""
+            then
+                printfn "Parser error: %s" err
+                ignore (Console.ReadLine())
+                failwith "Parser error!"
+            else
+                let content = System.IO.File.ReadAllText(parser_output_path)
+                let parsed_elts = ParserAST.deserialize content
+                printfn "Converting parsed AST..."
+                ParserAST.ivy_elements_to_ast_module filename parsed_elts
+        
     printfn "Please enter constraints:"
     let str = read_until_line_jump ()
     printfn "Loading constraints..."

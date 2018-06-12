@@ -5,7 +5,7 @@ let print_position outx lexbuf =
   Printf.fprintf outx "%s:%d:%d" pos.pos_fname
     pos.pos_lnum (pos.pos_cnum - pos.pos_bol + 1)
 
-let parse_with_error action lexbuf =
+let parse_with_error err action lexbuf =
   try
     match action with
     | "all" ->
@@ -18,18 +18,18 @@ let parse_with_error action lexbuf =
     | _ -> Some (AST.sexp_of_parsed_expression (Parser.next_expression (Lexer.read false) lexbuf))
   with
   | Lexer.SyntaxError msg ->
-    Printf.fprintf stderr "[Lexing] %a: %s\n%!" print_position lexbuf msg;
+    Printf.fprintf err "[Lexing] %a: %s\n%!" print_position lexbuf msg;
     None
   | Parser.Error ->
-    Printf.fprintf stderr "[Parsing] %a: syntax error\n%!" print_position lexbuf;
+    Printf.fprintf err "[Parsing] %a: syntax error\n%!" print_position lexbuf;
     None
 
-let rec parse_and_print action out_chan lexbuf =
-  match parse_with_error action lexbuf with
+let rec parse_and_print err action out_chan lexbuf =
+  match parse_with_error err action lexbuf with
   | None -> ()
   | Some sexp ->
     Printf.fprintf out_chan "%s\n%!" (Sexp_printer.sexp_to_string sexp) ;
-    parse_and_print action out_chan lexbuf
+    parse_and_print err action out_chan lexbuf
 
 let () =
   let action =
@@ -52,7 +52,14 @@ let () =
     else
       stdout
     in
+  let err_chan =
+    if Array.length Sys.argv > 4
+    then
+      open_out Sys.argv.(4)
+    else
+      stderr
+    in
   let lexbuf = Lexing.from_channel chan in
   lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
-  parse_and_print action out_chan lexbuf;
+  parse_and_print err_chan action out_chan lexbuf;
   close_out out_chan ; close_in chan

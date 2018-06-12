@@ -68,6 +68,8 @@ open Prime
         | Object of string * parsed_element list
         | ObjectFromModule of string * string * string list
 
+    type parsed_elements = parsed_element list
+
     (* PARSING AND CONVERSION TOOLS *)
 
     // Elements rewriting (for parametric modules)
