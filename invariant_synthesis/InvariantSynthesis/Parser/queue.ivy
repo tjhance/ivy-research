@@ -99,7 +99,7 @@ module unbounded_queue(data) =
 		conjecture first_e <= next_e
 		conjecture forall E,F,G. (content(E,G) & content(F,G)) -> E=F
 		conjecture ~empty -> first = content_f(first_e)
-		conjecture forall E,F. content(E,F) -> (~next_e <= F & first_e <= F)
+		conjecture forall E,F. content(E,F) -> (~(next_e <= F) & first_e <= F)
 		conjecture forall E,F. empty -> ~content(E,F)
 		#conjecture forall E. (first_e <= E & ~next_e <= E) -> content(content_f(E), E) # Quote it to test interactive invariant construction tools
 		# Tests

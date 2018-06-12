@@ -25,8 +25,9 @@
 
     type VarDecls = Map<string, VarDecl>
     type FunDecls = Map<string, FunDecl>
+    type MacroDecls = Map<string, MacroDecl>
 
-    type Declarations = { f : FunDecls; v : VarDecls }
+    type Declarations = { f : FunDecls; v : VarDecls; m : MacroDecls }
 
     let declarations_of_module (md:ModuleDecl) =
         let aux acc (d:VarDecl) =
@@ -35,7 +36,10 @@
         let aux acc (d:FunDecl) =
             Map.add d.Name d acc
         let funs = List.fold aux Map.empty md.Funs
-        { f = funs; v = vars }
+        let aux acc (d:MacroDecl) =
+            Map.add d.Name d acc
+        let macros = List.fold aux Map.empty md.Macros
+        { f = funs; v = vars; m = macros }
 
     let add_var_declaration (d:VarDecl) (ds:Declarations) =
         { ds with v=Map.add d.Name d ds.v }

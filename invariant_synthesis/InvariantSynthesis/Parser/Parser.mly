@@ -80,7 +80,8 @@ element:
   | FUNCTION ; LEFT_PARENTHESIS ; d1 = qvar_decl ; name = INFIX_FUN_ID ; d2 = qvar_decl ; RIGHT_PARENTHESIS ; COLON ; t = ivy_type { Function(name, type_of_decls([d1;d2]), t, true) }
   | RELATION ; name = ID ; LEFT_PARENTHESIS ; ds = qvar_decls; RIGHT_PARENTHESIS { Function(name, type_of_decls(ds), Bool, false) }
   | RELATION ; LEFT_PARENTHESIS ; d1 = qvar_decl ; name = INFIX_CMP_ID ; d2 = qvar_decl ; RIGHT_PARENTHESIS { Function(name, type_of_decls([d1;d2]), Bool, true) }
-  | DEFINITION ; name = ID ; args = action_args ; EQUAL ; e = expression { Macro (name, args, e) }
+  | DEFINITION ; name = ID ; args = action_args ; EQUAL ; e = expression { Macro (name, args, e, false) }
+  | DEFINITION ; LEFT_PARENTHESIS ; d1 = decl ; name = INFIX_FUN_ID ; d2 = decl ; RIGHT_PARENTHESIS ; EQUAL ; e = expression { Macro (name, [d1;d2], e, true) }
   | DEFINITION ; name = ID ; LEFT_PARENTHESIS ; args = qvar_decls_ne ; RIGHT_PARENTHESIS ; EQUAL ; e = expression { Definition (name, args, e) }
   | ACTION ; name = ID ; args = action_args ; ret = action_ret { AbstractAction (name, args, ret) }
   | ACTION ; name = ID ; args = action_args ; ret = action_ret ; EQUAL ; list(EOL) ; st = block_statement { Action (name, args, ret, st) }

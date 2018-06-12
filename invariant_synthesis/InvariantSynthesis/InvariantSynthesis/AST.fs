@@ -12,8 +12,7 @@
     // For that, we can consider those functions an instance of the corresponding module,
     // with an additionals first parameters for every var/fun/action/etc (that corresponds the parameters of the initial function)
     // TODO: Axiom, isolate, inductive, export, extract, interpret, property...
-
-    // TODO: Parse Ivy code
+    // TODO: Infer types for macro args (currently, type annotations is required)
 
     // TODO: Use model checking tool to know whether 2steps synthesis is needed?
     // TODO: OR Use an automated method: computing weakest precondition (wp) and finding
@@ -97,7 +96,7 @@
 
     type ActionDecl = { Name: string; Args: List<VarDecl>; Output: VarDecl; Content: Statement }
 
-    type MacroDecl = { Name: string; Args: List<VarDecl>; Output: Type; Value: Value }
+    type MacroDecl = { Name: string; Args: List<VarDecl>; Output: Type; Value: Value ; Representation: RepresentationInfos }
 
     type ModuleDecl =
         { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; Vars: List<VarDecl>;

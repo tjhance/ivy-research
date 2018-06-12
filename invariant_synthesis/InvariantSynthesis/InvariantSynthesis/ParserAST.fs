@@ -56,7 +56,7 @@ open Prime
         | Type of type_decl
         | Function of fun_decl
         | Variable of var_decl
-        | Macro of string * var_decl list * parsed_expression
+        | Macro of string * var_decl list * parsed_expression * bool (* Infix? *)
         | Definition of string * var_decl list * parsed_expression
         | Conjecture of parsed_expression
         | AbstractAction of string * var_decl list * var_decl option
@@ -155,10 +155,10 @@ open Prime
             | Variable (str, t) ->
                 test dico str
                 Variable (str, rewrite_t dico t)
-            | Macro (str, args, expr) ->
+            | Macro (str, args, expr, infix) ->
                 test dico str
                 let (dico, args) = rewrite_args dico args
-                Macro (str, args, rewrite_expr dico expr)
+                Macro (str, args, rewrite_expr dico expr, infix)
             | Definition (str, args, expr) ->
                 let str = rewrite dico str
                 let (dico, args) = rewrite_args dico args
@@ -459,20 +459,6 @@ open Prime
         let free_vars = Map.toList local_vars_types
         List.fold add_quantifier_if_needed f free_vars
 
-    // Prepare env dictionnary for the given args
-    // Also returns the set of args names
-    let env_dictionnary_for (m:AST.ModuleDecl) base_name args =
-        let add_arg acc arg =
-            match arg with
-            | (_, Unknown) -> acc
-            | (str, t) ->
-                let str = local_name str
-                let t = p2a_type m base_name t
-                Map.add str t acc
-        let dico = List.fold add_arg Map.empty args
-        let args_names = List.map (fun (str,_) -> local_name str) args
-        (dico, Set.ofList args_names)
-
     // Convert a parsed statement to an AST one, and resolve references & types
     let p2a_stats (m:AST.ModuleDecl) base_name sts local_vars =
         let rec aux sts local_vars =
@@ -511,7 +497,8 @@ open Prime
                     then (local_name str, Map.find (local_name str) local_vars)
                     else
                         let candidates = List.map (fun (d:AST.VarDecl) -> d.Name) m.Vars
-                        (resolve_reference (Set.ofList candidates) base_name str, (AST.find_variable m str).Type)
+                        let str = resolve_reference (Set.ofList candidates) base_name str
+                        (str, (AST.find_variable m str).Type)
                 let (dico, e) = p2a_expr m base_name local_vars Map.empty (Some t) e
                 let e = close_formula m dico Set.empty e
                 (AST.VarAssign (str, e))::(aux sts local_vars)
@@ -609,6 +596,40 @@ open Prime
     type template_elements = { AbstractActions: Map<string, List<AST.VarDecl> * AST.VarDecl> ; Modules: Map<string * int, List<string> * List<parsed_element>> }
     let empty_template_elements = { AbstractActions = Map.empty ; Modules = Map.empty }
 
+    // Tools for IVy default actions/relations
+
+    let add_initializer base_name tmp_elts =
+        { tmp_elts with AbstractActions=Map.add (compose_name base_name "init") ([],void_return_decl) tmp_elts.AbstractActions }
+
+    let is_predefined_function_or_macro str =
+        let predefined = ["<";"<=";">";">="]
+        List.contains str predefined
+
+    let add_predefined_functions_and_macros type_name (m:AST.ModuleDecl) =
+        let rep = { AST.RepresentationInfos.DisplayName = None ; AST.RepresentationInfos.Flags = Set.singleton AST.RepresentationFlags.Infix }
+        let t = AST.Uninterpreted type_name
+
+        let lt = { AST.FunDecl.Name = compose_name type_name "<" ; AST.FunDecl.Input = [t;t] ; AST.FunDecl.Output = AST.Bool ;
+            AST.FunDecl.Representation = { rep with DisplayName=Some "<" } }
+
+        let x = local_name "x"
+        let y = local_name "y"
+        let var_x = AST.default_var_decl x t
+        let var_y = AST.default_var_decl y t
+        let args = [var_x;var_y]
+
+        let lt_val = AST.ValueFun (lt.Name, [AST.ValueVar x; AST.ValueVar y])
+        let eq_val = AST.ValueEqual (AST.ValueVar x,AST.ValueVar y)
+
+        let leq = { AST.MacroDecl.Name = compose_name type_name "<=" ; AST.MacroDecl.Args = args ; AST.MacroDecl.Output = AST.Bool ;
+            AST.MacroDecl.Representation = { rep with DisplayName=Some "<=" } ; AST.MacroDecl.Value = AST.ValueOr (lt_val, eq_val) }
+        let geq = { AST.MacroDecl.Name = compose_name type_name ">=" ; AST.MacroDecl.Args = args ; AST.MacroDecl.Output = AST.Bool ;
+            AST.MacroDecl.Representation = { rep with DisplayName=Some ">=" } ; AST.MacroDecl.Value = AST.ValueNot (lt_val) }
+        let gt = { AST.MacroDecl.Name = compose_name type_name ">" ; AST.MacroDecl.Args = args ; AST.MacroDecl.Output = AST.Bool ;
+            AST.MacroDecl.Representation = { rep with DisplayName=Some ">" } ; AST.MacroDecl.Value = AST.ValueNot (AST.ValueOr (lt_val, eq_val)) }
+
+        { m with Funs=lt::m.Funs ; Macros=leq::geq::gt::m.Macros }
+
     // Convert a list of ivy parser AST elements to a global AST.ModuleDecl.
     // Also add and/or adjust references to types, functions, variables or actions of the module.
     let ivy_elements_to_ast_module name elements =
@@ -626,33 +647,44 @@ open Prime
             let rec treat (m,tmp_elements) e =
                 match e with
                 | Type name ->
-                    let d = { AST.Name = compose_name base_name name }
-                    ({ m with AST.Types=(d::m.Types) }, tmp_elements)
+                    let name = compose_name base_name name
+                    let m = { m with AST.Types=({ AST.Name = name }::m.Types) }
+                    (add_predefined_functions_and_macros name m, tmp_elements)
                 | Function (name,args,ret,infix) ->
-                    let full_name = compose_name base_name name
-                    let args = List.map (p2a_type m base_name) args
-                    let ret = p2a_type m base_name ret
-                    let rep =
-                        if infix
-                        then { AST.DisplayName=Some name ; AST.Flags=Set.singleton AST.Infix }
-                        else AST.default_representation
-                    let d = { AST.FunDecl.Name=full_name ; AST.Input=args; AST.Output=ret; AST.Representation=rep }
-                    ({ m with AST.Funs=(d::m.Funs) }, tmp_elements)
+                    if is_predefined_function_or_macro name
+                    then (m, tmp_elements)
+                    else
+                        let full_name = compose_name base_name name
+                        let args = List.map (p2a_type m base_name) args
+                        let ret = p2a_type m base_name ret
+                        let rep =
+                            if infix
+                            then { AST.DisplayName=Some name ; AST.Flags=Set.singleton AST.Infix }
+                            else AST.default_representation
+                        let d = { AST.FunDecl.Name=full_name ; AST.Input=args; AST.Output=ret; AST.Representation=rep }
+                        ({ m with AST.Funs=(d::m.Funs) }, tmp_elements)
                 | Variable (name,t) ->
                     let name = compose_name base_name name
                     let t = p2a_type m base_name t
                     let d = AST.default_var_decl name t
                     ({ m with AST.Vars=(d::m.Vars) }, tmp_elements)
-                | Macro (name, args, expr) ->
-                    let name = compose_name base_name name
-                    let (dico, args_names) = env_dictionnary_for m base_name args
-                    let (dico, expr) = p2a_expr m base_name Map.empty dico None expr
-                    let expr = close_formula m dico args_names expr
-                    let v = AST.expr_to_value expr
-                    let args = p2a_args m base_name args dico
-                    let output_t = Interpreter.type_of_value m v dico
-                    let macro = { AST.MacroDecl.Name = name; AST.MacroDecl.Args = args; AST.MacroDecl.Output = output_t; AST.MacroDecl.Value = v }
-                    ({ m with AST.Macros=(macro::m.Macros) }, tmp_elements)
+                | Macro (name, args, expr, infix) ->
+                    if is_predefined_function_or_macro name
+                    then (m, tmp_elements)
+                    else
+                        let full_name = compose_name base_name name
+                        let args = p2a_args m base_name args Map.empty
+                        let st_local_vars = List.fold (fun acc (d:AST.VarDecl) -> Map.add d.Name d.Type acc) Map.empty args
+                        let (dico, expr) = p2a_expr m base_name st_local_vars Map.empty None expr
+                        let expr = close_formula m dico Set.empty expr
+                        let v = AST.expr_to_value expr
+                        let output_t = Interpreter.type_of_value m v dico
+                        let rep =
+                            if infix
+                            then { AST.DisplayName=Some name ; AST.Flags=Set.singleton AST.Infix }
+                            else AST.default_representation
+                        let macro = { AST.MacroDecl.Name = full_name; AST.MacroDecl.Args = args; AST.MacroDecl.Output = output_t; AST.MacroDecl.Value = v ; AST.MacroDecl.Representation = rep }
+                        ({ m with AST.Macros=(macro::m.Macros) }, tmp_elements)
                 | Definition _ ->
                     printfn "Definition ignored."
                     (m, tmp_elements)
@@ -683,7 +715,7 @@ open Prime
                     (m, { tmp_elements with Modules=(Map.add (name, List.length args) (args, elts) tmp_elements.Modules) })
                 | Object (name, elts) ->
                     let name = compose_name base_name name
-                    aux m tmp_elements name elts
+                    aux m (add_initializer name tmp_elements) name elts
                 | ObjectFromModule (name, module_name, args) ->
                     let name = compose_name base_name name
                     let candidates_t = Set.ofList (List.map (fun (t:AST.TypeDecl) -> t.Name) m.Types)
@@ -704,8 +736,10 @@ open Prime
                     let (prev_args, elts) = Map.find (module_name,List.length args) tmp_elements.Modules
                     let dico = List.fold2 (fun acc p n -> Map.add p n acc) Map.empty prev_args args
                     let elts = rewrite_elements elts dico
-                    aux m tmp_elements name elts
+                    aux m (add_initializer name tmp_elements) name elts
 
             List.fold treat (m,tmp_elements) elements
-        let (m,_) = aux (AST.empty_module name) empty_template_elements "" elements
+
+        let init_tmp_elt = add_initializer "" empty_template_elements
+        let (m,_) = aux (AST.empty_module name) init_tmp_elt "" elements
         m
