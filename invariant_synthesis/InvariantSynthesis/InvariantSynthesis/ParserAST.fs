@@ -269,6 +269,10 @@ open Prime
     let conciliate_types3 t1 t2 t3 =
         conciliate_types (conciliate_types t1 t2) t3
 
+    let all_types (m:AST.ModuleDecl) =
+        let res = List.map (fun (d:AST.TypeDecl) -> AST.Uninterpreted d.Name) m.Types
+        AST.Void::AST.Bool::res
+
     // Parsed to AST converters
     let try_p2a_type m base_name ptype =
         match ptype with
@@ -365,7 +369,7 @@ open Prime
                 if List.length es = 0 && Map.containsKey (local_name str) st_local_vars
                 then
                     let str = local_name str
-                    if not (types_match ret_val (Some (Map.find str st_local_vars))) then raise (NoMatch (sprintf "Local var %A has wrong return type!" str))
+                    if not (types_match ret_val (Some (Map.find str st_local_vars))) then raise (NoMatch (sprintf "Local var %s has wrong return type!" str))
                     (local_vars_types, AST.ExprVar str)
                 else
                     let candidates_v = Set.map (fun (d:AST.VarDecl) -> (d.Name, [], d.Type, "v")) (Set.ofList m.Vars)
@@ -387,14 +391,13 @@ open Prime
                         | "a" -> (local_vars_types, AST.ExprAction (str, res_es))
                         | _ -> failwith "Invalid description."
                     else if List.length results = 0
-                    then raise (NoMatch "Can't find any var/fun/macro/action that match the required return and args types!")
+                    then raise (NoMatch (sprintf "Can't find any var/fun/macro/action %s that match the required return and args types!" str))
                     else failwith "Can't resolve local types: many matches !"
 
             | Equal (e1, e2) ->
                 if not (types_match ret_val (Some AST.Bool)) then raise (NoMatch "Equal operator should have boolean return type!")
 
-                let candidates = List.map (fun (d:AST.TypeDecl) -> AST.Uninterpreted d.Name) m.Types
-                let candidates = AST.Void::AST.Bool::candidates
+                let candidates = all_types m
                 let results = List.fold (fun acc ret -> match proceed_if_possible local_vars_types [ret;ret] [e1;e2] with None -> acc | Some r -> r::acc) [] candidates
 
                 if List.length results = 1
@@ -563,16 +566,31 @@ open Prime
             | (IfSomeElse ((str,t),e,sif,selse))::sts ->
                 // decl & v
                 let str = local_name str
-                let dico =
+                let local_vars_e_candidates =
                     match try_p2a_type m base_name t with
-                    | None -> Map.empty
-                    | Some t -> Map.singleton str t
-                let (dico, e) = p2a_expr m base_name local_vars dico (Some AST.Bool) e
-                let e = close_formula m dico (Set.singleton str) e
+                    | Some t -> [Map.add str t local_vars]
+                    | None -> List.map (fun t -> Map.add str t local_vars) (all_types m)
+
+                let add_if_possible acc local_vars_e =
+                    try
+                        let (dico, e) = p2a_expr m base_name local_vars_e Map.empty (Some AST.Bool) e
+                        (dico,e,local_vars_e)::acc
+                    with :? NoMatch -> acc
+                let results =
+                    List.fold add_if_possible [] local_vars_e_candidates
+
+                let (dico,e,local_vars_e) =
+                    if List.length results = 1
+                    then List.head results
+                    else if List.length results > 1
+                    then failwith "Can't resolve 'if some' local type: too many matches !"
+                    else raise (NoMatch (sprintf "No match for 'if some' local type %s!" str))
+
+                let e = close_formula m dico Set.empty e
                 let v = AST.expr_to_value e
-                let t = Map.find str dico
+                let t = Map.find str local_vars_e
                 // sif & selse
-                let sif = aux [sif] (Map.add str t local_vars)
+                let sif = aux [sif] local_vars_e
                 let selse = aux [selse] local_vars
                 (AST.IfSomeElse (AST.default_var_decl str t, v, AST.NewBlock([],sif),AST.NewBlock([],selse)))::(aux sts local_vars)
 
