@@ -308,4 +308,4 @@
     and marks_before_statements module_decl infos trs cfg =
         let aux cfg tr =
             marks_before_statement module_decl infos tr cfg
-        List.fold aux cfg trs
+        List.fold aux cfg (List.rev trs)

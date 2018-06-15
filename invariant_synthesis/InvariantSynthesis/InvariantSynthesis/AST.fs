@@ -2,6 +2,7 @@
 
     (* A VERY BASIC AST FOR IVY *)
 
+    // TODO: Add implication rules for predefined functions
     // TODO: Handle "before" and "after" actions in the interpreter/synthesis
     // TODO: "For" loops
     // TODO: "if some" with multiple var decls

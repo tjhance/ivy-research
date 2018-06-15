@@ -1,8 +1,7 @@
 {
   "profiles": {
     "InvariantSynthesis": {
-      "commandName": "Project",
-      "commandLineArgs": "queue.ivy"
+      "commandName": "Project"
     }
   }
 }

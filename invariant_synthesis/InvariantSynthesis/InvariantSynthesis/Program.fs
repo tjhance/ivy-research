@@ -19,6 +19,7 @@ let parser_error_path = "parser.err"
 let main argv =
 
     let verbose = Array.contains "-v" argv
+    let no_trace = Array.contains "-nt" argv
 
     let filename = 
         match Array.tryLast argv with
@@ -78,20 +79,26 @@ let main argv =
             )
             (find_action md name).Args
     printfn "Executing..."
-    let tr = TInterpreter.trace_action md infos env name (List.map (fun cv -> ExprConst cv) args)
+    let (tr, env') =
+        if no_trace then
+            let (env',_) = Interpreter.execute_action md infos env name args
+            (Trace.TrExprNotEvaluated (env,env',None), env')
+        else
+            let tr = TInterpreter.trace_action md infos env name (List.map (fun cv -> ExprConst cv) args)
+            (tr, Trace.final_env_of_expr tr)
     if verbose
     then
         printfn "%A" tr
 
     let ((m,um,ad),formula,b) =
-        if Trace.expr_is_fully_evaluated tr
+        if Trace.expr_is_fully_evaluated tr || no_trace
         then
             printfn "Please enter the index of the invariant to analyze:"
 
             List.iteri
                 (
                     fun i v ->
-                        match Interpreter.evaluate_value md infos (Trace.final_env_of_expr tr) v with
+                        match Interpreter.evaluate_value md infos env' v with
                         | ConstBool true -> Console.ForegroundColor <- ConsoleColor.Green
                         | ConstBool false -> Console.ForegroundColor <- ConsoleColor.Red
                         | _ -> Console.ResetColor()
@@ -103,7 +110,7 @@ let main argv =
             let formula = List.item nb md.Invariants
 
             printfn "Generating marks for the formula (post execution)..."
-            let (b,(m,um,ad)) = Synthesis.marks_for_value md infos (Trace.final_env_of_expr tr) Set.empty formula
+            let (b,(m,um,ad)) = Synthesis.marks_for_value md infos env' Set.empty formula
             if verbose
             then
                 printfn "%A" b
@@ -117,7 +124,12 @@ let main argv =
             (Synthesis.empty_config, None, ConstVoid)
 
     printfn "Going back through the action..."
-    let (m,um,ad) = TSynthesis.marks_before_expression md infos tr (m,um,ad) false
+    let (m,um,ad) =
+        if no_trace then
+            let (_,res) = Synthesis.marks_before_action md infos env name args (m,um,ad) false
+            res
+        else
+            TSynthesis.marks_before_expression md infos tr (m,um,ad) false
     if verbose
     then
         printfn "%A" m
@@ -154,8 +166,13 @@ let main argv =
             printfn "Building new environment..."
             let (infos_allowed, env_allowed) = Model.constraints_to_env md (cs@cs')
             printfn "Computing..."
-            let tr_allowed =
-                TInterpreter.trace_action md infos_allowed env_allowed name (List.map (fun cv -> ExprConst cv) args)
+            let (tr_allowed, env_allowed') =
+                if no_trace then
+                    let (env',_) = Interpreter.execute_action md infos_allowed env_allowed name args
+                    (Trace.TrExprNotEvaluated (env,env',None), env')
+                else
+                    let tr = TInterpreter.trace_action md infos_allowed env_allowed name (List.map (fun cv -> ExprConst cv) args)
+                    (tr, Trace.final_env_of_expr tr)
             match formula with
             | None ->
                 if Trace.expr_is_fully_evaluated tr_allowed
@@ -172,11 +189,15 @@ let main argv =
                 else printfn "ERROR: Execution still fail!"
             | Some formula ->
                 let (b_al,(m_al,um_al,ad_al)) =
-                    Synthesis.marks_for_value md infos_allowed (Trace.final_env_of_expr tr_allowed) Set.empty formula
+                    Synthesis.marks_for_value md infos_allowed env_allowed' Set.empty formula
                 if b_al <> b
                 then
                     let (m_al,_,ad_al) =
-                        TSynthesis.marks_before_expression md infos_allowed tr_allowed (m_al,um_al,ad_al) false
+                        if no_trace then
+                            let (_,res) = Synthesis.marks_before_action md infos_allowed env_allowed name args (m_al,um_al,ad_al) false
+                            res
+                        else
+                            TSynthesis.marks_before_expression md infos_allowed tr_allowed (m_al,um_al,ad_al) false
                     if ad_al.md
                     then printfn "ERROR: Some marks still are model-dependent!"
                     else
