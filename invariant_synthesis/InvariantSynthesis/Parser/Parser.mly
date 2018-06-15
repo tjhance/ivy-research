@@ -11,7 +11,7 @@
 %token AFTER BEFORE DEFINITION INSTANTIATE IMPLEMENT
 
 %token SEMI_COLON LEFT_BRACE RIGHT_BRACE
-%token ASSIGN CALL IF ASSERT ASSUME VAR
+%token ASSIGN CALL IF ASSERT VAR
 
 %token BOOL TRUE FALSE
 %token <int> INT
@@ -170,7 +170,6 @@ statement:
   | IF ; SOME ; d = decl ; POINT ; e = expression ; list (EOL) ; sif = block_statement ; list (EOL) ;
     ELSE ; list (EOL) ; selse = block_statement { IfSomeElse (d, e, sif, selse) }
   | ASSERT ; e = expression { Assert (e) }
-  | ASSUME ; e = expression { Assume (e) }
   ;
 
 decl:

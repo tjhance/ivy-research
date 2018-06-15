@@ -51,7 +51,6 @@ type parsed_statement =
     | IfElse of parsed_expression * parsed_statement * parsed_statement
     | IfSomeElse of var_decl * parsed_expression * parsed_statement * parsed_statement
     | Assert of parsed_expression
-    | Assume of parsed_expression
     [@@deriving sexp]
 
 (* ELEMENTS *)

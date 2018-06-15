@@ -33,8 +33,8 @@ rule read ignore_nls =
   | "var"     { VAR }
   | "assert" { ASSERT }
   | "ensure" { ASSERT }
-  | "require" { ASSUME }
-  | "assume" { ASSUME }
+  | "require" { ASSERT }
+  | "assume" { ASSERT }
   | "conjecture" { CONJECTURE }
   | "type"   { TYPE }
   | "action" { ACTION }

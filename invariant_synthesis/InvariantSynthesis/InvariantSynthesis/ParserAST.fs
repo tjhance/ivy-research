@@ -45,7 +45,6 @@ open Prime
         | IfElse of parsed_expression * parsed_statement * parsed_statement
         | IfSomeElse of var_decl * parsed_expression * parsed_statement * parsed_statement
         | Assert of parsed_expression
-        | Assume of parsed_expression
 
     (* ELEMENTS *)
 
@@ -144,7 +143,6 @@ open Prime
                 let (dico', d) = rewrite_arg dico d
                 (IfSomeElse (d, rewrite_expr dico' expr, rewrite_stat dico' st1, rewrite_stat dico st2))::(rewrite_stats dico sts)
             | (Assert expr)::sts -> (Assert (rewrite_expr dico expr))::(rewrite_stats dico sts)
-            | (Assume expr)::sts -> (Assume (rewrite_expr dico expr))::(rewrite_stats dico sts)
 
         let rec rewrite_element dico elt =
             match elt with
@@ -581,10 +579,6 @@ open Prime
                 let e = close_formula m dico Set.empty e
                 let v = AST.expr_to_value e
                 (AST.Assert v)::(aux sts local_vars)
-
-            | (Assume _)::sts ->
-                printfn "Assume ignored."
-                aux sts local_vars
 
         aux sts local_vars
     
