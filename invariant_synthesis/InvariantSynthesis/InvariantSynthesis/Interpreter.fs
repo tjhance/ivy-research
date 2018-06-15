@@ -29,7 +29,7 @@
             | Some t -> t
         | ExprFun (f,_) -> (find_function m f).Output
         | ExprMacro (str,_) -> (find_macro m str).Output
-        | ExprAction (str, _) -> (find_action m str).Output.Type
+        | ExprAction (str, _) -> (find_action m str false).Output.Type
         | ExprEqual _ | ExprOr _ | ExprAnd _ | ExprNot _ | ExprImply _
         | ExprForall _ | ExprExists _ -> Bool
         | ExprSomeElse (_,_,v) -> type_of_value m v dico
@@ -276,6 +276,6 @@
         (leave_block infos env' (output::input) env, res)
 
     and execute_action (m:ModuleDecl) infos (env:Model.Environment) action args = // For now, we don't check the types
-        let action_decl = find_action m action
+        let action_decl = find_action m action true
         let effect env = execute_statement m infos env action_decl.Content
         execute_inline_action infos env action_decl.Args action_decl.Output effect args

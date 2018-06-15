@@ -220,6 +220,6 @@
             TrExprAction (red, input, output, tr_args, TrNotEvaluated(env',env',false))
 
     and trace_action (m:ModuleDecl) infos (env:Model.Environment) name args =
-        let action_decl = find_action m name
+        let action_decl = find_action m name true
         let effect env = trace_statement m infos env action_decl.Content
         trace_inline_action m infos env action_decl.Args action_decl.Output effect args

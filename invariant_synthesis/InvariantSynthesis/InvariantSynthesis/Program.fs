@@ -77,7 +77,7 @@ let main argv =
                     | Bool -> ConstBool (Convert.ToBoolean (Console.ReadLine()))
                     | Uninterpreted str -> ConstInt (str, Convert.ToInt32 (Console.ReadLine()))
             )
-            (find_action md name).Args
+            (find_action md name false).Args
     printfn "Executing..."
     let (tr, env') =
         if no_trace then

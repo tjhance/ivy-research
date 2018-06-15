@@ -479,6 +479,6 @@
         (args_marks, cfg)
 
     and marks_before_action (mdecl:ModuleDecl) infos env action args cfg mark_value =
-        let action_decl = find_action mdecl action
+        let action_decl = find_action mdecl action true
         let effect env cfg = marks_before_statement mdecl infos env action_decl.Content cfg
         marks_before_inline_action infos env action_decl.Args action_decl.Output effect args cfg mark_value

@@ -2,8 +2,6 @@
 
     (* A VERY BASIC AST FOR IVY *)
 
-    // TODO: Add implication rules for predefined functions
-    // TODO: Handle "before" and "after" actions in the interpreter/synthesis
     // TODO: "For" loops
     // TODO: "if some" with multiple var decls
     // TODO: Allow multiple return values for actions.
@@ -15,6 +13,7 @@
     // TODO: Axiom, isolate, inductive, export, extract, interpret, property...
     // TODO: Infer types for macro args (currently, type annotations is required)
 
+    // TODO: Find a way to add implication rules when parsing
     // TODO: Use model checking tool to know whether 2steps synthesis is needed?
     // TODO: OR Use an automated method: computing weakest precondition (wp) and finding
     // a finite model for (wp AND NOT new_strong_invariant). Having the same args
@@ -116,6 +115,15 @@
             Implications=[];
         }
 
+    // Utility functions
+
+    let action_variant_char = ':'
+
+    let variant_action_name name variant =
+        if variant = ""
+        then name
+        else sprintf "%s%c%s" name action_variant_char variant
+
     let type_of_const_value cv =
         match cv with
         | ConstVoid -> Void
@@ -128,8 +136,23 @@
     let find_variable (m:ModuleDecl) str =
         List.find (fun (decl:VarDecl) -> decl.Name = str) m.Vars
 
-    let find_action (m:ModuleDecl) str =
-        List.find (fun (decl:ActionDecl) -> decl.Name = str) m.Actions
+    let rec find_action (m:ModuleDecl) str add_variants =
+        let action = List.find (fun (decl:ActionDecl) -> decl.Name = str) m.Actions
+        if add_variants
+        then
+            let action =
+                try
+                    let before = find_action m (variant_action_name str "before") add_variants
+                    { action with Content=NewBlock([],[before.Content;action.Content]) }
+                with :? System.Collections.Generic.KeyNotFoundException -> action
+            let action =
+                try
+                    let after = find_action m (variant_action_name str "after") add_variants
+                    { action with Content=NewBlock([],[action.Content;after.Content]) }
+                with :? System.Collections.Generic.KeyNotFoundException -> action
+            action
+        else
+            action
 
     let find_macro (m:ModuleDecl) str =
         List.find (fun (decl:MacroDecl) -> decl.Name = str) m.Macros

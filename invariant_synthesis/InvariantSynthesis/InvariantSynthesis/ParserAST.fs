@@ -194,8 +194,6 @@ open Prime
 
     let separator = '.'
 
-    let name_variant_char = ':'
-
     let local_var_prefix = "$" // We assign a prefix to non-global vars in order to avoid bugs due to vars scope
 
     let impossible_var_name = "$$"
@@ -205,10 +203,7 @@ open Prime
     let local_name name =
         sprintf "%s%s" local_var_prefix name
 
-    let variant_name name variant =
-        if variant = ""
-        then name
-        else sprintf "%s%c%s" name name_variant_char variant
+    let variant_action_name = AST.variant_action_name
 
     let compose_name base_name name =
         if name = ""
@@ -628,7 +623,18 @@ open Prime
         let gt = { AST.MacroDecl.Name = compose_name type_name ">" ; AST.MacroDecl.Args = args ; AST.MacroDecl.Output = AST.Bool ;
             AST.MacroDecl.Representation = { rep with DisplayName=Some ">" } ; AST.MacroDecl.Value = AST.ValueNot (AST.ValueOr (lt_val, eq_val)) }
 
-        { m with Funs=lt::m.Funs ; Macros=leq::geq::gt::m.Macros }
+        // Note: We add default axioms to < : it should be a total strict order
+        let impl =
+            List.concat
+                [
+                    Formula.reflexive lt.Name false type_name ;
+                    Formula.transitive lt.Name true ;
+                    Formula.transitive lt.Name false ;
+                    Formula.antisymetric lt.Name true type_name ;
+                    Formula.antisymetric lt.Name false type_name
+                ]
+
+        { m with Funs=lt::m.Funs ; Macros=leq::geq::gt::m.Macros ; Implications=impl@m.Implications }
 
     // Convert a list of ivy parser AST elements to a global AST.ModuleDecl.
     // Also add and/or adjust references to types, functions, variables or actions of the module.
@@ -641,7 +647,7 @@ open Prime
                 let (args, ret) = Map.find name tmp_elements.AbstractActions
                 let local_vars = List.fold (fun acc (v:AST.VarDecl) -> Map.add v.Name v.Type acc) Map.empty (ret::args)
                 let st = p2a_stats m base_name [st] local_vars
-                let action = { AST.ActionDecl.Name = variant_name name variant; AST.ActionDecl.Args = args ; AST.ActionDecl.Output = ret ; AST.ActionDecl.Content = AST.NewBlock([],st) }
+                let action = { AST.ActionDecl.Name = variant_action_name name variant; AST.ActionDecl.Args = args ; AST.ActionDecl.Output = ret ; AST.ActionDecl.Content = AST.NewBlock([],st) }
                 ({ m with AST.Actions=(action::m.Actions) }, tmp_elements)
 
             let rec treat (m,tmp_elements) e =
