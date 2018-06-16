@@ -253,7 +253,7 @@
         | ExistingFun of string * List<ConstValue>
 
     let formula_from_marks (env:Model.Environment) ((m:Synthesis.Marks), diffs)
-        (alt_exec:List<Synthesis.Marks*Set<ConstValue*ConstValue>>) =
+        (alt_exec:List<Synthesis.Marks*Set<ConstValue*ConstValue>*Model.Environment>) =
       
         // Associate a var to each value
         let next_name_nb = ref 0
@@ -265,13 +265,13 @@
         let vars_map = ref Map.empty
 
         // Associates an existing variable to a value
-        let associate_existing_var str =
+        let associate_existing_var (env:Model.Environment) str =
             let cv = Map.find str env.v
             if not (Map.containsKey cv !vars_map) then
                 vars_map := Map.add cv (ExistingVar str) !vars_map
 
         // Associates an existing function to a value
-        let associate_existing_fun (str,cvs) =
+        let associate_existing_fun (env:Model.Environment) (str,cvs) =
             let cv = Map.find (str,cvs) env.f
             if not (Map.containsKey cv !vars_map) then
                 vars_map := Map.add cv (ExistingFun (str, cvs)) !vars_map
@@ -314,9 +314,9 @@
                 let vs = List.map (fun cv -> value_of_association (value2var cv)) cvs
                 ValueFun (str, vs)
 
-        let constraints_for (m:Synthesis.Marks,diffs) =
+        let constraints_for (m:Synthesis.Marks,diffs,env:Model.Environment) =
             // Browse the constraints to associate an existing var to values when possible
-            Set.iter (associate_existing_var) m.v
+            Set.iter (associate_existing_var env) m.v
             let v' = // We remove trivial equalities
                 Set.filter
                     (
@@ -327,7 +327,7 @@
             let m = {m with v=v'}
 
             // Browse the constraints to associate an existing fun to values when possible
-            Set.iter (associate_existing_fun) m.f
+            Set.iter (associate_existing_fun env) m.f
             let f' = // We remove trivial equalities
                 Set.filter
                     (
@@ -368,7 +368,7 @@
             let constraints = Set.union constraints ineq_constraints
             constraints
 
-        let constraints = constraints_for (m, diffs)
+        let constraints = constraints_for (m, diffs, env)
         let vars = all_new_vars_decl_assigned ()
 
         let alt_constraints =

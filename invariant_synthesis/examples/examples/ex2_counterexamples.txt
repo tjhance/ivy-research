@@ -1,33 +1,8 @@
 Constraints:
 
-0:example1.b ~= 1
-0:example1.a ~= 1
-0:example1.a ~= 2
-0:example1.a ~= example1.elt1
-0:example1.a ~= example1.elt2
-1:example1.a ~= 2
-1:example1.a ~= example1.elt1
-1:example1.a = example1.elt2
-2:example1.a = example1.elt1
-2:example1.a ~= example1.elt2
-example1.f(0) = 1
-example1.f(1) = 1
-example1.f(2) = 0
-
-Constraints:
-
-0:example1.b ~= 1
-0:example1.a ~= 1
-0:example1.a ~= 2
-0:example1.a = example1.elt1
-0:example1.a ~= example1.elt2
-1:example1.a ~= 2
-1:example1.a ~= example1.elt1
-1:example1.a = example1.elt2
-2:example1.a ~= example1.elt1
-2:example1.a ~= example1.elt2
-example1.f(0) = 1
-example1.f(1) = 0
-example1.f(2) = 1
-
-
+0:example2.a ~= 1
+~example2.dom(0)
+0:example2.a = example2.elt
+example2.dom(1)
+1:example2.a ~= example2.elt
+0:example2.b = example2.res

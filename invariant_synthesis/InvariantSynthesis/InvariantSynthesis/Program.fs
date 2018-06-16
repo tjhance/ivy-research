@@ -183,9 +183,9 @@ let main argv =
                     then printfn "ERROR: Some marks still are model-dependent!"
                     else
                         let (m_union, diff_union) = (Synthesis.marks_union m_al m', Set.union ad_al.d diff1)
-                        let (m_al, diff_al) = Formula.simplify_marks infos md.Implications decls env m_union diff_union
+                        let (m_al, diff_al) = Formula.simplify_marks infos md.Implications decls env_allowed m_union diff_union
                         let (m_al, diff_al) = (Synthesis.marks_diff m_al m', Set.difference diff_al diff1)
-                        allowed_paths := (m_al,diff_al)::(!allowed_paths)
+                        allowed_paths := (m_al,diff_al,env_allowed)::(!allowed_paths)
                 else printfn "ERROR: Execution still fail!"
             | Some formula ->
                 let (b_al,(m_al,um_al,ad_al)) =
@@ -202,9 +202,9 @@ let main argv =
                     then printfn "ERROR: Some marks still are model-dependent!"
                     else
                         let (m_union, diff_union) = (Synthesis.marks_union m_al m', Set.union ad_al.d diff1)
-                        let (m_al, diff_al) = Formula.simplify_marks infos md.Implications decls env m_union diff_union
+                        let (m_al, diff_al) = Formula.simplify_marks infos md.Implications decls env_allowed m_union diff_union
                         let (m_al, diff_al) = (Synthesis.marks_diff m_al m', Set.difference diff_al diff1)
-                        allowed_paths := (m_al,diff_al)::(!allowed_paths)
+                        allowed_paths := (m_al,diff_al,env_allowed)::(!allowed_paths)
                 else printfn "ERROR: Formula has the same value than with the original environment!"
             
             printfn "Would you like to add an accepting path to the invariant? (y/n)"

@@ -28,4 +28,26 @@ set_elt(e):
 	if dom(elt)
 		res := get(elt)
 
+-----
+
 dom(A) -> exists B. f(A,B)
+
+-----
+
+Naive generalization:
+
+elt=0
+res=0
+~dom(0)
+dom(1)
+~f(0,0)
+~f(1,0)
+(set_elt(1))
+
+~dom(elt) & dom(A) & A~=elt & ~f(elt,B) & ~f(A,B)
+
+WRONG!!
+
+My algorithm:
+(see Capture3.png)
+F A:example2.a. example2.dom(A) -> (E B:example2.b. example2.f(A, B))

@@ -77,4 +77,5 @@ rule read ignore_nls =
 and read_until_eol ignore_nls =
   parse
   | newline  { Lexing.new_line lexbuf; if ignore_nls then read true lexbuf else EOL }
+  | eof      { EOF }
   | _        { read_until_eol ignore_nls lexbuf }
