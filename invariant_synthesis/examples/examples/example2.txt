@@ -1,0 +1,31 @@
+
+relation f(A, B)     (partial function)
+relation dom(A)
+individual res
+individual elt
+
+dom(elt) -> f(elt,res)
+
+unset(a):
+	dom(a) := false
+	f(a,B) := false
+	
+set(a,b):
+	dom(a) := true
+	f(a,B) := B=b
+	if elt=a
+		res := b
+
+get(a):
+	require dom(a)
+	if some r. f(a,r)
+		return r
+	else
+		assert false
+
+set_elt(e):
+	elt := e
+	if dom(elt)
+		res := get(elt)
+
+dom(A) -> exists B. f(A,B)
