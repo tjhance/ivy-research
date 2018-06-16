@@ -1,0 +1,48 @@
+Conjecture:
+
+F(elt1) ~= F(elt2)
+
+Init: elt1 ~= elt2
+
+Transitions:
+
+swap(x,y):
+	F(x) <-> F(y)
+
+change_elt1(elt):
+	require elt ~= elt2
+ 	elt1 = elt
+
+change_elt2(elt):
+	require elt ~= elt1
+ 	elt2 = elt
+
+-----
+
+F(X)=F(Y) -> X=Y
+
+-----
+
+Counterexample:
+
+elt1=0:i
+elt2=1:i
+F(0)=0:d
+F(1)=1:d
+F(2)=0:d
+(change_elt2)
+
+Naive generalization (detail steps):
+F(elt2)~=F(elt1)
+F(C)=F(elt1)
+
+
+
+
+My generalization :
+
+Round1 (see Capture.png)
+Forall A. ~(f(elt2) = f(A) & A ~= elt2)
+
+Round2
+Forall A,B. ~(B~=A & f(A)=f(B) & A ~= elt2 & B ~= elt2)

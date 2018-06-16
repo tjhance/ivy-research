@@ -1,0 +1,45 @@
+#lang ivy1.7
+
+object example1 =
+{
+	type a
+	type b
+
+	function f(X:a) : b
+	individual elt1 : a
+	individual elt2 : a
+	
+	after init
+	{
+		assume elt1 ~= elt2;
+	}
+	
+	action swap(x:a,y:a) =
+	{
+		var tmp := f(x);
+		f(x) := f(y);
+		f(y) := tmp;
+	}
+	
+	action change_elt1(elt:a) =
+	{
+		require elt ~= elt2;
+		elt1 := elt;
+	}
+	
+	action change_elt2(elt:a) =
+	{
+		require elt ~= elt1;
+		elt2 := elt;
+	}
+	
+	conjecture f(elt1) ~= f(elt2)
+	conjecture ~(f(elt2) = f(A) & A ~= elt2)
+	conjecture ~(f(A)=f(B) & B~= A & A ~= elt2 & B ~= elt2)
+	
+	export swap
+	export change_elt1
+	export change_elt2
+}
+
+isolate iso1 = example1
