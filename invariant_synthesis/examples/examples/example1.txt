@@ -27,9 +27,9 @@ Counterexample:
 
 elt1=2
 elt2=1
-F(0)=0
+F(0)=1
 F(1)=1
-F(2)=1
+F(2)=0
 (change_elt1(0))
 
 Naive generalization (detail steps):
@@ -52,7 +52,7 @@ f(2)=0
 f(3)=0
 (swap(2,1))
 
-Forall C,D. ~( elt1~=elt2 & C~=elt2 & C~=elt1 & D~=C & D~=elt1 & D~=elt2 & F(elt2)~=F(elt1) & F(C)=F(D) & F(C)~=f(elt1) & F(C)~=f(elt2) )
+Forall C,D. ~( elt1~=elt2 & C~=elt2 & C~=elt1 & D~=C & D~=elt1 & D~=elt2 & F(elt2)~=F(elt1) & F(C)=F(D) & F(C)~=F(elt1) & F(C)~=F(elt2) )
 
 My generalization :
 

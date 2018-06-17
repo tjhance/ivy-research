@@ -2,6 +2,9 @@
 
     (* A VERY BASIC AST FOR IVY *)
 
+    // TODO: synthesis:ad.diff should be proper to m or um
+    // TODO: use a "minimal AST" for interpreter/synthesis instead of this complex AST
+
     // TODO: "For" loops
     // TODO: "if some" with multiple var decls
     // TODO: Allow multiple return values for actions.
