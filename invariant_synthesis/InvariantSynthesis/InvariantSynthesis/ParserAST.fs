@@ -70,6 +70,8 @@ open Prime
     type parsed_elements = parsed_element list
 
     (* PARSING AND CONVERSION TOOLS *)
+    type ModuleDecl = AST.ModuleDecl<Model.TypeInfos,Model.Environment>
+    type InterpretedActionDecl = AST.InterpretedActionDecl<Model.TypeInfos,Model.Environment>
 
     // Elements rewriting (for parametric modules)
     let rewrite_elements elts dico =
@@ -240,7 +242,7 @@ open Prime
     let resolve_reference_all candidates reference =
         Set.filter (fun c -> has_reference_name c reference) candidates
 
-    let resolve_type_reference (m:AST.ModuleDecl) base_name reference =
+    let resolve_type_reference (m:ModuleDecl) base_name reference =
         let candidates = List.map (fun (d:AST.TypeDecl) -> d.Name) m.Types
         resolve_reference (Set.ofList candidates) base_name reference
 
@@ -262,7 +264,7 @@ open Prime
     let conciliate_types3 t1 t2 t3 =
         conciliate_types (conciliate_types t1 t2) t3
 
-    let all_types (m:AST.ModuleDecl) =
+    let all_types (m:ModuleDecl) =
         let res = List.map (fun (d:AST.TypeDecl) -> AST.Uninterpreted d.Name) m.Types
         AST.Void::AST.Bool::res
 
@@ -287,22 +289,22 @@ open Prime
         | ConstBool b, Some AST.Bool -> AST.ConstBool b
         | ConstVoid, None -> AST.ConstVoid
         | ConstBool b, None -> AST.ConstBool b
-        | ConstInt _, Some (AST.Uninterpreted str) -> AST.ConstInt (str, 0) // Note: The int constant has no sense without a model, so we put 0.
+        | ConstInt (_,i), Some (AST.Uninterpreted str) -> AST.ConstInt (str, i)
         | ConstInt _, None -> failwith "Can't guess constant value type!"
         | _, _ -> raise (NoMatch (sprintf "Const value %A don't match the type %A!" pcv t))
 
-    let p2a_decl (m:AST.ModuleDecl) base_name (str,t) dico =
+    let p2a_decl (m:ModuleDecl) base_name (str,t) dico =
         let str = local_name str
         let t = conciliate_types (try_p2a_type m base_name t) (Map.tryFind str dico)
         match t with
         | None -> failwith "Can't infer argument type!"
         | Some t -> AST.default_var_decl str t
 
-    let p2a_args (m:AST.ModuleDecl) base_name args dico =
+    let p2a_args (m:ModuleDecl) base_name args dico =
         List.map (fun arg -> p2a_decl m base_name arg dico) args
 
     // Convert a parsed expression to an AST one, and resolve references & types
-    let p2a_expr (m:AST.ModuleDecl) base_name st_local_vars local_vars_types ret_val v =
+    let p2a_expr (m:ModuleDecl) base_name st_local_vars local_vars_types ret_val v =
 
         let rec aux local_vars_types v ret_val =
 
@@ -369,7 +371,8 @@ open Prime
                     let candidates_f = Set.map (fun (d:AST.FunDecl) -> (d.Name, d.Input, d.Output, "f")) (Set.ofList m.Funs)
                     let candidates_m = Set.map (fun (d:AST.MacroDecl) -> (d.Name, List.map (fun (d:AST.VarDecl) -> d.Type) d.Args, d.Output, "m")) (Set.ofList m.Macros)
                     let candidates_a = Set.map (fun (d:AST.ActionDecl) -> (d.Name, List.map (fun (d:AST.VarDecl) -> d.Type) d.Args, d.Output.Type, "a")) (Set.ofList m.Actions)
-                    let candidates = Set.unionMany [candidates_v;candidates_f;candidates_m;candidates_a]
+                    let candidates_i = Set.ofList (List.map (fun (d:InterpretedActionDecl) -> (d.Name, d.Args, d.Output, "i")) m.InterpretedActions)
+                    let candidates = Set.unionMany [candidates_v;candidates_f;candidates_m;candidates_a;candidates_i]
                     let candidates = Set.filter (fun (name,_,_,_) -> has_reference_name name str) candidates
                     let candidates = Set.filter (fun (_,_,ret,_) -> types_match ret_val (Some ret)) candidates
                     let results = Set.fold (fun acc (str,args,_,descr) -> match proceed_if_possible local_vars_types args es with None -> acc | Some r -> (descr,str,r)::acc) [] candidates
@@ -382,6 +385,7 @@ open Prime
                         | "f" -> (local_vars_types, AST.ExprFun (str,res_es))
                         | "m" -> (local_vars_types, AST.ExprMacro (str,List.map AST.expr_to_value res_es))
                         | "a" -> (local_vars_types, AST.ExprAction (str, res_es))
+                        | "i" -> (local_vars_types, AST.ExprInterpreted (str, res_es))
                         | _ -> failwith "Invalid description."
                     else if List.length results = 0
                     then raise (NoMatch (sprintf "Can't find any var/fun/macro/action %s that match the required return and args types!" str))
@@ -438,7 +442,7 @@ open Prime
         aux local_vars_types v ret_val
 
     // Add universal quantifiers if needed
-    let close_formula (m:AST.ModuleDecl) local_vars_types args_name f =
+    let close_formula (m:ModuleDecl) local_vars_types args_name f =
         
         let add_quantifier_if_needed acc (name,t) =
             if Set.contains name args_name
@@ -453,7 +457,7 @@ open Prime
         List.fold add_quantifier_if_needed f free_vars
 
     // Convert a parsed statement to an AST one, and resolve references & types
-    let p2a_stats (m:AST.ModuleDecl) base_name sts local_vars =
+    let p2a_stats (m:ModuleDecl) base_name sts local_vars =
         let rec aux sts local_vars =
             match sts with
             | [] -> []
@@ -594,7 +598,7 @@ open Prime
         let predefined = ["<";"<=";">";">="]
         List.contains str predefined
 
-    let add_predefined_functions_and_macros type_name (m:AST.ModuleDecl) =
+    let add_predefined_functions_and_macros type_name (m:ModuleDecl) =
         let rep = { AST.RepresentationInfos.DisplayName = None ; AST.RepresentationInfos.Flags = Set.singleton AST.RepresentationFlags.Infix }
         let t = AST.Uninterpreted type_name
 
@@ -724,8 +728,9 @@ open Prime
                     let candidates_ma = Set.ofList (List.map (fun (m:AST.MacroDecl) -> m.Name) m.Macros)
                     let candidates_a = Set.ofList (List.map (fun (a:AST.ActionDecl) -> a.Name) m.Actions)
                     let candidates_mo = Set.ofList (List.map (fun ((str,_),_) -> str) (Map.toList tmp_elements.Modules))
+                    let candidates_i = Set.ofList (List.map (fun (i:InterpretedActionDecl) -> i.Name) m.InterpretedActions)
                     let resolve_arg_if_possible arg =
-                        let candidates = Set.unionMany [candidates_t;candidates_v;candidates_f;candidates_ma;candidates_a;candidates_mo]
+                        let candidates = Set.unionMany [candidates_t;candidates_v;candidates_f;candidates_ma;candidates_a;candidates_mo;candidates_i]
                         match Set.toList (resolve_reference_all candidates arg) with
                         | [arg] -> arg
                         | _ -> arg

@@ -3,28 +3,31 @@
     open AST
     open Trace
 
+    type ModuleDecl = ModuleDecl<Model.TypeInfos,Model.Environment>
+
     let rec trace_expression (m:ModuleDecl) infos (env:Model.Environment) e =
         let apply_op env es op =
             let trs = trace_expressions m infos env es
             let last_env = final_env_of_exprs trs env
-            let retval =
+            let (retval, last_env) =
                 if exprs_are_fully_evaluated trs
                 then
                     let rets = List.map ret_value_of_expr trs
-                    Some (op last_env rets)
-                else None
+                    let (last_env,retval) = op last_env rets
+                    (Some retval, last_env)
+                else (None, last_env)
             let red = (env, last_env, retval)
             (red, trs)
         let binary_op env e1 e2 op =
             let op _ lst =
                 let (a,b) = Helper.lst_to_couple lst
-                op a b
+                (env, op a b)
             let (red,lst) = apply_op env [e1;e2] op
             let (t1,t2) = Helper.lst_to_couple lst
             (red, t1, t2)
         let unary_op env e op =
             let op _ lst =
-                op (List.head lst)
+                (env, op (List.head lst))
             let (red,lst) = apply_op env [e] op
             (red, List.head lst)
         match e with
@@ -37,7 +40,7 @@
         | ExprFun (str, lst) ->
             let eval last_env cvs =
                 let cvs = List.map (fun cv -> ValueConst cv) cvs
-                Interpreter.evaluate_value m infos last_env (ValueFun (str, cvs))
+                (last_env,Interpreter.evaluate_value m infos last_env (ValueFun (str, cvs)))
             let (red, trs) = apply_op env lst eval
             TrExprFun (red, str, trs)
         | ExprMacro (str, lst) ->
@@ -70,6 +73,12 @@
             TrExprExists (red,d,v)
         | ExprImply (e1, e2) ->
             TrExprImply (binary_op env e1 e2 Interpreter.value_imply)
+        | ExprInterpreted (str, lst) ->
+            let ia = find_interpreted_action m str
+            let eval last_env cvs =
+                (env, ia.Effect infos last_env cvs)
+            let (red, trs) = apply_op env lst eval
+            TrExprInterpreted (red, str, trs)
 
     and trace_expressions (m:ModuleDecl) infos (env:Model.Environment) es =
         let aux trs e =

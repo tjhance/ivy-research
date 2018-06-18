@@ -14,6 +14,7 @@
     // TODO: Handle functions with an object as return value (case of instance a(X):b(Y))
     // For that, we can consider those functions an instance of the corresponding module,
     // with an additionals first parameters for every var/fun/action/etc (that corresponds the parameters of the initial function)
+    // TODO: non-deterministic stuff (like 'var a = *')
     // TODO: Axiom, isolate, inductive, export, extract, interpret, property...
     // TODO: Infer types for macro args (currently, type annotations is required)
 
@@ -83,6 +84,7 @@
         | ExprForall of VarDecl * Value
         | ExprExists of VarDecl * Value
         | ExprImply of Expression * Expression
+        | ExprInterpreted of string * List<Expression>
 
     type HoleExpression =
         | Hole of VarDecl
@@ -102,8 +104,12 @@
 
     type MacroDecl = { Name: string; Args: List<VarDecl>; Output: Type; Value: Value ; Representation: RepresentationInfos }
 
-    type ModuleDecl =
-        { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; Vars: List<VarDecl>;
+    [<NoEquality;NoComparison>]
+    type InterpretedActionDecl<'a,'b> = { Name: string; Args: List<Type>; Output: Type; Effect: 'a -> 'b -> List<ConstValue> -> ConstValue ; Representation: RepresentationInfos }
+
+    [<NoEquality;NoComparison>]
+    type ModuleDecl<'a,'b> =
+        { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; Vars: List<VarDecl>; InterpretedActions: List<InterpretedActionDecl<'a,'b>>;
             Actions: List<ActionDecl>; Macros: List<MacroDecl>; Invariants: List<Value>; Implications: List<ImplicationRule> }
 
 
@@ -117,6 +123,7 @@
             Macros=[];
             Invariants=[];
             Implications=[];
+            InterpretedActions=[];
         }
 
     // Utility functions
@@ -134,13 +141,13 @@
         | ConstBool _ -> Bool
         | ConstInt (s,_) -> Uninterpreted s
 
-    let find_function (m:ModuleDecl) str =
+    let find_function (m:ModuleDecl<'a,'b>) str =
         List.find (fun (decl:FunDecl) -> decl.Name = str) m.Funs
     
-    let find_variable (m:ModuleDecl) str =
+    let find_variable (m:ModuleDecl<'a,'b>) str =
         List.find (fun (decl:VarDecl) -> decl.Name = str) m.Vars
 
-    let rec find_action (m:ModuleDecl) str add_variants =
+    let rec find_action (m:ModuleDecl<'a,'b>) str add_variants =
         let action = List.find (fun (decl:ActionDecl) -> decl.Name = str) m.Actions
         if add_variants
         then
@@ -158,7 +165,10 @@
         else
             action
 
-    let find_macro (m:ModuleDecl) str =
+    let find_interpreted_action (m:ModuleDecl<'a,'b>) str =
+        List.find (fun (decl:InterpretedActionDecl<'a,'b>) -> decl.Name = str) m.InterpretedActions
+
+    let find_macro (m:ModuleDecl<'a,'b>) str =
         List.find (fun (decl:MacroDecl) -> decl.Name = str) m.Macros
 
     let default_var_decl name t =
@@ -198,7 +208,7 @@
         | ExprVar v -> ValueVar v
         | ExprFun (str,args) -> ValueFun (str, List.map expr_to_value args)
         | ExprMacro (str, args) -> ValueMacro (str, args)
-        | ExprAction _ -> failwith "Value expected, side-effects found!"
+        | ExprAction _ -> failwith "Value expected, action found!"
         | ExprEqual (e1, e2) -> ValueEqual (expr_to_value e1, expr_to_value e2)
         | ExprOr (e1, e2) -> ValueOr (expr_to_value e1, expr_to_value e2)
         | ExprAnd (e1, e2) -> ValueAnd (expr_to_value e1, expr_to_value e2)
@@ -207,3 +217,4 @@
         | ExprForall (d,v) -> ValueForall (d,v)
         | ExprExists (d,v) -> ValueExists (d,v)
         | ExprImply (e1, e2) -> ValueImply (expr_to_value e1, expr_to_value e2)
+        | ExprInterpreted _ -> failwith "Value expected, interpreted expression found!"

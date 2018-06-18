@@ -29,6 +29,8 @@
 
     type Declarations = { f : FunDecls; v : VarDecls; m : MacroDecls }
 
+    type ModuleDecl = ModuleDecl<TypeInfos,Environment>
+
     let declarations_of_module (md:ModuleDecl) =
         let aux acc (d:VarDecl) =
             Map.add d.Name d acc

@@ -67,6 +67,7 @@
     <Compile Include="..\InvariantSynthesis\Helper.fs" />
     <Compile Include="..\InvariantSynthesis\AST.fs" />
     <Compile Include="..\InvariantSynthesis\Model.fs" />
+    <Compile Include="..\InvariantSynthesis\InterpretedExpr.fs" />
     <Compile Include="..\InvariantSynthesis\Interpreter.fs" />
     <Compile Include="..\InvariantSynthesis\Synthesis.fs" />
     <Compile Include="..\InvariantSynthesis\Trace.fs" />

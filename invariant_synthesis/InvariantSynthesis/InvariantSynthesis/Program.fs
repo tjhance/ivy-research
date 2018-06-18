@@ -2,6 +2,8 @@
 open System
 open AST
 
+type ModuleDecl = ModuleDecl<Model.TypeInfos,Model.Environment>
+
 let read_until_line_jump () =
     let str = new StringBuilder()
     let line = ref "_"
@@ -28,7 +30,7 @@ let main argv =
             if str.EndsWith(".ivy")
             then str else ""
 
-    let md =
+    let (md:ModuleDecl) =
         if filename = ""
         then
             printfn "Loading hardcoded test module 'queue'..."

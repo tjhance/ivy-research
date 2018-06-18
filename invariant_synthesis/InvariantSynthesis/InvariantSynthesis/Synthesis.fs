@@ -317,6 +317,10 @@
                 config_union cfg cfg'
             else cfg
         | ExprImply (e1, e2) -> marks_before_expression mdecl infos env (ExprOr (ExprNot e1, e2)) cfg mark_value
+        | ExprInterpreted (_, es) ->
+            let (_, envs, _) = intermediate_environments mdecl infos env es
+            let args_marks = List.map (fun _ -> mark_value) es // We consider that every argument is important
+            marks_before_expressions mdecl infos envs (List.rev es) cfg args_marks
 
     // envs: the env before each expression
     and marks_before_expressions module_decl infos envs es cfg mark_values =

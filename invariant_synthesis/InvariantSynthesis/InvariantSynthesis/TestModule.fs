@@ -4,6 +4,8 @@
 
     module Queue =
 
+        type ModuleDecl = ModuleDecl<Model.TypeInfos,Model.Environment>
+
         // AST for ivy-research/queue/queue.ivy
 
         let name = "Queue"
@@ -128,7 +130,7 @@
             {
                 Name=name; Types=types; Funs=funs; Vars=vars;
                 Actions=actions; Macros=[]; Implications=impl;
-                Invariants=invariants
+                Invariants=invariants; InterpretedActions=[];
             }
 
 (*

@@ -2,6 +2,8 @@
 
     open AST
 
+    type ModuleDecl = ModuleDecl<Model.TypeInfos,Model.Environment>
+
     // Note: In synthesis.fs, operations like Set.contains or Set.remove doesn't take value_equal into account.
     let value_equal _ v1 v2 = v1=v2
 
@@ -33,6 +35,7 @@
         | ExprEqual _ | ExprOr _ | ExprAnd _ | ExprNot _ | ExprImply _
         | ExprForall _ | ExprExists _ -> Bool
         | ExprSomeElse (_,_,v) -> type_of_value m v dico
+        | ExprInterpreted (str, _) -> (find_interpreted_action m str).Output
 
     let type_of_hole_expr (m:ModuleDecl) hexpr dico =
         match hexpr with
@@ -60,7 +63,7 @@
         | ConstBool b1, ConstBool b2 -> ConstBool ((not b1) || b2)
         | _ -> raise TypeError
 
-    let expand_macro macro args =
+    let expand_macro (macro:MacroDecl) args =
         let dico = List.fold2 (fun acc (d:VarDecl) v -> Map.add d.Name v acc) Map.empty macro.Args args
         map_vars_in_value (macro.Value) dico
 
@@ -206,6 +209,9 @@
             let (env, v1) = evaluate_expression m infos env e1
             let (env, v2) = evaluate_expression m infos env e2
             (env, value_imply v1 v2)
+        | ExprInterpreted (str, lst) ->
+            let (env, lst) = evaluate_expressions m infos env lst
+            (env, (find_interpreted_action m str).Effect infos env lst)
 
     and evaluate_expressions (m:ModuleDecl) infos (env:Model.Environment) es =
         let aux (env, res) e =

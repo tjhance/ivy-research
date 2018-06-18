@@ -20,6 +20,7 @@
         | TrExprForall of RuntimeExprData * VarDecl * Value
         | TrExprExists of RuntimeExprData * VarDecl * Value
         | TrExprImply of RuntimeExprData * TrExpression * TrExpression
+        | TrExprInterpreted of RuntimeExprData * string * List<TrExpression>
         | TrExprNotEvaluated of RuntimeExprData
 
     and TrHoleExpression =
@@ -52,6 +53,7 @@
         | TrExprForall (red, _, _)
         | TrExprExists (red, _, _)
         | TrExprImply (red, _, _)
+        | TrExprInterpreted (red, _, _)
         | TrExprNotEvaluated red -> red
 
     let runtime_data_of_st s =
