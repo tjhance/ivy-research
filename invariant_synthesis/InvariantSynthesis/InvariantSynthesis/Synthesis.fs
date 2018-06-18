@@ -168,6 +168,12 @@
             marks_for_value mdecl infos env uvar (ValueNot (ValueForall (decl, ValueNot v)))
         | ValueImply (v1, v2) ->
             marks_for_value mdecl infos env uvar (ValueOr (ValueNot v1, v2))
+        | ValueInterpreted (str, vs) ->
+            let res = List.map (marks_for_value mdecl infos env uvar) vs
+            let (cvs, cfgs) = List.unzip res
+            let cfg = config_union_many cfgs
+            let eval = (find_interpreted_action mdecl str).Effect infos env cvs
+            (eval, cfg)
 
     and marks_for_value_with mdecl infos (env:Model.Environment) uvar v names values =
         let v' = List.fold2 (fun acc n v -> Map.add n v acc) env.v names values

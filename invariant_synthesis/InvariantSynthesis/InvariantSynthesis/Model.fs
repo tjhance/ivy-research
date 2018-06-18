@@ -23,13 +23,16 @@
 
     type Environment = { f : FunEnv; v : VarEnv }
 
+    type ModuleDecl = ModuleDecl<TypeInfos,Environment>
+    type InterpretedActionDecl = InterpretedActionDecl<TypeInfos,Environment>
+
     type VarDecls = Map<string, VarDecl>
     type FunDecls = Map<string, FunDecl>
     type MacroDecls = Map<string, MacroDecl>
-
-    type Declarations = { f : FunDecls; v : VarDecls; m : MacroDecls }
-
-    type ModuleDecl = ModuleDecl<TypeInfos,Environment>
+    type InterpretedDecls = Map<string, InterpretedActionDecl>
+    
+    [<NoEquality;NoComparison>]
+    type Declarations = { f : FunDecls; v : VarDecls; m : MacroDecls; i : InterpretedDecls; }
 
     let declarations_of_module (md:ModuleDecl) =
         let aux acc (d:VarDecl) =
@@ -41,7 +44,10 @@
         let aux acc (d:MacroDecl) =
             Map.add d.Name d acc
         let macros = List.fold aux Map.empty md.Macros
-        { f = funs; v = vars; m = macros }
+        let aux acc (d:InterpretedActionDecl) =
+            Map.add d.Name d acc
+        let interp = List.fold aux Map.empty md.InterpretedActions
+        { f = funs; v = vars; m = macros ; i = interp }
 
     let add_var_declaration (d:VarDecl) (ds:Declarations) =
         { ds with v=Map.add d.Name d ds.v }

@@ -40,12 +40,9 @@ object incrementable = {
 	definition succ(X,Y) = (Y = X + 1)
 
         implement next {
-			# assume input + 1 > input ;
-            # output := input + 1;
-			if some x. succ(input,x)
-			{
-				output := x;
-			};
+			assume input + 1 > input ;
+            output := input + 1;
+			assert succ(input,output);
         }
     }
 }

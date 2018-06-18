@@ -2,6 +2,7 @@
 
     (* A VERY BASIC AST FOR IVY *)
 
+    // TODO: treat differently 'assume', 'assert', 'require' and 'ensure'
     // TODO: synthesis:ad.diff should be proper to m or um
     // TODO: use a "minimal AST" for interpreter/synthesis instead of this complex AST
 
@@ -19,8 +20,7 @@
     // TODO: Infer types for macro args (currently, type annotations is required)
 
     // TODO: Find a way to add implication rules when parsing
-    // TODO: Use model checking tool to know whether 2steps synthesis is needed?
-    // TODO: OR Use an automated method: computing weakest precondition (wp) and finding
+    // TODO: Use an automated method: computing weakest precondition (wp) and finding
     // a finite model for (wp AND NOT new_strong_invariant). Having the same args
     // for the action should also be imposed in order to have a comparable environment.
 
@@ -68,6 +68,7 @@
         | ValueForall of VarDecl * Value
         | ValueExists of VarDecl * Value
         | ValueImply of Value * Value
+        | ValueInterpreted of string * List<Value>
 
     (* With side effects *)
     type Expression =
@@ -201,6 +202,8 @@
             ValueExists (d, map_vars_in_value v dico)
         | ValueImply (v1, v2) ->
             ValueImply (map_vars_in_value v1 dico, map_vars_in_value v2 dico)
+        | ValueInterpreted (str, vs) ->
+            ValueInterpreted (str, List.map (fun v -> map_vars_in_value v dico) vs)
 
     let rec expr_to_value expr =
         match expr with
@@ -217,4 +220,4 @@
         | ExprForall (d,v) -> ValueForall (d,v)
         | ExprExists (d,v) -> ValueExists (d,v)
         | ExprImply (e1, e2) -> ValueImply (expr_to_value e1, expr_to_value e2)
-        | ExprInterpreted _ -> failwith "Value expected, interpreted expression found!"
+        | ExprInterpreted (str, args) -> ValueInterpreted (str, List.map expr_to_value args)

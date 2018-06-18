@@ -73,6 +73,12 @@
                 fun_macro_to_string str vs d.Representation
             with :? System.Collections.Generic.KeyNotFoundException ->
                 sprintf "%s%s" str (list_to_args_str (List.map (fun v -> value_to_string decls v 0) vs))
+        | ValueInterpreted (str, vs) ->
+            try
+                let d = Map.find str decls.i
+                fun_macro_to_string str vs d.Representation
+            with :? System.Collections.Generic.KeyNotFoundException ->
+                sprintf "%s%s" str (list_to_args_str (List.map (fun v -> value_to_string decls v 0) vs))
         | ValueEqual (v1, v2) ->
             let str = sprintf "%s = %s" (value_to_string decls v1 5) (value_to_string decls v2 5)
             add_parenthesis_if_needed str 5 prec

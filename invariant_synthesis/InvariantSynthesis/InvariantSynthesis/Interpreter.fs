@@ -21,6 +21,7 @@
         | ValueEqual _ | ValueOr _ | ValueAnd _ | ValueNot _ | ValueImply _
         | ValueForall _ | ValueExists _ -> Bool
         | ValueSomeElse (_,_,v) -> type_of_value m v dico
+        | ValueInterpreted (str, _) -> (find_interpreted_action m str).Output
 
     let type_of_expr (m:ModuleDecl) expr dico =
         match expr with
@@ -111,6 +112,9 @@
             ConstBool (Seq.exists (fun cv -> eval_value_with m infos env v [d.Name] [cv] = ConstBool true) possible_values)
         | ValueImply (v1,v2) ->
             evaluate_value m infos env (ValueOr (ValueNot v1, v2))
+        | ValueInterpreted (str, vs) ->
+            let lst = List.map (evaluate_value m infos env) vs
+            (find_interpreted_action m str).Effect infos env lst
 
     and eval_value_with (m:ModuleDecl) infos (env:Model.Environment) v names values =
         let v' = List.fold2 (fun acc n v -> Map.add n v acc) env.v names values
