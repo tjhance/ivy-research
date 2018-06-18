@@ -60,6 +60,7 @@ and module_decl = string * string list * parsed_element list [@@deriving sexp]
 
 and parsed_element =
     | Type of type_decl
+    | Interpret of string * string
     | Function of fun_decl
     | Variable of var_decl
     | Macro of string * var_decl list * parsed_expression * bool (* Infix? *)

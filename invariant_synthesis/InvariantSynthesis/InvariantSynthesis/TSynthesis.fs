@@ -152,7 +152,7 @@
             let tr_not_e1 = TrExprNot ((env1,env1',Option.map Interpreter.value_not v1), tr_e1)
             let tr_or = TrExprOr ((env, env', cv), tr_not_e1, tr_e2)
             marks_before_expression mdecl infos tr_or cfg mark_value
-        | TrExprInterpreted ((_,env',v), str, tr_es) ->
+        | TrExprInterpreted ((_,_,v), _, tr_es) ->
             let (cfg, args_mark) =
                 if mark_value && v <> None
                 then (cfg, true) else (cfg, false)

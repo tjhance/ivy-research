@@ -53,6 +53,7 @@ open Prime
 
     and parsed_element =
         | Type of type_decl
+        | Interpret of string * string
         | Function of fun_decl
         | Variable of var_decl
         | Macro of string * var_decl list * parsed_expression * bool (* Infix? *)
@@ -149,6 +150,7 @@ open Prime
         let rec rewrite_element dico elt =
             match elt with
             | Type str -> test dico str ; Type str
+            | Interpret (t,str) -> Interpret (rewrite dico t, str)
             | Function (str, args, ret_t, b) ->
                 test dico str
                 Function (str, List.map (rewrite_t dico) args, rewrite_t dico ret_t, b)
@@ -654,6 +656,18 @@ open Prime
                     let name = compose_name base_name name
                     let m = { m with AST.Types=({ AST.Name = name }::m.Types) }
                     (add_predefined_functions_and_macros name m, tmp_elements)
+                | Interpret (t, str) ->
+                    match str with
+                    | "int" ->
+                        let t = resolve_type_reference m base_name t
+                        let name = compose_name t "+"
+                        let rep = { AST.RepresentationInfos.DisplayName = Some "+" ; AST.RepresentationInfos.Flags = Set.singleton AST.RepresentationFlags.Infix }
+                        let args = [AST.Uninterpreted t ; AST.Uninterpreted t]
+                        let ia =
+                            { AST.InterpretedActionDecl.Name = name ; AST.InterpretedActionDecl.Representation = rep ; AST.InterpretedActionDecl.Effect = InterpretedExpr.int_addition ;
+                            AST.InterpretedActionDecl.Args = args ; AST.InterpretedActionDecl.Output = AST.Uninterpreted t }
+                        ({ m with InterpretedActions=ia::m.InterpretedActions }, tmp_elements)
+                    | _ -> printfn "Ignored interpret %s -> %s" name str ; (m, tmp_elements)
                 | Function (name,args,ret,infix) ->
                     if is_predefined_function_or_macro name
                     then (m, tmp_elements)

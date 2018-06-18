@@ -7,7 +7,7 @@ exception SyntaxError of string
 
 let white = [' ' '\t']+
 let newline = '\r' | '\n' | "\r\n"
-let comment = '#' | "axiom" | "isolate" | "inductive" | "export" | "extract" | "interpret" | "property"
+let comment = '#' | "axiom" | "isolate" | "inductive" | "export" | "extract" | "property"
 let int = '-'? ['0'-'9'] ['0'-'9']*
 let qvar_id = ['A'-'Z']+
 let id =
@@ -51,6 +51,7 @@ rule read ignore_nls =
   | "before" { BEFORE }
   | "definition" { DEFINITION }
   | "derived" { DEFINITION }
+  | "interpret" { INTERPRET }
   | "~="     { DIFFERENT }
   | "->"     { RIGHT_ARROW }
   | ":="     { ASSIGN }

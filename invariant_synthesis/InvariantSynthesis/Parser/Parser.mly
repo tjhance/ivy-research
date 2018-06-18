@@ -8,7 +8,7 @@
 %}
 
 %token CONJECTURE TYPE ACTION RETURNS INDIVIDUAL FUNCTION RELATION MODULE OBJECT INSTANCE
-%token AFTER BEFORE DEFINITION INSTANTIATE IMPLEMENT
+%token AFTER BEFORE DEFINITION INSTANTIATE IMPLEMENT INTERPRET
 
 %token SEMI_COLON LEFT_BRACE RIGHT_BRACE
 %token ASSIGN CALL IF ASSERT VAR
@@ -75,6 +75,7 @@ elements:
 
 element:
   | TYPE ; name = ID { Type name }
+  | INTERPRET ; t = ID ; RIGHT_ARROW ; str = ID { Interpret (t, str) }
   | INDIVIDUAL ; d = decl { Variable d }
   | FUNCTION ; name = ID ; LEFT_PARENTHESIS ; ds = qvar_decls; RIGHT_PARENTHESIS ; COLON ; t = ivy_type { Function(name, type_of_decls(ds), t, false) }
   | FUNCTION ; LEFT_PARENTHESIS ; d1 = qvar_decl ; name = INFIX_FUN_ID ; d2 = qvar_decl ; RIGHT_PARENTHESIS ; COLON ; t = ivy_type { Function(name, type_of_decls([d1;d2]), t, true) }
