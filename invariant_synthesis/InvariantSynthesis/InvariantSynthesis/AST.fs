@@ -2,6 +2,7 @@
 
     (* A VERY BASIC AST FOR IVY *)
 
+    // TODO: Find a way to add implication rules when parsing
     // TODO: treat differently 'assume', 'assert', 'require' and 'ensure'
     // TODO: synthesis:ad.diff should be proper to m or um
     // TODO: use a "minimal AST" for interpreter/synthesis instead of this complex AST
@@ -19,10 +20,8 @@
     // TODO: Axiom, isolate, inductive, export, extract, interpret, property...
     // TODO: Infer types for macro args (currently, type annotations is required)
 
-    // TODO: Find a way to add implication rules when parsing
     // TODO: Use an automated method: computing weakest precondition (wp) and finding
-    // a finite model for (wp AND NOT new_strong_invariant). Having the same args
-    // for the action should also be imposed in order to have a comparable environment.
+    // a finite model for (wp AND NOT new_strong_invariant).
 
     type Type =
         | Void
