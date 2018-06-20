@@ -1,116 +1,47 @@
 ﻿module Trace
 
-    open AST
+    open MinimalAST
     open Model
 
-    type RuntimeStData = Environment * Environment * bool
-    type RuntimeExprData = Environment * Environment * ConstValue option
+    type RuntimeData = Environment * Environment * bool // Env before, env after, successfully executed
 
-    type TrExpression =
-        | TrExprConst of RuntimeExprData * ConstValue
-        | TrExprVar of RuntimeExprData * string
-        | TrExprFun of RuntimeExprData * string * List<TrExpression>
-        | TrExprMacro of RuntimeExprData * string * List<Value>
-        | TrExprAction of RuntimeExprData * List<VarDecl> * VarDecl * List<TrExpression> * TrStatement
-        | TrExprEqual of RuntimeExprData * TrExpression * TrExpression
-        | TrExprOr of RuntimeExprData * TrExpression * TrExpression
-        | TrExprAnd of RuntimeExprData * TrExpression * TrExpression
-        | TrExprNot of RuntimeExprData * TrExpression
-        | TrExprSomeElse of RuntimeExprData * Option<ConstValue> * VarDecl * Value * Value
-        | TrExprForall of RuntimeExprData * VarDecl * Value
-        | TrExprExists of RuntimeExprData * VarDecl * Value
-        | TrExprImply of RuntimeExprData * TrExpression * TrExpression
-        | TrExprInterpreted of RuntimeExprData * string * List<TrExpression>
-        | TrExprNotEvaluated of RuntimeExprData
+    type TrStatement =
+        | TrNewBlock of RuntimeData * List<VarDecl> * List<TrStatement>
+        | TrVarAssign of RuntimeData * string * Value
+        | TrVarAssignAction of
+            RuntimeData * Option<ConstValue> * string * List<VarDecl> * VarDecl * List<Value> * TrStatement
+        | TrFunAssign of RuntimeData * string * List<HoleValue> * Value
+        | TrIfElse of RuntimeData * Value * TrStatement
+        | TrIfSomeElse of RuntimeData * Option<ConstValue> * VarDecl * Value * TrStatement
+        | TrAssert of RuntimeData * Value
 
-    and TrHoleExpression =
-        | TrHole of VarDecl
-        | TrExpr of TrExpression
-
-    and TrStatement =
-        | TrNewBlock of RuntimeStData * List<VarDecl> * List<TrStatement>
-        | TrExpression of RuntimeStData * TrExpression
-        | TrVarAssign of RuntimeStData * string * TrExpression
-        | TrFunAssign of RuntimeStData * string * List<TrExpression> * TrExpression
-        | TrForallFunAssign of RuntimeStData * string * List<TrHoleExpression> * Value
-        | TrIfElse of RuntimeStData * TrExpression * TrStatement
-        | TrIfSomeElse of RuntimeStData * Option<ConstValue> * VarDecl * Value * TrStatement
-        | TrAssert of RuntimeStData * Value
-        | TrNotEvaluated of RuntimeStData
-
-    let runtime_data_of_expr expr =
-        match expr with
-        | TrExprConst (red,_)
-        | TrExprVar (red,_)
-        | TrExprFun (red,_,_)
-        | TrExprMacro (red,_,_)
-        | TrExprAction (red,_,_,_,_)
-        | TrExprEqual (red,_,_)
-        | TrExprOr (red,_,_)
-        | TrExprAnd (red,_,_)
-        | TrExprNot (red,_)
-        | TrExprSomeElse (red,_,_,_,_)
-        | TrExprForall (red, _, _)
-        | TrExprExists (red, _, _)
-        | TrExprImply (red, _, _)
-        | TrExprInterpreted (red, _, _)
-        | TrExprNotEvaluated red -> red
-
-    let runtime_data_of_st s =
+    let runtime_data s =
         match s with
-        | TrNewBlock (red,_,_)
-        | TrExpression (red,_)
-        | TrVarAssign (red,_,_)
-        | TrFunAssign (red,_,_,_)
-        | TrForallFunAssign (red,_,_,_)
-        | TrIfElse (red,_,_)
-        | TrIfSomeElse (red,_,_,_,_)
-        | TrAssert (red,_)
-        | TrNotEvaluated red -> red
+        | TrNewBlock (rd,_,_)
+        | TrVarAssign (rd,_,_)
+        | TrVarAssignAction (rd,_,_,_,_,_,_)
+        | TrFunAssign (rd,_,_,_)
+        | TrIfElse (rd,_,_)
+        | TrIfSomeElse (rd,_,_,_,_)
+        | TrAssert (rd,_) -> rd
 
-    let st_is_fully_executed s =
-        let (_,_,b) = runtime_data_of_st s
+    let is_fully_executed st =
+        let (_,_,b) = runtime_data st
         b
 
-    let expr_is_fully_evaluated expr =
-        let (_,_,v) = runtime_data_of_expr expr
-        v <> None
+    let are_fully_executed sts =
+        List.forall is_fully_executed sts
 
-    let exprs_are_fully_evaluated exprs =
-        List.forall expr_is_fully_evaluated exprs
-
-    let sts_are_fully_executed sts =
-        List.forall st_is_fully_executed sts
-
-    let final_env_of_expr expr =
-        let (_,env,_) = runtime_data_of_expr expr
+    let final_env st =
+        let (_,env,_) = runtime_data st
         env
-
-    let final_env_of_st st =
-        let (_,env,_) = runtime_data_of_st st
-        env
-
-    let final_env_of_exprs exprs initial_env =
-        let aux _ e =
-            final_env_of_expr e
-        List.fold aux initial_env exprs
 
     let final_env_of_sts sts initial_env =
         let aux _ s =
-            final_env_of_st s
+            final_env s
         List.fold aux initial_env sts
 
-    let initial_env_of_expr expr =
-        let (env,_,_) = runtime_data_of_expr expr
+    let initial_env st =
+        let (env,_,_) = runtime_data st
         env
-
-    let initial_env_of_st st =
-        let (env,_,_) = runtime_data_of_st st
-        env
-
-    exception NotFullyEvaluated
-    let ret_value_of_expr expr =
-        match runtime_data_of_expr expr with
-        | (_,_,None) -> raise NotFullyEvaluated
-        | (_,_,Some ret) -> ret
     

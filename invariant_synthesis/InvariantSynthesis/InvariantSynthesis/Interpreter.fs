@@ -1,34 +1,24 @@
 ﻿module Interpreter
 
-    open AST
+    open MinimalAST
 
     type ModuleDecl = ModuleDecl<Model.TypeInfos,Model.Environment>
 
     exception TypeError
     let value_or v1 v2 =
         match v1, v2 with
-        | ConstBool b1, ConstBool b2 -> ConstBool (b1 || b2)
-        | _ -> raise TypeError
-
-    let value_and v1 v2 =
-        match v1, v2 with
-        | ConstBool b1, ConstBool b2 -> ConstBool (b1 && b2)
+        | AST.ConstBool b1, AST.ConstBool b2 -> AST.ConstBool (b1 || b2)
         | _ -> raise TypeError
 
     let value_not v =
         match v with
-        | ConstBool b -> ConstBool (not b)
-        | _ -> raise TypeError
-
-    let value_imply v1 v2 =
-        match v1, v2 with
-        | ConstBool b1, ConstBool b2 -> ConstBool ((not b1) || b2)
+        | AST.ConstBool b -> AST.ConstBool (not b)
         | _ -> raise TypeError
 
     let rec if_some_value (m:ModuleDecl) infos (env:Model.Environment) (decl:VarDecl) v : option<ConstValue> =
         let possible_values = Model.all_values infos (decl.Type)
         try
-            Some (Seq.find (fun cv -> eval_value_with m infos env v [decl.Name] [cv] = ConstBool true) possible_values)
+            Some (Seq.find (fun cv -> eval_value_with m infos env v [decl.Name] [cv] = AST.ConstBool true) possible_values)
         with :? System.Collections.Generic.KeyNotFoundException -> None
 
     and evaluate_value (m:ModuleDecl) infos (env:Model.Environment) v =
@@ -38,22 +28,14 @@
         | ValueFun (str, lst) ->
             let lst = List.map (evaluate_value m infos env) lst
             Map.find (str, lst) env.f
-        | ValueMacro (str, lst) -> // For now, we don't check the types
-            let macro = find_macro m str
-            let v = expand_macro macro lst
-            evaluate_value m infos env v
         | ValueEqual (v1, v2) ->
             let cv1 = evaluate_value m infos env v1
             let cv2 = evaluate_value m infos env v2
-            ConstBool (value_equal env cv1 cv2)
+            AST.ConstBool (AST.value_equal env cv1 cv2)
         | ValueOr (v1, v2) -> 
             let cv1 = evaluate_value m infos env v1
             let cv2 = evaluate_value m infos env v2
             value_or cv1 cv2
-        | ValueAnd (v1, v2) -> 
-            let cv1 = evaluate_value m infos env v1
-            let cv2 = evaluate_value m infos env v2
-            value_and cv1 cv2
         | ValueNot v -> 
             let cv = evaluate_value m infos env v
             value_not cv
@@ -63,12 +45,7 @@
             | None -> evaluate_value m infos env v
         | ValueForall (d,v) ->
             let possible_values = Model.all_values infos d.Type
-            ConstBool (Seq.forall (fun cv -> eval_value_with m infos env v [d.Name] [cv] = ConstBool true) possible_values)
-        | ValueExists (d,v) ->
-            let possible_values = Model.all_values infos d.Type
-            ConstBool (Seq.exists (fun cv -> eval_value_with m infos env v [d.Name] [cv] = ConstBool true) possible_values)
-        | ValueImply (v1,v2) ->
-            evaluate_value m infos env (ValueOr (ValueNot v1, v2))
+            AST.ConstBool (Seq.forall (fun cv -> eval_value_with m infos env v [d.Name] [cv] = AST.ConstBool true) possible_values)
         | ValueInterpreted (str, vs) ->
             let lst = List.map (evaluate_value m infos env) vs
             (find_interpreted_action m str).Effect infos env lst
@@ -76,6 +53,9 @@
     and eval_value_with (m:ModuleDecl) infos (env:Model.Environment) v names values =
         let v' = List.fold2 (fun acc n v -> Map.add n v acc) env.v names values
         evaluate_value m infos { env with v=v' } v
+
+    let evaluate_values (m:ModuleDecl) infos (env:Model.Environment) vs =
+        List.map (evaluate_value m infos env) vs
 
     exception AssertionFailed of Model.Environment * Value
 
@@ -93,93 +73,32 @@
             | Some e -> Map.add decl.Name e acc
         { env with v=List.fold rollback env.v lvars }
 
-    let rec reconstruct_hexpression hes vs uvs =
-        match hes with
+    let rec reconstruct_hvals hvs vs uvs =
+        match hvs with
         | [] -> []
-        | (Hole _)::hes -> (List.head uvs)::(reconstruct_hexpression hes vs (List.tail uvs))
-        | (Expr _)::hes -> (List.head vs)::(reconstruct_hexpression hes (List.tail vs) uvs)
+        | (Hole _)::hes -> (List.head uvs)::(reconstruct_hvals hes vs (List.tail uvs))
+        | (Val _)::hes -> (List.head vs)::(reconstruct_hvals hes (List.tail vs) uvs)
 
-    let rec reconstruct_hexpression_opt hes vs =
-        match hes with
-        | [] -> []
-        | (Hole _)::hes -> None::(reconstruct_hexpression_opt hes vs)
-        | (Expr _)::hes -> (Some (List.head vs))::(reconstruct_hexpression_opt hes (List.tail vs))
-
-    let rec reconstruct_hexpression_opt2 hes vs =
-        match hes with
-        | [] -> []
-        | (Hole _)::hes -> None::(reconstruct_hexpression_opt2 hes vs)
-        | (Expr _)::hes -> (List.head vs)::(reconstruct_hexpression_opt2 hes (List.tail vs))
-
-    let separate_hexpression hes =
-        // Fixed expressions
-        let exprs = List.filter (fun he -> match he with Hole _ -> false | Expr _ -> true) hes
-        let exprs = List.map (fun he -> match he with Hole _ -> failwith "" | Expr e -> e) exprs
+    let separate_hvals hvs =
+        // Fixed values
+        let vs = List.filter (fun hv -> match hv with Hole _ -> false | Val _ -> true) hvs
+        let vs = List.map (fun hv -> match hv with Hole _ -> failwith "" | Val v -> v) vs
         // Universally quantified vars
-        let uvars = List.filter (fun he -> match he with Hole _ -> true | Expr _ -> false) hes
-        let uvars = List.map (fun he -> match he with Hole d -> d | Expr _ -> failwith "") uvars
-        (exprs, uvars)
+        let uvs = List.filter (fun hv -> match hv with Hole _ -> true | Val _ -> false) hvs
+        let uvs = List.map (fun hv -> match hv with Hole d -> d | Val _ -> failwith "") uvs
+        (vs, uvs)
 
-    let rec keep_only_expr_hexpression hes res =
-        match hes with
+    let rec keep_only_vals hvs res =
+        match hvs with
         | [] -> []
-        | (Hole _)::hes -> keep_only_expr_hexpression hes (List.tail res)
-        | (Expr _)::hes -> (List.head res)::(keep_only_expr_hexpression hes (List.tail res))
+        | (Hole _)::hvs -> keep_only_vals hvs (List.tail res)
+        | (Val _)::hvs -> (List.head res)::(keep_only_vals hvs (List.tail res))
 
-    let rec keep_only_hole_hexpression hes res =
-        match hes with
+    let rec keep_only_holes hvs res =
+        match hvs with
         | [] -> []
-        | (Hole _)::hes -> (List.head res)::(keep_only_hole_hexpression hes (List.tail res))
-        | (Expr _)::hes -> keep_only_hole_hexpression hes (List.tail res)
-
-    let rec evaluate_expression (m:ModuleDecl) infos (env:Model.Environment) e =
-        match e with
-        | ExprConst cv -> (env, cv)
-        | ExprVar v -> (env, evaluate_value m infos env (ValueVar v))
-        | ExprFun (str, lst) ->
-            let (env, lst) = evaluate_expressions m infos env lst
-            let lst = List.map (fun cv -> ValueConst cv) lst
-            (env, evaluate_value m infos env (ValueFun (str, lst)))
-        | ExprMacro (str, lst) ->
-            (env, evaluate_value m infos env (ValueMacro (str, lst)))
-        | ExprAction (str, lst) ->
-            let (env, lst) = evaluate_expressions m infos env lst
-            execute_action m infos env str lst
-        | ExprEqual (e1, e2) ->
-            let (env, v1) = evaluate_expression m infos env e1
-            let (env, v2) = evaluate_expression m infos env e2
-            (env, ConstBool (value_equal env v1 v2))
-        | ExprOr (e1, e2) -> 
-            let (env, v1) = evaluate_expression m infos env e1
-            let (env, v2) = evaluate_expression m infos env e2
-            (env, value_or v1 v2)
-        | ExprAnd (e1, e2) -> 
-            let (env, v1) = evaluate_expression m infos env e1
-            let (env, v2) = evaluate_expression m infos env e2
-            (env, value_and v1 v2)
-        | ExprNot e -> 
-            let (env, v) = evaluate_expression m infos env e
-            (env, value_not v)
-        | ExprSomeElse (d,v,e) ->
-            (env, evaluate_value m infos env (ValueSomeElse (d,v,e)))
-        | ExprForall (d,v) ->
-            (env, evaluate_value m infos env (ValueForall (d,v)))
-        | ExprExists (d,v) ->
-            (env, evaluate_value m infos env (ValueExists (d,v)))
-        | ExprImply (e1, e2) -> 
-            let (env, v1) = evaluate_expression m infos env e1
-            let (env, v2) = evaluate_expression m infos env e2
-            (env, value_imply v1 v2)
-        | ExprInterpreted (str, lst) ->
-            let (env, lst) = evaluate_expressions m infos env lst
-            (env, (find_interpreted_action m str).Effect infos env lst)
-
-    and evaluate_expressions (m:ModuleDecl) infos (env:Model.Environment) es =
-        let aux (env, res) e =
-            let (env, v) = evaluate_expression m infos env e
-            (env, v::res)
-        let (env, res) = List.fold aux (env, []) es
-        (env, List.rev res)
+        | (Hole _)::hvs -> (List.head res)::(keep_only_holes hvs (List.tail res))
+        | (Val _)::hvs -> keep_only_holes hvs (List.tail res)
 
     and execute_statement (m:ModuleDecl) infos (env:Model.Environment) s : Model.Environment =
         match s with
@@ -187,35 +106,31 @@
             let env' = enter_new_block infos env decls (List.map (fun _ -> None) decls)
             let env' = execute_statements m infos env' ss
             leave_block infos env' decls env
-        | Expression e ->
-            let (env, _) = evaluate_expression m infos env e
-            env
-        | VarAssign (str, e) -> // For now, we don't check the types
-            let (env, res) = evaluate_expression m infos env e
-            let v' = Map.add str res env.v
+        | VarAssign (str, v) -> // For now, we don't check the types
+            let v' = Map.add str (evaluate_value m infos env v) env.v
             { env with v=v' }
-        | FunAssign (str, lst, e) -> // For now, we don't check the types
-            let (env, lst) = evaluate_expressions m infos env lst
-            let (env, res) = evaluate_expression m infos env e
-            let f' = Map.add (str, lst) res env.f
-            { env with f=f' }
-        | ForallFunAssign (str, hes, v) -> // For now, we don't check the types
-            let compute_value_for (env:Model.Environment) exprs uvars acc inst =
-                let value = eval_value_with m infos env v (List.map (fun (v:VarDecl) -> v.Name) uvars) inst
-                let args = reconstruct_hexpression hes exprs inst
+        | VarAssignAction (var, action, vs) ->
+            let cvs = List.map (evaluate_value m infos env) vs
+            let (env,cv) = execute_action m infos env action cvs
+            execute_statement m infos env (VarAssign (var, ValueConst cv))
+        | FunAssign (str, hvs, v) -> // For now, we don't check the types
+            let compute_value_for (env:Model.Environment) vs uvs acc inst =
+                let value = eval_value_with m infos env v (List.map (fun (v:VarDecl) -> v.Name) uvs) inst
+                let args = reconstruct_hvals hvs vs inst
                 Map.add (str,args) value acc
-            let (exprs, uvars) = separate_hexpression hes
-            let (env, exprs) = evaluate_expressions m infos env exprs
-            let possibilities = List.map (fun d -> d.Type) uvars
+            let (vs, uvs) = separate_hvals hvs
+            let cvs = evaluate_values m infos env vs
+            let possibilities = List.map (fun (d:VarDecl) -> d.Type) uvs
             let possibilities = Model.all_values_ext infos possibilities
-            let res = Seq.fold (compute_value_for env exprs uvars) Map.empty possibilities
+            let res = Seq.fold (compute_value_for env cvs uvs) Map.empty possibilities
             let f' = Map.fold (fun acc k v -> Map.add k v acc) env.f res
             { env with f=f' }
-        | IfElse (e, sif, selse) ->
-            let (env, v) = evaluate_expression m infos env e
-            match v with
-            | ConstBool true -> execute_statement m infos env sif
-            | ConstBool false | _ -> execute_statement m infos env selse
+        | IfElse (v, sif, selse) ->
+            let cv = evaluate_value m infos env v
+            match cv with
+            | AST.ConstBool true -> execute_statement m infos env sif
+            | AST.ConstBool false -> execute_statement m infos env selse
+            | _ -> failwith "If condition is not a boolean value!"
         | IfSomeElse (decl, v, sif, selse) ->
             match if_some_value m infos env decl v with
             | Some value ->
@@ -225,13 +140,11 @@
             | None ->
                 execute_statement m infos env selse
         | Assert v ->
-            if evaluate_value m infos env v = ConstBool true then env
-            else raise (AssertionFailed (env, v))
+            if evaluate_value m infos env v = AST.ConstBool true
+            then env else raise (AssertionFailed (env, v))
 
     and execute_statements (m:ModuleDecl) infos (env:Model.Environment) ss =
-        let aux env s =
-            execute_statement m infos env s
-        List.fold aux env ss
+        List.fold (execute_statement m infos) env ss
     
     and execute_inline_action infos (env:Model.Environment) input output (effect:Model.Environment->Model.Environment) args =
         let env' = enter_new_block infos env (output::input) (None::(List.map (fun a -> Some a) args))

@@ -45,6 +45,37 @@ open FParsec
         { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; Vars: List<VarDecl>; InterpretedActions: List<InterpretedActionDecl<'a,'b>>;
             Actions: List<ActionDecl>; Invariants: List<Value>; Implications: List<ImplicationRule> }
 
+    // Utility functions
+
+    let find_function (m:ModuleDecl<'a,'b>) str =
+        List.find (fun (decl:FunDecl) -> decl.Name = str) m.Funs
+    
+    let find_variable (m:ModuleDecl<'a,'b>) str =
+        List.find (fun (decl:VarDecl) -> decl.Name = str) m.Vars
+
+    let rec find_action (m:ModuleDecl<'a,'b>) str add_variants =
+        let action = List.find (fun (decl:ActionDecl) -> decl.Name = str) m.Actions
+        if add_variants
+        then
+            let action =
+                try
+                    let before = find_action m (AST.variant_action_name str "before") add_variants
+                    { action with Content=NewBlock([],[before.Content;action.Content]) }
+                with :? System.Collections.Generic.KeyNotFoundException -> action
+            let action =
+                try
+                    let after = find_action m (AST.variant_action_name str "after") add_variants
+                    { action with Content=NewBlock([],[action.Content;after.Content]) }
+                with :? System.Collections.Generic.KeyNotFoundException -> action
+            action
+        else
+            action
+
+    let find_interpreted_action (m:ModuleDecl<'a,'b>) str =
+        List.find (fun (decl:InterpretedActionDecl<'a,'b>) -> decl.Name = str) m.InterpretedActions
+
+    // Conversion functions
+
     let value2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) (v:AST.Value) =
         let rec aux v =
             match v with
@@ -165,12 +196,9 @@ open FParsec
                 let (nds, sts) = List.unzip (List.map aux sts)
                 ([], [NewBlock (List.concat (ds::nds), List.concat sts)])
             | AST.Expression e ->
-                let t = AST.type_of_expr m e Map.empty
-                let tmp_d = AST.default_var_decl (new_tmp_var ()) t
-                let (ds, v) = expr2minimal m e
+                let (ds, _) = expr2minimal m e
                 let (ds, sts) = vaas2sts ds
-                let st = VarAssign (tmp_d.Name, v)
-                (ds@[tmp_d], sts@[st])
+                (ds, sts)
             | AST.VarAssign (str, e) ->
                 let (ds, v) = expr2minimal m e
                 let (ds, sts) = vaas2sts ds

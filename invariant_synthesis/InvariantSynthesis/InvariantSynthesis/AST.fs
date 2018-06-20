@@ -2,10 +2,11 @@
 
     (* A VERY BASIC AST FOR IVY *)
 
+    // TODO: use a "minimal AST" for interpreter/synthesis instead of this complex AST
+    // TODO: only use trace analysis (remove the former version)
+    // TODO: Improvement of the synthesis: for fun marks in um, remember which parameters are universally quantified (this info can be used in FunAssign analysis)
     // TODO: Find a way to add implication rules when parsing
     // TODO: treat differently 'assume', 'assert', 'require' and 'ensure'
-    // TODO: use a "minimal AST" for interpreter/synthesis instead of this complex AST
-    // TODO: Improvement of the synthesis: for fun marks in um, remember which parameters are universally quantified (this info can be used in FunAssign analysis)
 
     // TODO: Enumerated types
     // TODO: "For" loops
@@ -151,12 +152,6 @@
 
     // Utility functions
 
-    let type_of_const_value cv =
-        match cv with
-        | ConstVoid -> Void
-        | ConstBool _ -> Bool
-        | ConstInt (s,_) -> Uninterpreted s
-
     let find_function (m:ModuleDecl<'a,'b>) str =
         List.find (fun (decl:FunDecl) -> decl.Name = str) m.Funs
     
@@ -239,6 +234,12 @@
         map_vars_in_value (macro.Value) dico
 
     // Functions on types
+
+    let type_of_const_value cv =
+        match cv with
+        | ConstVoid -> Void
+        | ConstBool _ -> Bool
+        | ConstInt (s,_) -> Uninterpreted s
 
     // Note: In synthesis.fs, operations like Set.contains or Set.remove doesn't take value_equal into account.
     let value_equal _ v1 v2 = v1=v2
