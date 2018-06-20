@@ -250,7 +250,7 @@ open Prime
         match expected, ret with
         | _, None -> true
         | None, _ -> true
-        | Some t1, Some t2 -> Interpreter.type_equal t1 t2
+        | Some t1, Some t2 -> AST.type_equal t1 t2
 
     let conciliate_types t1 t2 =
         match t1, t2 with
@@ -446,7 +446,7 @@ open Prime
             if Set.contains name args_name
             then acc
             else
-                if Interpreter.type_of_expr m acc local_vars_types <> AST.Bool then failwith "Can't close the value because it is not a formula!"
+                if AST.type_of_expr m acc local_vars_types <> AST.Bool then failwith "Can't close the value because it is not a formula!"
                 else
                     let decl = AST.default_var_decl name t
                     AST.ExprForall (decl, AST.expr_to_value acc)
@@ -467,7 +467,7 @@ open Prime
                     close_formula m dico Set.empty e
                 let str = local_name str
                 let e_opt = Option.map (compute_formula t) e_opt
-                let t = conciliate_types (try_p2a_type m base_name t) (Option.map (fun e ->Interpreter.type_of_expr m e Map.empty) e_opt)
+                let t = conciliate_types (try_p2a_type m base_name t) (Option.map (fun e -> AST.type_of_expr m e Map.empty) e_opt)
                 let t =
                     match t with
                     | None -> failwith "Can't infer type of new var !"
@@ -692,7 +692,7 @@ open Prime
                         let (dico, expr) = p2a_expr m base_name st_local_vars Map.empty None expr
                         let expr = close_formula m dico Set.empty expr
                         let v = AST.expr_to_value expr
-                        let output_t = Interpreter.type_of_value m v dico
+                        let output_t = AST.type_of_value m v dico
                         let rep =
                             if infix
                             then { AST.DisplayName=Some name ; AST.Flags=Set.singleton AST.Infix }

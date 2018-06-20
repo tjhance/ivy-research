@@ -1,5 +1,8 @@
 ﻿module MinimalAST
 
+open System.Numerics
+open FParsec
+
     type Type = AST.Type
     type RepresentationInfos = AST.RepresentationInfos
     type ImplicationRule = AST.ImplicationRule
@@ -23,7 +26,7 @@
 
     type HoleValue =
         | Hole of VarDecl
-        | Expr of Value
+        | Val of Value
 
     type Statement =
         | NewBlock of List<VarDecl> * List<Statement>
@@ -69,6 +72,7 @@
     // Operations on temporary var names
 
     let next_var = ref 0
+
     let reinit_tmp_vars () =
         next_var := 0
 
@@ -89,9 +93,10 @@
             | AST.ExprMacro (str, vs) ->
                 ([], value2minimal m (AST.ValueMacro (str,vs)))
             | AST.ExprAction (str, es) ->
+                let t = AST.type_of_expr m (AST.ExprAction (str, es)) Map.empty
                 let (vas,vs) = List.unzip (List.map aux es)
                 let tmp_name = new_tmp_var ()
-                let va = (tmp_name, str, vs)
+                let va = (tmp_name, t, str, vs)
                 let vas = (List.concat vas)@[va]
                 (vas, ValueVar tmp_name)
             | AST.ExprEqual (e1, e2) ->
@@ -124,13 +129,90 @@
                 (List.concat vas, ValueInterpreted (str, vs))
         aux e
 
-    let statement2minimal (s:AST.Statement) =
-        match s with
-        | AST.NewBlock (ds, sts) -> () // TODO
+    let exprs2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) es =
+        let (ds, vs) = List.unzip (List.map (expr2minimal m) es)
+        (List.concat ds, vs)
+
+    let rec exprs_of_hexprs hexprs =
+        match hexprs with
+        | [] -> []
+        | (AST.Hole _)::lst -> exprs_of_hexprs lst
+        | (AST.Expr e)::lst -> e::(exprs_of_hexprs lst)
+
+    let rec hvals_of_hexprs hexprs vals =
+        match hexprs, vals with
+        | [], [] -> []
+        | (AST.Hole h)::lst, vals -> (Hole h)::(hvals_of_hexprs lst vals)
+        | (AST.Expr _)::lst, v::vals -> (Val v)::(hvals_of_hexprs lst vals)
+        | _ -> failwith "Invalid HoleExpression!"
+
+    let statement2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) (s:AST.Statement) =
+        reinit_tmp_vars ()
+        let packIfNecessary decls sts =
+            if List.length sts = 1 && List.isEmpty decls
+            then List.head sts
+            else NewBlock (decls, sts)
+        let vaa2st (n,t,action,vs) =
+            let st = VarAssignAction (n,action,vs)
+            let d = AST.default_var_decl n t
+            (d, st)
+        let vaas2sts lst =
+            List.unzip (List.map vaa2st lst)
+        // Returns a list of var decls + a list of statements
+        let rec aux s =
+            match s with
+            | AST.NewBlock (ds, sts) ->
+                let (nds, sts) = List.unzip (List.map aux sts)
+                ([], [NewBlock (List.concat (ds::nds), List.concat sts)])
+            | AST.Expression e ->
+                let t = AST.type_of_expr m e Map.empty
+                let tmp_d = AST.default_var_decl (new_tmp_var ()) t
+                let (ds, v) = expr2minimal m e
+                let (ds, sts) = vaas2sts ds
+                let st = VarAssign (tmp_d.Name, v)
+                (ds@[tmp_d], sts@[st])
+            | AST.VarAssign (str, e) ->
+                let (ds, v) = expr2minimal m e
+                let (ds, sts) = vaas2sts ds
+                let st = VarAssign (str, v)
+                (ds, sts@[st])
+            | AST.FunAssign (str, es, e) ->
+                let (ds1, vs) = exprs2minimal m es
+                let (ds2, v) = expr2minimal m e
+                let (ds, sts) = vaas2sts (ds1@ds2)
+                let st = FunAssign (str, List.map (fun v -> Val v) vs, v)
+                (ds, sts@[st])
+            | AST.ForallFunAssign (str, hes, v) ->
+                let es = exprs_of_hexprs hes
+                let (ds, vs) = exprs2minimal m es
+                let (ds, sts) = vaas2sts ds
+                let v = value2minimal m v
+                let st = FunAssign (str, hvals_of_hexprs hes vs, v)
+                (ds, sts@[st])
+            | AST.IfElse (e, sif, selse) ->
+                let (ds, v) = expr2minimal m e
+                let (ds, sts) = vaas2sts ds
+                let (dsif, sif) = aux sif
+                let (dselse, selse) = aux selse
+                let st = IfElse (v, packIfNecessary dsif sif, packIfNecessary dselse selse)
+                (ds, sts@[st])
+            | AST.IfSomeElse (d, v, sif, selse) ->
+                let v = value2minimal m v
+                let (dsif, sif) = aux sif
+                let (dselse, selse) = aux selse
+                let st = IfSomeElse (d, v, packIfNecessary dsif sif, packIfNecessary dselse selse)
+                ([], [st])
+            | AST.Assert v -> ([], [Assert (value2minimal m v)])
+        let (decls, sts) = aux s
+        packIfNecessary decls sts
 
     let module2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) =
-        let actions = []
-        let invariants = []
+        let action2minimal (a:AST.ActionDecl) =
+            let st = statement2minimal m a.Content
+            { ActionDecl.Name = a.Name; ActionDecl.Args = a.Args ; ActionDecl.Output = a.Output ; ActionDecl.Content = st }
+
+        let actions = List.map action2minimal m.Actions
+        let invariants = List.map (value2minimal m) m.Invariants
 
         { Name = m.Name; Types = m.Types; Funs = m.Funs; Vars = m.Vars; InterpretedActions = m.InterpretedActions;
             Actions = actions ; Invariants = invariants; Implications = m.Implications }

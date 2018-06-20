@@ -50,7 +50,7 @@
             trace_action m infos env str lst
         | ExprEqual (e1, e2) ->
             let eval cv1 cv2 =
-                ConstBool (Interpreter.value_equal infos cv1 cv2)
+                ConstBool (AST.value_equal infos cv1 cv2)
             TrExprEqual (binary_op env e1 e2 eval)
         | ExprOr (e1, e2) ->
             TrExprOr (binary_op env e1 e2 Interpreter.value_or)

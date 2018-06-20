@@ -56,7 +56,7 @@
 
     let simplify_marks infos (impls:List<AST.ImplicationRule>) (decls:Model.Declarations) (env:Model.Environment) (m:Synthesis.Marks) =
 
-        let value_equal cv1 cv2 = Interpreter.value_equal infos cv1 cv2
+        let value_equal cv1 cv2 = AST.value_equal infos cv1 cv2
 
         let value_diff diffs cv1 cv2 =
             if Synthesis.is_model_dependent_value cv1 && Synthesis.is_model_dependent_value cv2

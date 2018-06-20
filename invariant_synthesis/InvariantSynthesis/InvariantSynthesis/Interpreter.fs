@@ -4,45 +4,6 @@
 
     type ModuleDecl = ModuleDecl<Model.TypeInfos,Model.Environment>
 
-    // Note: In synthesis.fs, operations like Set.contains or Set.remove doesn't take value_equal into account.
-    let value_equal _ v1 v2 = v1=v2
-
-    let type_equal t1 t2 = t1=t2
-
-    let rec type_of_value (m:ModuleDecl) value dico =
-        match value with
-        | ValueConst cv -> type_of_const_value cv
-        | ValueVar v ->
-            match Map.tryFind v dico with
-            | None -> (find_variable m v).Type
-            | Some t -> t
-        | ValueFun (f,_) -> (find_function m f).Output
-        | ValueMacro (str,_) -> (find_macro m str).Output
-        | ValueEqual _ | ValueOr _ | ValueAnd _ | ValueNot _ | ValueImply _
-        | ValueForall _ | ValueExists _ -> Bool
-        | ValueSomeElse (_,_,v) -> type_of_value m v dico
-        | ValueInterpreted (str, _) -> (find_interpreted_action m str).Output
-
-    let type_of_expr (m:ModuleDecl) expr dico =
-        match expr with
-        | ExprConst cv -> type_of_const_value cv
-        | ExprVar v ->
-            match Map.tryFind v dico with
-            | None -> (find_variable m v).Type
-            | Some t -> t
-        | ExprFun (f,_) -> (find_function m f).Output
-        | ExprMacro (str,_) -> (find_macro m str).Output
-        | ExprAction (str, _) -> (find_action m str false).Output.Type
-        | ExprEqual _ | ExprOr _ | ExprAnd _ | ExprNot _ | ExprImply _
-        | ExprForall _ | ExprExists _ -> Bool
-        | ExprSomeElse (_,_,v) -> type_of_value m v dico
-        | ExprInterpreted (str, _) -> (find_interpreted_action m str).Output
-
-    let type_of_hole_expr (m:ModuleDecl) hexpr dico =
-        match hexpr with
-        | Expr e -> type_of_expr m e dico
-        | Hole d -> d.Type
-
     exception TypeError
     let value_or v1 v2 =
         match v1, v2 with
