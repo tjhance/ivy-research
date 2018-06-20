@@ -54,7 +54,7 @@
     exception DoesntMatch
     exception EndCondition
 
-    let simplify_marks infos (impls:List<AST.ImplicationRule>) (decls:Model.Declarations) (env:Model.Environment) (m:Synthesis.Marks) diffs =
+    let simplify_marks infos (impls:List<AST.ImplicationRule>) (decls:Model.Declarations) (env:Model.Environment) (m:Synthesis.Marks) =
 
         let value_equal cv1 cv2 = Interpreter.value_equal infos cv1 cv2
 
@@ -208,6 +208,7 @@
 
         let mf = m.f
         let mv = m.v
+        let diffs = m.d
         // Remove useless vars
         let remove_rel_if_useless acc var =
             (*if (Map.find var decls.v).Type <> Bool // Uncomment if all rules target boolean vars
@@ -243,8 +244,7 @@
         let diffs = Set.fold remove_diff_if_useless diffs diffs
         
         // Result
-        let m = { m with f=mf ; v=mv }
-        (m, diffs)
+        { Synthesis.v = mv ; Synthesis.f = mf ; Synthesis.d = diffs }
 
     type ValueAssociation =
         | VAConst of ConstValue
@@ -252,8 +252,8 @@
         | ExistingVar of string
         | ExistingFun of string * List<ConstValue>
 
-    let formula_from_marks (env:Model.Environment) ((m:Synthesis.Marks), diffs)
-        (alt_exec:List<Synthesis.Marks*Set<ConstValue*ConstValue>*Model.Environment>) =
+    let formula_from_marks (env:Model.Environment) (m:Synthesis.Marks)
+        (alt_exec:List<Synthesis.Marks*Model.Environment>) =
       
         // Associate a var to each value
         let next_name_nb = ref 0
@@ -314,7 +314,7 @@
                 let vs = List.map (fun cv -> value_of_association (value2var cv)) cvs
                 ValueFun (str, vs)
 
-        let constraints_for (m:Synthesis.Marks,diffs,env:Model.Environment) =
+        let constraints_for (m:Synthesis.Marks,env:Model.Environment) =
             // Browse the constraints to associate an existing var to values when possible
             Set.iter (associate_existing_var env) m.v
             let v' = // We remove trivial equalities
@@ -357,7 +357,7 @@
 
             // Add inequalities between vars
             let ineq_constraints = // We don't need inequalities when one of the member is unused
-                Set.filter (fun (cv1,cv2) -> value_assigned cv1 && value_assigned cv2) diffs
+                Set.filter (fun (cv1,cv2) -> value_assigned cv1 && value_assigned cv2) m.d
             let ineq_constraints =
                 Set.map
                     (
@@ -368,7 +368,7 @@
             let constraints = Set.union constraints ineq_constraints
             constraints
 
-        let constraints = constraints_for (m, diffs, env)
+        let constraints = constraints_for (m, env)
         let vars = all_new_vars_decl_assigned ()
 
         let alt_constraints =

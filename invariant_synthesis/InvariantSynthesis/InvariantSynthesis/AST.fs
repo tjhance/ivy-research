@@ -4,8 +4,8 @@
 
     // TODO: Find a way to add implication rules when parsing
     // TODO: treat differently 'assume', 'assert', 'require' and 'ensure'
-    // TODO: synthesis:ad.diff should be proper to m or um
     // TODO: use a "minimal AST" for interpreter/synthesis instead of this complex AST
+    // TODO: Improvement of the synthesis: for fun marks in um, remember which parameters are universally quantified (this info can be used in FunAssign analysis)
 
     // TODO: Enumerated types
     // TODO: "For" loops
@@ -20,8 +20,7 @@
     // TODO: Axiom, isolate, inductive, export, extract, interpret, property...
     // TODO: Infer types for macro args (currently, type annotations is required)
 
-    // TODO: Use an automated method: computing weakest precondition (wp) and finding
-    // a finite model for (wp AND NOT new_strong_invariant).
+    // TODO: Use an automated method: computing weakest precondition (wp) and finding a finite model for (wp AND NOT new_strong_invariant).
 
     type Type =
         | Void

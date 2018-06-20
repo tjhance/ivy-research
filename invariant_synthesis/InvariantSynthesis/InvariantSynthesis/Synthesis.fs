@@ -5,15 +5,14 @@
 
     type FunMarks = Set<string * List<ConstValue>>
     type VarMarks = Set<string>
+    type DiffConstraint = Set<ConstValue * ConstValue> // We don't impose inequality if is not necessary
 
-    type Marks = { f : FunMarks; v : VarMarks }
+    type Marks = { f : FunMarks; v : VarMarks; d: DiffConstraint }
 
-    type DiffConstraint = Set<ConstValue * ConstValue> // Small improvement of the result: we don't impose inequality if (we are sure) it is unecessary
+    type AdditionalData = { md : bool } // md means model-dependent
 
-    type AdditionalData = { d : DiffConstraint; md : bool } // md means model-dependent
-
-    let empty_marks = { f = Set.empty; v = Set.empty }
-    let empty_ad = { d = Set.empty; md = false }
+    let empty_marks = { f = Set.empty; v = Set.empty ; d = Set.empty }
+    let empty_ad = { md = false }
     let empty_config = (empty_marks, empty_marks, empty_ad)
     // A config (m,um,ad) is composed of alist of marks m, a list of model-dependent marks um, additional data ad
 
@@ -30,24 +29,24 @@
         | ConstInt _ -> true
 
     let marks_count m =
-        (Set.count m.f) + (Set.count m.v)
+        (Set.count m.f) + (Set.count m.v) + (Set.count m.d)
 
-    let marks_reduce op1 op2 ms : Marks =
+    let marks_reduce op1 op2 op3 ms : Marks =
         let fs = Seq.map (fun m -> m.f) ms
         let vs = Seq.map (fun m -> m.v) ms
-        { f = op1 fs ; v = op2 vs }
+        let ds = Seq.map (fun m -> m.d) ms
+        { f = op1 fs ; v = op2 vs ; d = op3 ds }
 
-    let ad_reduce op1 op2 ads : AdditionalData =
-        let ds = Seq.map (fun ad -> ad.d) ads
+    let ad_reduce op1 ads : AdditionalData =
         let mds = Seq.map (fun ad -> ad.md) ads
-        { d = op1 ds ; md = op2 mds }
+        { md = op1 mds }
     
-    let marks_union_many = marks_reduce Set.unionMany Set.unionMany    
+    let marks_union_many = marks_reduce Set.unionMany Set.unionMany Set.unionMany
     let marks_union m1 m2 = marks_union_many ([m1;m2] |> List.toSeq)
     let marks_diff m1 m2 =
-        { f=Set.difference m1.f m2.f ; v=Set.difference m1.v m2.v }
+        { f=Set.difference m1.f m2.f ; v=Set.difference m1.v m2.v; d=Set.difference m1.d m2.d }
 
-    let ad_union_many = ad_reduce Set.unionMany (Seq.exists (fun e -> e))
+    let ad_union_many = ad_reduce (Seq.exists Helper.identity)
     let ad_union ad1 ad2 = ad_union_many ([ad1;ad2] |> List.toSeq)
 
     let config_union (m1,um1,ad1) (m2,um2,ad2) =
@@ -67,16 +66,12 @@
         then false
         else if marks_count m1 < marks_count m2
         then true
-        else if marks_count m1 > marks_count m2
-        then false
-        else if Set.count ad1.d < Set.count ad2.d
-        then true
         else false
 
-    let add_diff_constraint _ ad cv1 cv2 =
-        let d' = Set.add (cv1, cv2) ad.d
+    let add_diff_constraint _ m cv1 cv2 =
+        let d' = Set.add (cv1, cv2) m.d
         let d' = Set.add (cv2, cv1) d'
-        { ad with d=d' }
+        { m with d=d' }
 
     let is_var_marked _ (m, um, _) var =
         (Set.contains var m.v) || (Set.contains var um.v)
@@ -119,7 +114,9 @@
             let (cv2, cfg2) = marks_for_value mdecl infos env uvar v2
             let (m,um,ad) = config_union cfg1 cfg2
             if value_equal infos cv1 cv2 then (ConstBool true, (m, um, ad))
-            else (ConstBool false, (m, um, add_diff_constraint infos ad cv1 cv2))
+            else if ad.md
+            then (ConstBool false, (m, add_diff_constraint infos um cv1 cv2, ad))
+            else (ConstBool false, (add_diff_constraint infos m cv1 cv2, um, ad))
         | ValueOr (v1, v2) ->
             let (cv1, cfg1) = marks_for_value mdecl infos env uvar v1
             let (cv2, cfg2) = marks_for_value mdecl infos env uvar v2
@@ -219,39 +216,43 @@
     let remove_fun_marks _ (m, um, ad) str vs : Marks * Marks * AdditionalData =
         ({m with f = Set.remove (str,vs) m.f}, {um with f = Set.remove (str,vs) um.f}, ad)
 
-    let fun_marks_matching infos (m,um,_) str ovs =
-        let aux m : FunMarks =
-            let value_match v dv =
-                match dv with
-                | None -> true
-                | Some dv -> value_equal infos v dv
-            let match_pattern fm =
-                match fm with
-                | (s, _) when s<>str -> false
-                | (_, lst) -> List.forall2 value_match lst ovs
-            (Set.filter match_pattern m.f)
-        Set.union (aux m) (aux um)
+    let fun_marks_matching infos m str ovs : FunMarks =
+        let value_match v dv =
+            match dv with
+            | None -> true
+            | Some dv -> value_equal infos v dv
+        let match_pattern fm =
+            match fm with
+            | (s, _) when s<>str -> false
+            | (_, lst) -> List.forall2 value_match lst ovs
+        (Set.filter match_pattern m.f)
 
     // Used in fun assign statements
     let compute_neighbors_with_perm infos cfg marked str vs transform inv_trans permut =
+        let (m,um,_) = cfg
         let f = Helper.permutation_to_fun permut
         let inv_f = Helper.permutation_to_fun (Helper.inv_permutation permut)
         let n = List.length vs
         let vs = List.permute f vs
         // acc: i, constraints, neighbors list
-        let aux (i, prev_constraints, nlist) v =
+        let aux (i, prev_constraints, nlist, unlist) v =
             let real_i = inv_f i
-            let neighbors = fun_marks_matching infos cfg str (transform prev_constraints)
-            let neighbors = Set.map (fun (_, l) -> List.item real_i (inv_trans l)) neighbors
-            let neighbors = Set.remove v neighbors
-            let marked = marked || not (Set.isEmpty neighbors)
+            let neighbors_m = fun_marks_matching infos m str (transform prev_constraints)
+            let neighbors_m = Set.map (fun (_, l) -> List.item real_i (inv_trans l)) neighbors_m
+            let neighbors_m = Set.remove v neighbors_m
+            let neighbors_um = fun_marks_matching infos um str (transform prev_constraints)
+            let neighbors_um = Set.map (fun (_, l) -> List.item real_i (inv_trans l)) neighbors_um
+            let neighbors_um = Set.remove v neighbors_um
+            let marked = marked || not (Set.isEmpty neighbors_m && Set.isEmpty neighbors_um)
 
             let constr = if marked then Some v else None
             let new_constraints = Helper.list_set real_i constr prev_constraints
-            let new_nlist = Helper.list_set real_i neighbors nlist
-            (i+1, new_constraints, new_nlist)
-        let (_,cs,ns) = List.fold aux (0, List.init n (fun _ -> None), List.init n (fun _ -> Set.empty)) vs
-        (List.map (fun c -> c <> None) cs, ns)
+            let new_nlist = Helper.list_set real_i neighbors_m nlist
+            let new_unlist = Helper.list_set real_i neighbors_um unlist
+            (i+1, new_constraints, new_nlist, new_unlist)
+        let empty_lst = List.init n (fun _ -> Set.empty)
+        let (_,cs,ns,uns) = List.fold aux (0, List.init n (fun _ -> None), empty_lst, empty_lst) vs
+        (List.map (fun c -> c <> None) cs, ns, uns)
 
     let add_ineq_between infos ad cvs1 cvs2 =
         let aux infos cvs ad cv =
@@ -368,10 +369,11 @@
 
             let cfg = marks_before_expression mdecl infos env e cfg marked
 
-            let treat_possibility (marks, neighbors) =
+            let treat_possibility (marks, neighbors, uneighbors) =
                 let (m,um,ad) = cfg
                 let (m,um,ad) = marks_before_expressions mdecl infos envs (List.rev es) (m,um,ad) (List.rev marks)
-                let ad = Seq.fold2 (fun ad v ns -> add_ineq_between infos ad (Set.singleton v) ns) ad vs neighbors
+                let m = Seq.fold2 (fun m v ns -> add_ineq_between infos m (Set.singleton v) ns) m vs neighbors
+                let um = Seq.fold2 (fun um v ns -> add_ineq_between infos um (Set.singleton v) ns) um vs uneighbors
                 (m,um,ad)
 
             let results = Seq.map treat_possibility possibilities
@@ -396,8 +398,9 @@
             *)
             let (es, uvars) = separate_hexpression hes
             let (env, envs, vs) = intermediate_environments mdecl infos env es
-            let m_marks = fun_marks_matching infos cfg str (reconstruct_hexpression_opt hes vs)
-            let um_marks = fun_marks_matching infos cfg str (reconstruct_hexpression_opt hes vs)
+            let (m,um,_) = cfg
+            let m_marks = fun_marks_matching infos m str (reconstruct_hexpression_opt hes vs)
+            let um_marks = fun_marks_matching infos um str (reconstruct_hexpression_opt hes vs)
             let all_marks = Set.union m_marks um_marks
             let marked = not (Set.isEmpty all_marks)
             let cfg = Set.fold (fun cfg (_,vs) -> remove_fun_marks infos cfg str vs) cfg all_marks
@@ -429,11 +432,11 @@
             let um_marks = Set.map (fun (_,vs) -> keep_only_hole_hexpression hes vs) um_marks
             let cfg = add_marks_for_all env v uvars true um_marks cfg
 
-            let treat_possibility (marks, neighbors) =
+            let treat_possibility (marks, neighbors, uneighbors) =
                 let (m,um,ad) = cfg
-                // exprs
                 let (m, um, ad) = marks_before_expressions mdecl infos envs (List.rev es) (m, um, ad) (List.rev marks)
-                let ad = Seq.fold2 (fun ad v ns -> add_ineq_between infos ad (Set.singleton v) ns) ad vs neighbors
+                let m = Seq.fold2 (fun m v ns -> add_ineq_between infos m (Set.singleton v) ns) m vs neighbors
+                let um = Seq.fold2 (fun um v ns -> add_ineq_between infos um (Set.singleton v) ns) um vs uneighbors
                 (m,um,ad)
 
             let results = Seq.map treat_possibility expr_possibilities

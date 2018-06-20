@@ -203,10 +203,11 @@
 
                 let cfg = marks_before_expression mdecl infos tr_e cfg marked
 
-                let treat_possibility (marks, neighbors) =
+                let treat_possibility (marks, neighbors, uneighbors) =
                     let (m,um,ad) = cfg
                     let (m,um,ad) = marks_before_expressions mdecl infos tr_es (m,um,ad) marks
-                    let ad = Seq.fold2 (fun ad v ns -> add_ineq_between infos ad (Set.singleton v) ns) ad vs neighbors
+                    let m = Seq.fold2 (fun m v ns -> add_ineq_between infos m (Set.singleton v) ns) m vs neighbors
+                    let um = Seq.fold2 (fun um v ns -> add_ineq_between infos um (Set.singleton v) ns) um vs uneighbors
                     (m,um,ad)
 
                 let results = Seq.map treat_possibility possibilities
@@ -234,8 +235,9 @@
             let (tr_es, uvars) = separate_hexpression tr_hes
             if b then
                 let vs = List.map ret_value_of_expr tr_es
-                let m_marks = fun_marks_matching infos cfg str (reconstruct_hexpression_opt tr_hes vs)
-                let um_marks = fun_marks_matching infos cfg str (reconstruct_hexpression_opt tr_hes vs)
+                let (m,um,_) = cfg
+                let m_marks = fun_marks_matching infos m str (reconstruct_hexpression_opt tr_hes vs)
+                let um_marks = fun_marks_matching infos um str (reconstruct_hexpression_opt tr_hes vs)
                 let all_marks = Set.union m_marks um_marks
                 let marked = not (Set.isEmpty all_marks)
                 let cfg = Set.fold (fun cfg (_,vs) -> remove_fun_marks infos cfg str vs) cfg all_marks
@@ -268,11 +270,11 @@
                 let um_marks = Set.map (fun (_,vs) -> keep_only_hole_hexpression tr_hes vs) um_marks
                 let cfg = add_marks_for_all final_env v uvars true um_marks cfg
 
-                let treat_possibility (marks, neighbors) =
+                let treat_possibility (marks, neighbors, uneighbors) =
                     let (m,um,ad) = cfg
-                    // exprs
                     let (m, um, ad) = marks_before_expressions mdecl infos tr_es (m, um, ad) marks
-                    let ad = Seq.fold2 (fun ad v ns -> add_ineq_between infos ad (Set.singleton v) ns) ad vs neighbors
+                    let m = Seq.fold2 (fun m v ns -> add_ineq_between infos m (Set.singleton v) ns) m vs neighbors
+                    let um = Seq.fold2 (fun um v ns -> add_ineq_between infos um (Set.singleton v) ns) um vs uneighbors
                     (m,um,ad)
 
                 let results = Seq.map treat_possibility expr_possibilities

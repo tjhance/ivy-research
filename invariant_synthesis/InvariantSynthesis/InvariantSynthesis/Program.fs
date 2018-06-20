@@ -138,9 +138,9 @@ let main argv =
         printfn "%A" um
         printfn "%A" ad
 
-    let (m', diff1) = Formula.simplify_marks infos md.Implications decls env m ad.d
-    let (um', _) = Formula.simplify_marks infos md.Implications decls env um ad.d
-    let f = Formula.formula_from_marks env (m', diff1) []
+    let m' = Formula.simplify_marks infos md.Implications decls env m
+    let um' = Formula.simplify_marks infos md.Implications decls env um
+    let f = Formula.formula_from_marks env m' []
     let f = Formula.simplify_value f
     printfn "%s" (Printer.value_to_string decls f 0)
     printfn ""
@@ -183,10 +183,10 @@ let main argv =
                         TSynthesis.marks_before_expression md infos_allowed tr_allowed Synthesis.empty_config false
                     if ad_al.md
                     then printfn "Warning: Some marks still are model-dependent! Generated invariant could be weaker than expected."
-                    let (m_union, diff_union) = (Synthesis.marks_union m_al m', Set.union ad_al.d diff1)
-                    let (m_al, diff_al) = Formula.simplify_marks infos md.Implications decls env_allowed m_union diff_union
-                    let (m_al, diff_al) = (Synthesis.marks_diff m_al m', Set.difference diff_al diff1)
-                    allowed_paths := (m_al,diff_al,env_allowed)::(!allowed_paths)
+                    let m_union = Synthesis.marks_union m_al m'
+                    let m_al = Formula.simplify_marks infos md.Implications decls env_allowed m_union
+                    let m_al = Synthesis.marks_diff m_al m'
+                    allowed_paths := (m_al,env_allowed)::(!allowed_paths)
                 else printfn "ERROR: Execution still fail!"
             | Some formula ->
                 let (b_al,(m_al,um_al,ad_al)) =
@@ -202,10 +202,10 @@ let main argv =
                     if ad_al.md
                     then printfn "ERROR: Some marks still are model-dependent!"
                     else
-                        let (m_union, diff_union) = (Synthesis.marks_union m_al m', Set.union ad_al.d diff1)
-                        let (m_al, diff_al) = Formula.simplify_marks infos md.Implications decls env_allowed m_union diff_union
-                        let (m_al, diff_al) = (Synthesis.marks_diff m_al m', Set.difference diff_al diff1)
-                        allowed_paths := (m_al,diff_al,env_allowed)::(!allowed_paths)
+                        let m_union = Synthesis.marks_union m_al m'
+                        let m_al = Formula.simplify_marks infos md.Implications decls env_allowed m_union
+                        let m_al = Synthesis.marks_diff m_al m'
+                        allowed_paths := (m_al,env_allowed)::(!allowed_paths)
                 else printfn "ERROR: Formula has the same value than with the original environment!"
             
             printfn "Would you like to add an accepting path to the invariant? (y/n)"
@@ -216,7 +216,7 @@ let main argv =
     let f =
         if not (List.isEmpty (!allowed_paths))
         then
-            let f = Formula.formula_from_marks env (m', diff1) (!allowed_paths)
+            let f = Formula.formula_from_marks env m' (!allowed_paths)
             Formula.simplify_value f
         else f
 
