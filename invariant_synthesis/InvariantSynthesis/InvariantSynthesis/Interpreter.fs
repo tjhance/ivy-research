@@ -64,10 +64,6 @@
         | ConstBool b1, ConstBool b2 -> ConstBool ((not b1) || b2)
         | _ -> raise TypeError
 
-    let expand_macro (macro:MacroDecl) args =
-        let dico = List.fold2 (fun acc (d:VarDecl) v -> Map.add d.Name v acc) Map.empty macro.Args args
-        map_vars_in_value (macro.Value) dico
-
     let rec if_some_value (m:ModuleDecl) infos (env:Model.Environment) (decl:VarDecl) v : option<ConstValue> =
         let possible_values = Model.all_values infos (decl.Type)
         try

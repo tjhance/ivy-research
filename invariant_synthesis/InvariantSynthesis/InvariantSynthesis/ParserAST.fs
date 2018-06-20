@@ -74,6 +74,9 @@ open Prime
     type ModuleDecl = AST.ModuleDecl<Model.TypeInfos,Model.Environment>
     type InterpretedActionDecl = AST.InterpretedActionDecl<Model.TypeInfos,Model.Environment>
 
+    let deserialize str =
+        Prime.SymbolicOperators.scvalue<parsed_element list> str
+
     // Elements rewriting (for parametric modules)
     let rewrite_elements elts dico =
 
@@ -191,19 +194,12 @@ open Prime
         List.map (rewrite_element dico) elts
 
     // Operations on names
-    let deserialize str =
-        Prime.SymbolicOperators.scvalue<parsed_element list> str
+
+    let void_return_decl = AST.void_return_decl
+
+    let local_name = AST.local_name
 
     let separator = '.'
-
-    let local_var_prefix = "$" // We assign a prefix to non-global vars in order to avoid bugs due to vars scope
-
-    let impossible_var_name = "$$"
-
-    let void_return_decl = AST.default_var_decl impossible_var_name AST.Void
-
-    let local_name name =
-        sprintf "%s%s" local_var_prefix name
 
     let variant_action_name = AST.variant_action_name
 

@@ -66,6 +66,7 @@
     <Content Include="packages.config" />
     <Compile Include="..\InvariantSynthesis\Helper.fs" />
     <Compile Include="..\InvariantSynthesis\AST.fs" />
+	<Compile Include="..\InvariantSynthesis\MinimalAST.fs" />
     <Compile Include="..\InvariantSynthesis\Model.fs" />
     <Compile Include="..\InvariantSynthesis\InterpretedExpr.fs" />
     <Compile Include="..\InvariantSynthesis\Interpreter.fs" />

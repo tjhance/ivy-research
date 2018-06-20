@@ -125,7 +125,10 @@
             InterpretedActions=[];
         }
 
-    // Utility functions
+    let default_var_decl name t =
+        { VarDecl.Name = name ; VarDecl.Type = t ; VarDecl.Representation = default_representation }
+
+    // Var names functions
 
     let action_variant_char = ':'
 
@@ -133,6 +136,20 @@
         if variant = ""
         then name
         else sprintf "%s%c%s" name action_variant_char variant
+
+    let local_var_prefix = "$" // We assign a prefix to non-global vars in order to avoid bugs due to vars scope
+
+    let impossible_var_prefix = "$$"
+
+    let void_return_decl = default_var_decl impossible_var_prefix Void
+
+    let impossible_name name =
+        sprintf "%s%s" impossible_var_prefix name
+
+    let local_name name =
+        sprintf "%s%s" local_var_prefix name
+
+    // Utility functions
 
     let type_of_const_value cv =
         match cv with
@@ -169,9 +186,6 @@
 
     let find_macro (m:ModuleDecl<'a,'b>) str =
         List.find (fun (decl:MacroDecl) -> decl.Name = str) m.Macros
-
-    let default_var_decl name t =
-        { VarDecl.Name = name ; VarDecl.Type = t ; VarDecl.Representation = default_representation }
 
     let rec map_vars_in_value v dico =
         match v with
@@ -219,3 +233,7 @@
         | ExprExists (d,v) -> ValueExists (d,v)
         | ExprImply (e1, e2) -> ValueImply (expr_to_value e1, expr_to_value e2)
         | ExprInterpreted (str, args) -> ValueInterpreted (str, List.map expr_to_value args)
+
+    let expand_macro (macro:MacroDecl) args =
+        let dico = List.fold2 (fun acc (d:VarDecl) v -> Map.add d.Name v acc) Map.empty macro.Args args
+        map_vars_in_value (macro.Value) dico
