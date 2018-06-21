@@ -203,14 +203,14 @@
             | (_, lst) -> List.forall2 value_match lst ovs
         (Set.filter match_pattern m.f)
 
-    // Used in fun assign statements
+    // Used in the fun assign case
     let compute_neighbors_with_perm infos cfg marked str vs transform inv_trans permut =
         let (m,um,_) = cfg
         let f = Helper.permutation_to_fun permut
         let inv_f = Helper.permutation_to_fun (Helper.inv_permutation permut)
         let n = List.length vs
         let vs = List.permute f vs
-        // acc: i, constraints, neighbors list
+        // acc: i, constraints, neighbors list, universally quantified neighbors list
         let aux (i, prev_constraints, nlist, unlist) v =
             let real_i = inv_f i
             let neighbors_m = fun_marks_matching infos m str (transform prev_constraints)
@@ -230,10 +230,10 @@
         let (_,cs,ns,uns) = List.fold aux (0, List.init n (fun _ -> None), empty_lst, empty_lst) vs
         (List.map (fun c -> c <> None) cs, ns, uns)
 
-    let add_ineq_between infos ad cvs1 cvs2 =
-        let aux infos cvs ad cv =
-            Set.fold (fun ad cv' -> add_diff_constraint infos ad cv cv') ad cvs
-        Set.fold (aux infos cvs1) ad cvs2
+    let add_ineq_between infos m cvs1 cvs2 =
+        let aux m cv =
+            Set.fold (fun m cv' -> add_diff_constraint infos m cv cv') m cvs1
+        Set.fold aux m cvs2
 
     ////////////////////////////////////////////////////////////////////////////
 
@@ -251,7 +251,7 @@
                 let (_,cfg') = marks_for_value mdecl infos env Set.empty v
                 config_union cfg cfg'
             else cfg
-        | TrVarAssignAction ((env,_,b), ret, str, input, output, args, tr) ->
+        | TrVarAssignAction ((env,_,b), _, str, input, output, args, tr) ->
             let (marked, cfg) =
                 if b then
                     (is_var_marked infos cfg str, remove_var_marks infos cfg str)
@@ -272,41 +272,7 @@
             let (args, _) = List.unzip (List.filter (fun (_,marked) -> marked) args)
             let (_, args_cfg) = List.unzip (List.map (marks_for_value mdecl infos env Set.empty) args)
             config_union_many (cfg::args_cfg)
-        | TrFunAssign ((_,_,b), str, tr_es, tr_e) -> // ----- TODO -----
-            (*
-            fun(ei)=e
-            ei ---eval---> vi
-
-            Two cases:
-            fun(vi) is marked ->    We mark all ei, we add necessary inequalities, we mark e.
-                                    We remove mark on fun(vi)
-            otherwise ->    We mark all ei s.t. there exists wi different from ei with fun(...wi...) marked, 
-                            we add necessary inequalities
-            *)
-            let tr_all = tr_es@[tr_e]
-            if b then
-                let vs = List.map ret_value_of_expr tr_es
-                let marked = is_fun_marked infos cfg str vs
-                let cfg = remove_fun_marks infos cfg str vs
-                
-                let n = List.length vs
-                let permutations = Helper.all_permutations n
-                let possibilities = Seq.map (compute_neighbors_with_perm infos cfg marked str vs Helper.identity Helper.identity) permutations
-
-                let cfg = marks_before_expression mdecl infos tr_e cfg marked
-
-                let treat_possibility (marks, neighbors, uneighbors) =
-                    let (m,um,ad) = cfg
-                    let (m,um,ad) = marks_before_expressions mdecl infos tr_es (m,um,ad) marks
-                    let m = Seq.fold2 (fun m v ns -> add_ineq_between infos m (Set.singleton v) ns) m vs neighbors
-                    let um = Seq.fold2 (fun um v ns -> add_ineq_between infos um (Set.singleton v) ns) um vs uneighbors
-                    (m,um,ad)
-
-                let results = Seq.map treat_possibility possibilities
-                Helper.seq_min is_better_config results
-            else
-                marks_before_expressions mdecl infos tr_all cfg (List.map (fun _ -> false) tr_all)
-        | TrForallFunAssign ((env,_,b), str, tr_hes, v) ->
+        | TrFunAssign ((env,_,_), str, hvs, v) ->
             (*
             fun (ei,Xi) = V(Xi)
             ei ---eval---> vi
@@ -324,88 +290,90 @@
 
             We add necessary inequalities.
             *)
-            let (tr_es, uvars) = separate_hexpression tr_hes
-            if b then
-                let vs = List.map ret_value_of_expr tr_es
-                let (m,um,_) = cfg
-                let m_marks = fun_marks_matching infos m str (reconstruct_hexpression_opt tr_hes vs)
-                let um_marks = fun_marks_matching infos um str (reconstruct_hexpression_opt tr_hes vs)
-                let all_marks = Set.union m_marks um_marks
-                let marked = not (Set.isEmpty all_marks)
-                let cfg = Set.fold (fun cfg (_,vs) -> remove_fun_marks infos cfg str vs) cfg all_marks
+            let (vs, uvs) = Interpreter.separate_hvals hvs
+            let cvs = List.map (Interpreter.evaluate_value mdecl infos env) vs
+            let some_cvs = List.map (fun a -> Some a) cvs
+            let none_uvs = List.map (fun _ -> None) uvs
+            let constraints = Interpreter.reconstruct_hvals hvs some_cvs none_uvs
+            let (m,um,_) = cfg
+            let m_marks = fun_marks_matching infos m str constraints
+            let um_marks = fun_marks_matching infos um str constraints
+            let all_marks = Set.union m_marks um_marks
 
-                let n = List.length vs
-                let permutations = Helper.all_permutations n
-                let transform = reconstruct_hexpression_opt2 tr_hes
-                let inv_trans = keep_only_expr_hexpression tr_hes
-                let expr_possibilities = Seq.map (compute_neighbors_with_perm infos cfg marked str vs transform inv_trans) permutations
-            
-                let compute_marks_for (env:Model.Environment) v unames model_dependent hole_vs =
-                    let uvars =
-                        if model_dependent
-                        then
-                            let md_decls = Set.filter (fun (d:VarDecl) -> is_model_dependent_type d.Type) (Set.ofList unames)
-                            Set.map (fun (d:VarDecl) -> d.Name) md_decls
-                        else Set.empty
-                    marks_for_value_with mdecl infos env uvars v (List.map (fun (d:VarDecl) -> d.Name) unames) hole_vs
-                let add_marks_for_all (env:Model.Environment) v uvars model_dependent hole_vss cfg =
-                    let aux acc hole_vs =
-                        let (_,cfg) = compute_marks_for env v uvars model_dependent hole_vs
-                        config_union acc cfg
-                    Set.fold aux cfg hole_vss
+            let marked = not (Set.isEmpty all_marks)
+            let cfg = Set.fold (fun cfg (_,vs) -> remove_fun_marks infos cfg str vs) cfg all_marks
 
-                let final_env = final_env_of_exprs tr_es env
-                // m_marks
-                let m_marks = Set.map (fun (_,vs) -> keep_only_hole_hexpression tr_hes vs) m_marks
-                let cfg = add_marks_for_all final_env v uvars false m_marks cfg
-                // um_marks
-                let um_marks = Set.map (fun (_,vs) -> keep_only_hole_hexpression tr_hes vs) um_marks
-                let cfg = add_marks_for_all final_env v uvars true um_marks cfg
+            // Adding marks for the important values of v
+            let compute_marks_for (env:Model.Environment) v uvs model_dependent uvs_inst =
+                let uvars =
+                    if model_dependent
+                    then
+                        let md_uvs = Set.filter (fun (d:VarDecl) -> is_model_dependent_type d.Type) (Set.ofList uvs)
+                        Set.map (fun (d:VarDecl) -> d.Name) md_uvs
+                    else Set.empty
+                marks_for_value_with mdecl infos env uvars v (List.map (fun (d:VarDecl) -> d.Name) uvs) uvs_inst
+            let add_marks_for_all (env:Model.Environment) v uvs model_dependent uvs_insts cfg =
+                let aux acc uvs_inst =
+                    let (_,cfg) = compute_marks_for env v uvs model_dependent uvs_inst
+                    config_union acc cfg
+                Set.fold aux cfg uvs_insts
 
-                let treat_possibility (marks, neighbors, uneighbors) =
-                    let (m,um,ad) = cfg
-                    let (m, um, ad) = marks_before_expressions mdecl infos tr_es (m, um, ad) marks
-                    let m = Seq.fold2 (fun m v ns -> add_ineq_between infos m (Set.singleton v) ns) m vs neighbors
-                    let um = Seq.fold2 (fun um v ns -> add_ineq_between infos um (Set.singleton v) ns) um vs uneighbors
-                    (m,um,ad)
+            let m_marks = Set.map (fun (_,cvs) -> Interpreter.keep_only_holes hvs cvs) m_marks
+            let cfg = add_marks_for_all env v uvs false m_marks cfg
+            let um_marks = Set.map (fun (_,cvs) -> Interpreter.keep_only_holes hvs cvs) um_marks
+            let cfg = add_marks_for_all env v uvs true um_marks cfg
 
-                let results = Seq.map treat_possibility expr_possibilities
-                Helper.seq_min is_better_config results
-            else
-                marks_before_expressions mdecl infos tr_es cfg (List.map (fun _ -> false) tr_es)
-        | TrIfElse (_, tr_e, tr_st) ->
-            let cfg =
-                if expr_is_fully_evaluated tr_e then
-                    marks_before_statement mdecl infos tr_st cfg
-                else cfg
-            marks_before_expression mdecl infos tr_e cfg true
-        | TrIfSomeElse ((env,_,_), cv, decl, v, tr_s) ->
+            // Adding marks for the important args (vs)
+            let permutations = Helper.all_permutations (List.length cvs)
+            let transform cvs_opt =
+                Interpreter.reconstruct_hvals hvs cvs_opt none_uvs
+            let inv_trans = Interpreter.keep_only_vals hvs
+            let vals_possibilities = Seq.map (compute_neighbors_with_perm infos cfg marked str cvs transform inv_trans) permutations
+
+            let treat_possibility (vs_marks, neighbors, uneighbors) =
+                let args = List.zip vs vs_marks
+                let (args, _) = List.unzip (List.filter (fun (_,marked) -> marked) args)
+                let (_, args_cfg) = List.unzip (List.map (marks_for_value mdecl infos env Set.empty) args)
+                let cfg = config_union_many (cfg::args_cfg)
+                // Disequality marks
+                let (m, um, ad) = cfg
+                let m = Seq.fold2 (fun m cv ns -> add_ineq_between infos m (Set.singleton cv) ns) m cvs neighbors
+                let um = Seq.fold2 (fun um cv ns -> add_ineq_between infos um (Set.singleton cv) ns) um cvs uneighbors
+                (m,um,ad)
+
+            let results = Seq.map treat_possibility vals_possibilities
+            Helper.seq_min is_better_config results
+        | TrIfElse ((env,_,_), v, tr) ->
+            let cfg = marks_before_statement mdecl infos tr cfg
+            let (_,cfg') = marks_for_value mdecl infos env Set.empty v
+            config_union cfg cfg'
+        | TrIfSomeElse ((env,_,_), cv, decl, v, tr) ->
             match cv with
             | Some _ ->
                 let cfg' = config_enter_block infos cfg [decl]
-                let cfg' = marks_before_statement mdecl infos tr_s cfg'
+                let cfg' = marks_before_statement mdecl infos tr cfg'
                 let (_, cfg'') =
                     if is_var_marked infos cfg' decl.Name
-                    then marks_for_value mdecl infos (initial_env_of_st tr_s) Set.empty v
+                    then marks_for_value mdecl infos (initial_env tr) Set.empty v
                     (* NOTE: In the case above, we may also ensure that every other value doesn't satisfy the predicate.
                        However, it is a different problem than garanteeing the invariant value,
                        since we are bound to an execution (maybe there is no uniqueness in this execution).
                        Therefore, we suppose that the choice made is always the value we choose here (if it satisfies the condition).
                        An assertion can also be added by the user to ensure this uniqueness. *)
-                    else marks_for_value mdecl infos env Set.empty (ValueExists (decl, v))
+                    else marks_for_value mdecl infos env Set.empty (ValueNot (ValueForall (decl, ValueNot v)))
                 let cfg' = config_union cfg' cfg''
                 config_leave_block infos cfg' [decl] cfg
             | None ->
-                let cfg = marks_before_statement mdecl infos tr_s cfg
-                let (_,cfg') = marks_for_value mdecl infos env Set.empty (ValueNot (ValueExists (decl, v)))
+                let cfg = marks_before_statement mdecl infos tr cfg
+                let (_,cfg') = marks_for_value mdecl infos env Set.empty (ValueForall (decl, ValueNot v))
                 config_union cfg cfg'
         | TrAssert ((env,_,_),v) ->
             let (_, cfg') = marks_for_value mdecl infos env Set.empty v
             config_union cfg cfg'
 
     // Statements are analysed in reverse order
-    and marks_before_statements module_decl infos trs cfg =
+    and marks_before_statements mdecl infos trs cfg =
         let aux cfg tr =
-            marks_before_statement module_decl infos tr cfg
+            marks_before_statement mdecl infos tr cfg
         List.fold aux cfg (List.rev trs)
 

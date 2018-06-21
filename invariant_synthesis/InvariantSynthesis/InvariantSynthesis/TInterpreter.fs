@@ -6,23 +6,6 @@
     type ModuleDecl = ModuleDecl<Model.TypeInfos,Model.Environment>
 
     let rec trace_statement (m:ModuleDecl) infos (env:Model.Environment) s =
-        (*let apply_op env es op =
-            let tr_es = trace_expressions m infos env es
-            let env' = final_env_of_exprs tr_es env
-            let (env',b) =
-                if exprs_are_fully_evaluated tr_es
-                then
-                    let rets = List.map ret_value_of_expr tr_es
-                    let env' = op env' rets
-                    (env', true)
-                else (env', false)
-            let rsd = (env, env', b)
-            (rsd, tr_es)
-        let apply_unary_op env e op =
-            let op env lst =
-                op env (List.head lst)
-            let (rsd,lst) = apply_op env [e] op
-            (rsd, List.head lst)*)
         match s with
         | NewBlock (decls, ss) ->
             let env' = Interpreter.enter_new_block infos env decls (List.map (fun _ -> None) decls)
@@ -84,7 +67,7 @@
         let cvs = Interpreter.evaluate_values m infos env vs
         let env' = Interpreter.enter_new_block infos env (output::input) (None::(List.map (fun a -> Some a) cvs))
         let tr = effect env'
-        let env' = final_env_of_sts [tr] env'
+        let env' = final_env tr
 
         let res =
             if is_fully_executed tr
