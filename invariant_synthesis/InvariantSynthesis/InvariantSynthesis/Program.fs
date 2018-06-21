@@ -21,7 +21,6 @@ let parser_error_path = "parser.err"
 let main argv =
 
     let verbose = Array.contains "-v" argv
-    let no_trace = Array.contains "-nt" argv
 
     let filename = 
         match Array.tryLast argv with
@@ -55,6 +54,7 @@ let main argv =
                 printfn "Converting parsed AST..."
                 ParserAST.ivy_elements_to_ast_module filename parsed_elts
     let decls = Model.declarations_of_module md
+    let mmd = MinimalAST.module2minimal md
         
     printfn "Please enter constraints:"
     let str = read_until_line_jump ()
@@ -81,26 +81,22 @@ let main argv =
             )
             (find_action md name false).Args
     printfn "Executing..."
-    let (tr, env') =
-        if no_trace then
-            let (env',_) = Interpreter.execute_action md infos env name args
-            (Trace.TrExprNotEvaluated (env,env',None), env')
-        else
-            let tr = TInterpreter.trace_action md infos env name (List.map (fun cv -> ExprConst cv) args)
-            (tr, Trace.final_env_of_expr tr)
+    let tr = TInterpreter.trace_action mmd infos env name (List.map (fun cv -> MinimalAST.ValueConst cv) args) AST.impossible_var_prefix
+    let env' = Trace.final_env tr
     if verbose
     then
         printfn "%A" tr
 
     let ((m,um,ad),formula,b) =
-        if Trace.expr_is_fully_evaluated tr || no_trace
+        if Trace.is_fully_executed tr
         then
             printfn "Please enter the index of the invariant to analyze:"
 
             List.iteri
                 (
                     fun i v ->
-                        match Interpreter.evaluate_value md infos env' v with
+                        let mv = MinimalAST.value2minimal md v
+                        match Interpreter.evaluate_value mmd infos env' mv with
                         | ConstBool true -> Console.ForegroundColor <- ConsoleColor.Green
                         | ConstBool false -> Console.ForegroundColor <- ConsoleColor.Red
                         | _ -> Console.ResetColor()
@@ -110,9 +106,10 @@ let main argv =
 
             let nb = Convert.ToInt32 (Console.ReadLine())
             let formula = List.item nb md.Invariants
+            let formula = MinimalAST.value2minimal md formula
 
             printfn "Generating marks for the formula (post execution)..."
-            let (b,(m,um,ad)) = Synthesis.marks_for_value md infos env' Set.empty formula
+            let (b,(m,um,ad)) = Synthesis.marks_for_value mmd infos env' Set.empty formula
             if verbose
             then
                 printfn "%A" b
@@ -122,16 +119,11 @@ let main argv =
             ((m,um,ad), Some formula, b)
         else
             printfn "Assertion failed... No invariant to analyze."
-            printfn "Analyzing the reason of failure."
+            printfn "Analyzing the cause of failure."
             (Synthesis.empty_config, None, ConstVoid)
 
     printfn "Going back through the action..."
-    let (m,um,ad) =
-        if no_trace then
-            let (_,res) = Synthesis.marks_before_action md infos env name args (m,um,ad) false
-            res
-        else
-            TSynthesis.marks_before_expression md infos tr (m,um,ad) false
+    let (m,um,ad) = Synthesis.marks_before_statement mmd infos tr (m,um,ad)
     if verbose
     then
         printfn "%A" m
@@ -168,44 +160,34 @@ let main argv =
             printfn "Building new environment..."
             let (infos_allowed, env_allowed) = Model.constraints_to_env md (cs@cs')
             printfn "Computing..."
-            let (tr_allowed, env_allowed') =
-                if no_trace then
-                    let (env',_) = Interpreter.execute_action md infos_allowed env_allowed name args
-                    (Trace.TrExprNotEvaluated (env,env',None), env')
-                else
-                    let tr = TInterpreter.trace_action md infos_allowed env_allowed name (List.map (fun cv -> ExprConst cv) args)
-                    (tr, Trace.final_env_of_expr tr)
+            let tr_allowed = TInterpreter.trace_action mmd infos_allowed env_allowed name (List.map (fun cv -> MinimalAST.ValueConst cv) args) AST.impossible_var_prefix
+            let env_allowed' = Trace.final_env tr_allowed
             match formula with
             | None ->
-                if Trace.expr_is_fully_evaluated tr_allowed
+                if Trace.is_fully_executed tr_allowed
                 then
                     let (m_al,_,ad_al) =
-                        TSynthesis.marks_before_expression md infos_allowed tr_allowed Synthesis.empty_config false
+                        Synthesis.marks_before_statement mmd infos_allowed tr_allowed Synthesis.empty_config
                     if ad_al.md
                     then printfn "Warning: Some marks still are model-dependent! Generated invariant could be weaker than expected."
-                    let m_union = Synthesis.marks_union m_al m'
-                    let m_al = Formula.simplify_marks infos md.Implications decls env_allowed m_union
-                    let m_al = Synthesis.marks_diff m_al m'
-                    allowed_paths := (m_al,env_allowed)::(!allowed_paths)
+                    let m_al' = Synthesis.marks_union m_al m'
+                    let m_al' = Formula.simplify_marks infos_allowed md.Implications decls env_allowed m_al'
+                    let m_al' = Synthesis.marks_diff m_al' m'
+                    allowed_paths := (m_al',env_allowed)::(!allowed_paths)
                 else printfn "ERROR: Execution still fail!"
             | Some formula ->
                 let (b_al,(m_al,um_al,ad_al)) =
-                    Synthesis.marks_for_value md infos_allowed env_allowed' Set.empty formula
+                    Synthesis.marks_for_value mmd infos_allowed env_allowed' Set.empty formula
                 if b_al <> b
                 then
                     let (m_al,_,ad_al) =
-                        if no_trace then
-                            let (_,res) = Synthesis.marks_before_action md infos_allowed env_allowed name args (m_al,um_al,ad_al) false
-                            res
-                        else
-                            TSynthesis.marks_before_expression md infos_allowed tr_allowed (m_al,um_al,ad_al) false
+                        Synthesis.marks_before_statement mmd infos_allowed tr_allowed (m_al,um_al,ad_al)
                     if ad_al.md
-                    then printfn "ERROR: Some marks still are model-dependent!"
-                    else
-                        let m_union = Synthesis.marks_union m_al m'
-                        let m_al = Formula.simplify_marks infos md.Implications decls env_allowed m_union
-                        let m_al = Synthesis.marks_diff m_al m'
-                        allowed_paths := (m_al,env_allowed)::(!allowed_paths)
+                    then printfn "Warning: Some marks still are model-dependent! Generated invariant could be weaker than expected."
+                    let m_al' = Synthesis.marks_union m_al m'
+                    let m_al' = Formula.simplify_marks infos_allowed md.Implications decls env_allowed m_al'
+                    let m_al' = Synthesis.marks_diff m_al' m'
+                    allowed_paths := (m_al',env_allowed)::(!allowed_paths)
                 else printfn "ERROR: Formula has the same value than with the original environment!"
             
             printfn "Would you like to add an accepting path to the invariant? (y/n)"

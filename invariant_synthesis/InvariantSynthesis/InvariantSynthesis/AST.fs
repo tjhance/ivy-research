@@ -2,8 +2,6 @@
 
     (* A VERY BASIC AST FOR IVY *)
 
-    // TODO: use a "minimal AST" for interpreter/synthesis instead of this complex AST
-    // TODO: only use trace analysis (remove the former version)
     // TODO: Improvement of the synthesis: for fun marks in um, remember which parameters are universally quantified (this info can be used in FunAssign analysis)
     // TODO: Find a way to add implication rules when parsing
     // TODO: treat differently 'assume', 'assert', 'require' and 'ensure'

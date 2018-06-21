@@ -82,14 +82,14 @@
     <Compile Include="..\InvariantSynthesis\Interpreter.fs">
       <Link>Interpreter.fs</Link>
     </Compile>
-    <Compile Include="..\InvariantSynthesis\Synthesis.fs">
-      <Link>Synthesis.fs</Link>
-    </Compile>
     <Compile Include="..\InvariantSynthesis\Trace.fs">
       <Link>Trace.fs</Link>
     </Compile>
     <Compile Include="..\InvariantSynthesis\TInterpreter.fs">
       <Link>TInterpreter.fs</Link>
+    </Compile>
+    <Compile Include="..\InvariantSynthesis\Synthesis.fs">
+      <Link>Synthesis.fs</Link>
     </Compile>
     <Compile Include="..\InvariantSynthesis\Formula.fs">
       <Link>Formula.fs</Link>
