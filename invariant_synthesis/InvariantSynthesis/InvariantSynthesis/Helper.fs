@@ -61,6 +61,11 @@
     let order_tuple (a,b) =
         if a < b then (a,b) else (b,a)
 
+    // Map
+
+    let merge_maps map1 map2 =
+        Map.fold (fun acc k v -> Map.add k v acc) map1 map2
+
     // Mutable Dictionnary
 
     type System.Collections.Generic.Dictionary<'K, 'V> with

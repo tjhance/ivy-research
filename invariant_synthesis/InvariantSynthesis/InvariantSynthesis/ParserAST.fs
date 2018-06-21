@@ -440,13 +440,14 @@ open Prime
         aux local_vars_types v ret_val
 
     // Add universal quantifiers if needed
-    let close_formula (m:ModuleDecl) local_vars_types args_name f =
-        
+    let close_formula (m:ModuleDecl) st_local_vars local_vars_types args_name f =
+        let all_vars_types = Helper.merge_maps st_local_vars local_vars_types
+
         let add_quantifier_if_needed acc (name,t) =
             if Set.contains name args_name
             then acc
             else
-                if AST.type_of_expr m acc local_vars_types <> AST.Bool then failwith "Can't close the value because it is not a formula!"
+                if AST.type_of_expr m acc all_vars_types <> AST.Bool then failwith "Can't close the value because it is not a formula!"
                 else
                     let decl = AST.default_var_decl name t
                     AST.ExprForall (decl, AST.expr_to_value acc)
@@ -464,10 +465,10 @@ open Prime
                 // decl & e
                 let compute_formula t e =
                     let (dico, e) = p2a_expr m base_name local_vars Map.empty (try_p2a_type m base_name t) e
-                    close_formula m dico Set.empty e
+                    close_formula m local_vars dico Set.empty e
                 let str = local_name str
                 let e_opt = Option.map (compute_formula t) e_opt
-                let t = conciliate_types (try_p2a_type m base_name t) (Option.map (fun e -> AST.type_of_expr m e Map.empty) e_opt)
+                let t = conciliate_types (try_p2a_type m base_name t) (Option.map (fun e -> AST.type_of_expr m e local_vars) e_opt)
                 let t =
                     match t with
                     | None -> failwith "Can't infer type of new var !"
@@ -483,7 +484,7 @@ open Prime
 
             | (Expression e)::sts ->
                 let (dico, e) = p2a_expr m base_name local_vars Map.empty None e
-                let e = close_formula m dico Set.empty e
+                let e = close_formula m local_vars dico Set.empty e
                 (AST.Expression e)::(aux sts local_vars)
 
             | (VarAssign (str,e))::sts ->
@@ -495,7 +496,7 @@ open Prime
                         let str = resolve_reference (Set.ofList candidates) base_name str
                         (str, (AST.find_variable m str).Type)
                 let (dico, e) = p2a_expr m base_name local_vars Map.empty (Some t) e
-                let e = close_formula m dico Set.empty e
+                let e = close_formula m local_vars dico Set.empty e
                 (AST.VarAssign (str, e))::(aux sts local_vars)
 
             | (GeneralFunAssign (str,es,e))::sts ->
@@ -517,7 +518,7 @@ open Prime
                     let dico = List.fold (fun acc (str,t) -> Map.add str t acc) Map.empty free_vars
                     let args_name = List.map (fun (str,_) -> str) free_vars
                     let (dico, e) = p2a_expr m base_name local_vars dico (Some fun_def.Output) e
-                    let e = close_formula m dico (Set.ofList args_name) e
+                    let e = close_formula m local_vars dico (Set.ofList args_name) e
                     let v = AST.expr_to_value e
                     // hes
                     let treat_he e t =
@@ -527,20 +528,20 @@ open Prime
                             AST.Hole (AST.default_var_decl str t)
                         | e ->
                             let (dico, e) = p2a_expr m base_name local_vars Map.empty (Some t) e
-                            let e = close_formula m dico Set.empty e
+                            let e = close_formula m local_vars dico Set.empty e
                             AST.Expr e
                     let hes = List.map2 treat_he es fun_def.Input
                     (AST.ForallFunAssign (str, hes, v))::(aux sts local_vars)
                 else
                     let es = List.map2 (fun e t -> p2a_expr m base_name local_vars Map.empty (Some t) e) es fun_def.Input
-                    let es = List.map (fun (dico, e) -> close_formula m dico Set.empty e) es
+                    let es = List.map (fun (dico, e) -> close_formula m local_vars dico Set.empty e) es
                     let (dico, e) = p2a_expr m base_name local_vars Map.empty (Some fun_def.Output) e
-                    let e = close_formula m dico Set.empty e
+                    let e = close_formula m local_vars dico Set.empty e
                     (AST.FunAssign (str, es, e))::(aux sts local_vars)
 
             | (IfElse (e, sif, selse))::sts ->
                 let (dico, e) = p2a_expr m base_name local_vars Map.empty (Some AST.Bool) e
-                let e = close_formula m dico Set.empty e
+                let e = close_formula m local_vars dico Set.empty e
                 let sif = aux [sif] local_vars
                 let selse = aux [selse] local_vars
                 (AST.IfElse (e,AST.NewBlock([],sif),AST.NewBlock([],selse)))::(aux sts local_vars)
@@ -568,7 +569,7 @@ open Prime
                     then failwith "Can't resolve 'if some' local type: too many matches !"
                     else raise (NoMatch (sprintf "No match for 'if some' local type %s!" str))
 
-                let e = close_formula m dico Set.empty e
+                let e = close_formula m local_vars dico Set.empty e
                 let v = AST.expr_to_value e
                 let t = Map.find str local_vars_e
                 // sif & selse
@@ -578,7 +579,7 @@ open Prime
 
             | (Assert e)::sts ->
                 let (dico, e) = p2a_expr m base_name local_vars Map.empty (Some AST.Bool) e
-                let e = close_formula m dico Set.empty e
+                let e = close_formula m local_vars dico Set.empty e
                 let v = AST.expr_to_value e
                 (AST.Assert v)::(aux sts local_vars)
 
@@ -690,9 +691,9 @@ open Prime
                         let args = p2a_args m base_name args Map.empty
                         let st_local_vars = List.fold (fun acc (d:AST.VarDecl) -> Map.add d.Name d.Type acc) Map.empty args
                         let (dico, expr) = p2a_expr m base_name st_local_vars Map.empty None expr
-                        let expr = close_formula m dico Set.empty expr
+                        let expr = close_formula m Map.empty dico Set.empty expr
                         let v = AST.expr_to_value expr
-                        let output_t = AST.type_of_value m v dico
+                        let output_t = AST.type_of_value m v st_local_vars
                         let rep =
                             if infix
                             then { AST.DisplayName=Some name ; AST.Flags=Set.singleton AST.Infix }
@@ -704,7 +705,7 @@ open Prime
                     (m, tmp_elements)
                 | Conjecture expr ->
                     let (dico, expr) = p2a_expr m base_name Map.empty Map.empty (Some AST.Bool) expr
-                    let expr = close_formula m dico Set.empty expr
+                    let expr = close_formula m dico Map.empty Set.empty expr
                     let v = AST.expr_to_value expr
                     ({ m with AST.Invariants=(v::m.Invariants) }, tmp_elements)
                 | AbstractAction (name, args, ret_opt) ->

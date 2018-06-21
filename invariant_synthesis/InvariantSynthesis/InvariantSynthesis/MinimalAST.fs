@@ -112,57 +112,68 @@ open FParsec
         next_var := (!next_var) + 1
         AST.impossible_name res
 
-    // Return a list of var action assignments + a minimal value
+    // Return a list of var decls & statements (var assignemnts) & a minimal value
     let expr2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) (e:AST.Expression) =
+        let new_var_assign v =
+            let tmp_name = new_tmp_var ()
+            let t = AST.Void // type_of_value m v _ // Note: For now, we don't need to bother with the type!
+            let d = AST.default_var_decl tmp_name t
+            let st = VarAssign (tmp_name, v)
+            (d, st, tmp_name)
         let rec aux e =
             match e with
-            | AST.ExprConst cv -> ([], ValueConst cv)
-            | AST.ExprVar str -> ([], ValueVar str)
+            | AST.ExprConst cv -> ([], [], ValueConst cv)
+            | AST.ExprVar str ->
+                let (d, st, name) = new_var_assign (ValueVar str)
+                ([d], [st], ValueVar name)
             | AST.ExprFun (str, es) ->
-                let (vas,vs) = List.unzip (List.map aux es)
-                (List.concat vas, ValueFun (str, vs))
+                let (ds,sts,vs) = List.unzip3 (List.map aux es)
+                let (d, st, name) = new_var_assign (ValueFun (str, vs))
+                (d::(List.concat ds), (List.concat sts)@[st], ValueVar name)
             | AST.ExprMacro (str, vs) ->
-                ([], value2minimal m (AST.ValueMacro (str,vs)))
+                let (d, st, name) = new_var_assign (value2minimal m (AST.ValueMacro (str,vs)))
+                ([d], [st], ValueVar name)
             | AST.ExprAction (str, es) ->
-                let t = AST.type_of_expr m (AST.ExprAction (str, es)) Map.empty
-                let (vas,vs) = List.unzip (List.map aux es)
                 let tmp_name = new_tmp_var ()
-                let va = (tmp_name, t, str, vs)
-                let vas = (List.concat vas)@[va]
-                (vas, ValueVar tmp_name)
+                let t = (AST.find_action m str false).Output.Type
+                let d = AST.default_var_decl tmp_name t
+                let (ds,sts,vs) = List.unzip3 (List.map aux es)
+                let st = VarAssignAction (tmp_name, str, vs)
+                (d::(List.concat ds), (List.concat sts)@[st], ValueVar tmp_name)
             | AST.ExprEqual (e1, e2) ->
-                let (vas1, v1) = aux e1
-                let (vas2, v2) = aux e2
-                (vas1@vas2, ValueEqual (v1, v2))
+                let (ds1, sts1, v1) = aux e1
+                let (ds2, sts2, v2) = aux e2
+                (ds1@ds2, sts1@sts2, ValueEqual (v1, v2))
             | AST.ExprOr (e1, e2) ->
-                let (vas1, v1) = aux e1
-                let (vas2, v2) = aux e2
-                (vas1@vas2, ValueOr (v1, v2))
+                let (ds1, sts1, v1) = aux e1
+                let (ds2, sts2, v2) = aux e2
+                (ds1@ds2, sts1@sts2, ValueOr (v1, v2))
             | AST.ExprAnd (e1, e2) ->
-                let (vas1, v1) = aux e1
-                let (vas2, v2) = aux e2
-                (vas1@vas2, ValueNot (ValueOr (ValueNot v1, ValueNot v2)))
+                let (ds1, sts1, v1) = aux e1
+                let (ds2, sts2, v2) = aux e2
+                (ds1@ds2, sts1@sts2, ValueNot (ValueOr (ValueNot v1, ValueNot v2)))
             | AST.ExprNot e ->
-                let (vas, v) = aux e
-                (vas, ValueNot v)
+                let (ds, sts, v) = aux e
+                (ds, sts, ValueNot v)
             | AST.ExprSomeElse (d, v1, v2) ->
-                ([], ValueSomeElse (d, value2minimal m v1, value2minimal m v2))
+                ([], [], ValueSomeElse (d, value2minimal m v1, value2minimal m v2))
             | AST.ExprForall (d, v) ->
-                ([], ValueForall (d, value2minimal m v))
+                ([], [], ValueForall (d, value2minimal m v))
             | AST.ExprExists (d, v) ->
-                ([], value2minimal m (AST.ValueExists (d,v)))
+                ([], [], value2minimal m (AST.ValueExists (d,v)))
             | AST.ExprImply (e1, e2) ->
-                let (vas1, v1) = aux e1
-                let (vas2, v2) = aux e2
-                (vas1@vas2, ValueOr (ValueNot v1, v2))
+                let (ds1, sts1, v1) = aux e1
+                let (ds2, sts2, v2) = aux e2
+                (ds1@ds2, sts1@sts2, ValueOr (ValueNot v1, v2))
             | AST.ExprInterpreted (str, es) ->
-                let (vas,vs) = List.unzip (List.map aux es)
-                (List.concat vas, ValueInterpreted (str, vs))
+                let (ds,sts,vs) = List.unzip3 (List.map aux es)
+                let (d, st, name) = new_var_assign (ValueInterpreted (str, vs))
+                (d::(List.concat ds), (List.concat sts)@[st], ValueVar name)
         aux e
 
     let exprs2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) es =
-        let (ds, vs) = List.unzip (List.map (expr2minimal m) es)
-        (List.concat ds, vs)
+        let (ds, sts, vs) = List.unzip3 (List.map (expr2minimal m) es)
+        (List.concat ds, List.concat sts, vs)
 
     let rec exprs_of_hexprs hexprs =
         match hexprs with
@@ -183,12 +194,6 @@ open FParsec
             if List.length sts = 1 && List.isEmpty decls
             then List.head sts
             else NewBlock (decls, sts)
-        let vaa2st (n,t,action,vs) =
-            let st = VarAssignAction (n,action,vs)
-            let d = AST.default_var_decl n t
-            (d, st)
-        let vaas2sts lst =
-            List.unzip (List.map vaa2st lst)
         // Returns a list of var decls + a list of statements
         let rec aux s =
             match s with
@@ -196,30 +201,26 @@ open FParsec
                 let (nds, sts) = List.unzip (List.map aux sts)
                 ([], [NewBlock (List.concat (ds::nds), List.concat sts)])
             | AST.Expression e ->
-                let (ds, _) = expr2minimal m e
-                let (ds, sts) = vaas2sts ds
+                let (ds, sts, _) = expr2minimal m e
                 (ds, sts)
             | AST.VarAssign (str, e) ->
-                let (ds, v) = expr2minimal m e
-                let (ds, sts) = vaas2sts ds
+                let (ds, sts, v) = expr2minimal m e
                 let st = VarAssign (str, v)
                 (ds, sts@[st])
             | AST.FunAssign (str, es, e) ->
-                let (ds1, vs) = exprs2minimal m es
-                let (ds2, v) = expr2minimal m e
-                let (ds, sts) = vaas2sts (ds1@ds2)
+                let (ds1, sts1, vs) = exprs2minimal m es
+                let (ds2, sts2, v) = expr2minimal m e
+                let (ds, sts) = (ds1@ds2, sts1@sts2)
                 let st = FunAssign (str, List.map (fun v -> Val v) vs, v)
                 (ds, sts@[st])
             | AST.ForallFunAssign (str, hes, v) ->
                 let es = exprs_of_hexprs hes
-                let (ds, vs) = exprs2minimal m es
-                let (ds, sts) = vaas2sts ds
+                let (ds, sts, vs) = exprs2minimal m es
                 let v = value2minimal m v
                 let st = FunAssign (str, hvals_of_hexprs hes vs, v)
                 (ds, sts@[st])
             | AST.IfElse (e, sif, selse) ->
-                let (ds, v) = expr2minimal m e
-                let (ds, sts) = vaas2sts ds
+                let (ds, sts, v) = expr2minimal m e
                 let (dsif, sif) = aux sif
                 let (dselse, selse) = aux selse
                 let st = IfElse (v, packIfNecessary dsif sif, packIfNecessary dselse selse)

@@ -10,10 +10,12 @@
 
     type Marks = { f : FunMarks; v : VarMarks; d: DiffConstraint }
 
-    type AdditionalData = { md : bool } // md means model-dependent
+    // Indicate for each umark which arguments are potentially model-dependent
+    type UniversalFunMarksInfo = Map<FunMarks,Set<string>>
+    type AdditionalData = { md : bool ; ufmi : UniversalFunMarksInfo } // md means model-dependent
 
     let empty_marks = { f = Set.empty; v = Set.empty ; d = Set.empty }
-    let empty_ad = { md = false }
+    let empty_ad = { md = false ; ufmi = Map.empty }
     let empty_config = (empty_marks, empty_marks, empty_ad)
     // A config (m,um,ad) is composed of alist of marks m, a list of model-dependent marks um, additional data ad
 
@@ -38,16 +40,28 @@
         let ds = Seq.map (fun m -> m.d) ms
         { f = op1 fs ; v = op2 vs ; d = op3 ds }
 
-    let ad_reduce op1 ads : AdditionalData =
+    let ad_reduce op1 op2 ads : AdditionalData =
         let mds = Seq.map (fun ad -> ad.md) ads
-        { md = op1 mds }
+        let ufmis = Seq.map (fun ad -> ad.ufmi) ads
+        { md = op1 mds ; ufmi = op2 ufmis }
     
     let marks_union_many = marks_reduce Set.unionMany Set.unionMany Set.unionMany
     let marks_union m1 m2 = marks_union_many ([m1;m2] |> List.toSeq)
     let marks_diff m1 m2 =
         { f=Set.difference m1.f m2.f ; v=Set.difference m1.v m2.v; d=Set.difference m1.d m2.d }
 
-    let ad_union_many = ad_reduce (Seq.exists Helper.identity)
+    let ad_union_many =
+        let union_ufmis ufmis =
+            let aux acc ufmi =
+                let merge_key acc k v =
+                    let s =
+                        match Map.tryFind k acc with
+                        | None -> v
+                        | Some s -> Set.union s v
+                    Map.add k s acc
+                Map.fold merge_key acc ufmi
+            Seq.fold aux Map.empty ufmis
+        ad_reduce (Seq.exists Helper.identity) union_ufmis
     let ad_union ad1 ad2 = ad_union_many ([ad1;ad2] |> List.toSeq)
 
     let config_union (m1,um1,ad1) (m2,um2,ad2) =
