@@ -47,7 +47,7 @@
                 match cv with
                 | AST.ConstBool true -> trace_statement m infos env sif
                 | AST.ConstBool false -> trace_statement m infos env selse
-                | _ -> failwith "If condition is not a boolean value!"
+                | _ -> raise Interpreter.TypeError
             let rd = (env, final_env tr, is_fully_executed tr)
             TrIfElse (rd, v, tr)
         | IfSomeElse (decl, v, sif, selse) ->

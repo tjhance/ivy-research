@@ -64,22 +64,51 @@
     <Compile Include="AssemblyInfo.fs" />
     <None Include="App.config" />
     <Content Include="packages.config" />
-    <Compile Include="..\InvariantSynthesis\Helper.fs" />
-    <Compile Include="..\InvariantSynthesis\AST.fs" />
-	<Compile Include="..\InvariantSynthesis\MinimalAST.fs" />
-    <Compile Include="..\InvariantSynthesis\Model.fs" />
-    <Compile Include="..\InvariantSynthesis\InterpretedExpr.fs" />
-    <Compile Include="..\InvariantSynthesis\Interpreter.fs" />
-    <Compile Include="..\InvariantSynthesis\Synthesis.fs" />
-    <Compile Include="..\InvariantSynthesis\Trace.fs" />
-    <Compile Include="..\InvariantSynthesis\TInterpreter.fs" />
-    <Compile Include="..\InvariantSynthesis\TSynthesis.fs" />
-    <Compile Include="..\InvariantSynthesis\Formula.fs" />
-    <Compile Include="..\InvariantSynthesis\ConstraintsParser.fs" />
-    <Compile Include="..\InvariantSynthesis\ParserAST.fs" />
-    <Compile Include="..\InvariantSynthesis\TestModule.fs" />
-    <Compile Include="..\InvariantSynthesis\Printer.fs" />
-    <Compile Include="..\InvariantSynthesis\Program.fs" />
+    <Compile Include="..\InvariantSynthesis\Helper.fs">
+      <Link>Helper.fs</Link>
+    </Compile>
+    <Compile Include="..\InvariantSynthesis\AST.fs">
+      <Link>AST.fs</Link>
+    </Compile>
+    <Compile Include="..\InvariantSynthesis\MinimalAST.fs">
+      <Link>MinimalAST.fs</Link>
+    </Compile>
+    <Compile Include="..\InvariantSynthesis\Model.fs">
+      <Link>Model.fs</Link>
+    </Compile>
+    <Compile Include="..\InvariantSynthesis\InterpretedExpr.fs">
+      <Link>InterpretedExpr.fs</Link>
+    </Compile>
+    <Compile Include="..\InvariantSynthesis\Interpreter.fs">
+      <Link>Interpreter.fs</Link>
+    </Compile>
+    <Compile Include="..\InvariantSynthesis\Synthesis.fs">
+      <Link>Synthesis.fs</Link>
+    </Compile>
+    <Compile Include="..\InvariantSynthesis\Trace.fs">
+      <Link>Trace.fs</Link>
+    </Compile>
+    <Compile Include="..\InvariantSynthesis\TInterpreter.fs">
+      <Link>TInterpreter.fs</Link>
+    </Compile>
+    <Compile Include="..\InvariantSynthesis\Formula.fs">
+      <Link>Formula.fs</Link>
+    </Compile>
+    <Compile Include="..\InvariantSynthesis\ConstraintsParser.fs">
+      <Link>ConstraintsParser.fs</Link>
+    </Compile>
+    <Compile Include="..\InvariantSynthesis\ParserAST.fs">
+      <Link>ParserAST.fs</Link>
+    </Compile>
+    <Compile Include="..\InvariantSynthesis\TestModule.fs">
+      <Link>TestModule.fs</Link>
+    </Compile>
+    <Compile Include="..\InvariantSynthesis\Printer.fs">
+      <Link>Printer.fs</Link>
+    </Compile>
+    <Compile Include="..\InvariantSynthesis\Program.fs">
+      <Link>Program.fs</Link>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
     <Reference Include="FParsec">

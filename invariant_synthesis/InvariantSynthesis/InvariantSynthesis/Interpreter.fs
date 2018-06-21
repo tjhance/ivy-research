@@ -130,7 +130,7 @@
             match cv with
             | AST.ConstBool true -> execute_statement m infos env sif
             | AST.ConstBool false -> execute_statement m infos env selse
-            | _ -> failwith "If condition is not a boolean value!"
+            | _ -> raise TypeError
         | IfSomeElse (decl, v, sif, selse) ->
             match if_some_value m infos env decl v with
             | Some value ->
