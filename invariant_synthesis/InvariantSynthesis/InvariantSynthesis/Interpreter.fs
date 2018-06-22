@@ -102,6 +102,8 @@
 
     and execute_statement (m:ModuleDecl) infos (env:Model.Environment) s : Model.Environment =
         match s with
+        | AtomicGroup sts ->
+            execute_statements m infos env sts
         | NewBlock (decls, ss) ->
             let env' = enter_new_block infos env decls (List.map (fun _ -> None) decls)
             let env' = execute_statements m infos env' ss

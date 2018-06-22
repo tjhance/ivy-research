@@ -2,7 +2,6 @@
 
     (* A VERY BASIC AST FOR IVY *)
 
-    // TODO: System of "unite of statement" in minimal AST in order to have more relevant choices, for instance in FunAssign
     // TODO: Find a way to add implication rules when parsing
     // TODO: treat differently 'assume', 'assert', 'require' and 'ensure'
 

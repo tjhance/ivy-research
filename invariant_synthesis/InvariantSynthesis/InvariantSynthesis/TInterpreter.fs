@@ -7,10 +7,13 @@
 
     let rec trace_statement (m:ModuleDecl) infos (env:Model.Environment) s =
         match s with
+        | AtomicGroup (sts) ->
+            let trs = trace_statements m infos env sts
+            TrAtomicGroup((env, final_env_of_trs trs env, are_fully_executed trs), trs)
         | NewBlock (decls, ss) ->
             let env' = Interpreter.enter_new_block infos env decls (List.map (fun _ -> None) decls)
             let trs = trace_statements m infos env' ss
-            let env' = final_env_of_sts trs env'
+            let env' = final_env_of_trs trs env'
             let env' = Interpreter.leave_block infos env' decls env
             let rd = (env, env', are_fully_executed trs)
             TrNewBlock (rd, decls, trs)

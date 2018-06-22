@@ -26,6 +26,7 @@
         | Val of Value
 
     type Statement =
+        | AtomicGroup of List<Statement>
         | NewBlock of List<VarDecl> * List<Statement>
         | VarAssign of string * Value
         | VarAssignAction of string * string * List<Value>
@@ -191,6 +192,8 @@
             if List.length sts = 1 && List.isEmpty decls
             then List.head sts
             else NewBlock (decls, sts)
+        let group_sts sts =
+            [AtomicGroup (sts)]
         // Returns a list of var decls + a list of statements
         let rec aux s =
             match s with
@@ -199,29 +202,29 @@
                 ([], [NewBlock (List.concat (ds::nds), List.concat sts)])
             | AST.Expression e ->
                 let (ds, sts, _) = expr2minimal m e
-                (ds, sts)
+                (ds, group_sts sts)
             | AST.VarAssign (str, e) ->
                 let (ds, sts, v) = expr2minimal m e
                 let st = VarAssign (str, v)
-                (ds, sts@[st])
+                (ds, group_sts (sts@[st]))
             | AST.FunAssign (str, es, e) ->
                 let (ds1, sts1, vs) = exprs2minimal m es
                 let (ds2, sts2, v) = expr2minimal m e
                 let (ds, sts) = (ds1@ds2, sts1@sts2)
                 let st = FunAssign (str, List.map (fun v -> Val v) vs, v)
-                (ds, sts@[st])
+                (ds, group_sts (sts@[st]))
             | AST.ForallFunAssign (str, hes, v) ->
                 let es = exprs_of_hexprs hes
                 let (ds, sts, vs) = exprs2minimal m es
                 let v = value2minimal m v
                 let st = FunAssign (str, hvals_of_hexprs hes vs, v)
-                (ds, sts@[st])
+                (ds, group_sts (sts@[st]))
             | AST.IfElse (e, sif, selse) ->
                 let (ds, sts, v) = expr2minimal m e
                 let (dsif, sif) = aux sif
                 let (dselse, selse) = aux selse
                 let st = IfElse (v, packIfNecessary dsif sif, packIfNecessary dselse selse)
-                (ds, sts@[st])
+                (ds, group_sts (sts@[st]))
             | AST.IfSomeElse (d, v, sif, selse) ->
                 let v = value2minimal m v
                 let (dsif, sif) = aux sif

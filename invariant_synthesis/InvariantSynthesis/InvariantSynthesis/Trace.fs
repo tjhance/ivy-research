@@ -6,6 +6,7 @@
     type RuntimeData = Environment * Environment * bool // Env before, env after, successfully executed
 
     type TrStatement =
+        | TrAtomicGroup of RuntimeData * List<TrStatement>
         | TrNewBlock of RuntimeData * List<VarDecl> * List<TrStatement>
         | TrVarAssign of RuntimeData * string * Value
         | TrVarAssignAction of
@@ -17,6 +18,7 @@
 
     let runtime_data s =
         match s with
+        | TrAtomicGroup (rd,_)
         | TrNewBlock (rd,_,_)
         | TrVarAssign (rd,_,_)
         | TrVarAssignAction (rd,_,_,_,_,_,_)
@@ -36,7 +38,7 @@
         let (_,env,_) = runtime_data st
         env
 
-    let final_env_of_sts sts initial_env =
+    let final_env_of_trs sts initial_env =
         let aux _ s =
             final_env s
         List.fold aux initial_env sts
