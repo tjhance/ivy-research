@@ -51,6 +51,9 @@ type parsed_statement =
     | IfElse of parsed_expression * parsed_statement * parsed_statement
     | IfSomeElse of var_decl * parsed_expression * parsed_statement * parsed_statement
     | Assert of parsed_expression
+    | Assume of parsed_expression
+    | Require of parsed_expression
+    | Ensure of parsed_expression
     [@@deriving sexp]
 
 (* ELEMENTS *)
@@ -66,6 +69,7 @@ and parsed_element =
     | Macro of string * var_decl list * parsed_expression * bool (* Infix? *)
     | Definition of string * var_decl list * parsed_expression
     | Conjecture of parsed_expression
+    | Rule of parsed_expression
     | AbstractAction of string * var_decl list * var_decl opt
     | Implement of string * parsed_statement
     | Action of action_decl

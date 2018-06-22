@@ -45,6 +45,9 @@ open Prime
         | IfElse of parsed_expression * parsed_statement * parsed_statement
         | IfSomeElse of var_decl * parsed_expression * parsed_statement * parsed_statement
         | Assert of parsed_expression
+        | Assume of parsed_expression
+        | Require of parsed_expression
+        | Ensure of parsed_expression
 
     (* ELEMENTS *)
 
@@ -59,6 +62,7 @@ open Prime
         | Macro of string * var_decl list * parsed_expression * bool (* Infix? *)
         | Definition of string * var_decl list * parsed_expression
         | Conjecture of parsed_expression
+        | Rule of parsed_expression
         | AbstractAction of string * var_decl list * var_decl option
         | Implement of string * parsed_statement
         | Action of action_decl
@@ -132,6 +136,7 @@ open Prime
             let sts = rewrite_stats dico [s]
             if List.length sts <> 1 then failwith "Internal error."
             else List.head sts
+
         and rewrite_stats dico sts =
             match sts with
             | [] -> []
@@ -149,6 +154,9 @@ open Prime
                 let (dico', d) = rewrite_arg dico d
                 (IfSomeElse (d, rewrite_expr dico' expr, rewrite_stat dico' st1, rewrite_stat dico st2))::(rewrite_stats dico sts)
             | (Assert expr)::sts -> (Assert (rewrite_expr dico expr))::(rewrite_stats dico sts)
+            | (Assume expr)::sts -> (Assume (rewrite_expr dico expr))::(rewrite_stats dico sts)
+            | (Require expr)::sts -> (Require (rewrite_expr dico expr))::(rewrite_stats dico sts)
+            | (Ensure expr)::sts -> (Ensure (rewrite_expr dico expr))::(rewrite_stats dico sts)
 
         let rec rewrite_element dico elt =
             match elt with
@@ -169,6 +177,7 @@ open Prime
                 let (dico, args) = rewrite_args dico args
                 Definition (str, args, rewrite_expr dico expr)
             | Conjecture expr -> Conjecture (rewrite_expr dico expr)
+            | Rule expr -> Rule (rewrite_expr dico expr)
             | AbstractAction (str, args, ret_opt) ->
                 test dico str
                 let args = rewrite_args_strict dico args
@@ -434,7 +443,7 @@ open Prime
                 let (local_vars_types, res_e2) =
                     match e2 with
                     | Some e2 -> aux local_vars_types e2 (Some new_type)
-                    | None -> (local_vars_types, AST.ExprConst (Model.type_default_value new_type))
+                    | None -> (local_vars_types, AST.ExprConst (AST.type_default_value new_type))
                 (local_vars_types, AST.ExprSomeElse (decl, AST.expr_to_value res_e1, AST.expr_to_value res_e2))
 
         aux local_vars_types v ret_val
@@ -458,6 +467,12 @@ open Prime
     // Convert a parsed statement to an AST one, and resolve references & types
     let p2a_stats (m:ModuleDecl) base_name sts local_vars =
         let rec aux sts local_vars =
+            
+            let expr2closed_formula e =
+                let (dico, e) = p2a_expr m base_name local_vars Map.empty (Some AST.Bool) e
+                let e = close_formula m local_vars dico Set.empty e
+                AST.expr_to_value e
+
             match sts with
             | [] -> []
             | (NewBlock sts1)::sts2 -> (aux sts1 local_vars)@(aux sts2 local_vars)
@@ -577,11 +592,10 @@ open Prime
                 let selse = aux [selse] local_vars
                 (AST.IfSomeElse (AST.default_var_decl str t, v, AST.NewBlock([],sif),AST.NewBlock([],selse)))::(aux sts local_vars)
 
-            | (Assert e)::sts ->
-                let (dico, e) = p2a_expr m base_name local_vars Map.empty (Some AST.Bool) e
-                let e = close_formula m local_vars dico Set.empty e
-                let v = AST.expr_to_value e
-                (AST.Assert v)::(aux sts local_vars)
+            | (Assert e)::sts -> (AST.Assert (expr2closed_formula e))::(aux sts local_vars)
+            | (Assume e)::sts -> (AST.Assume (expr2closed_formula e))::(aux sts local_vars)
+            | (Require e)::sts -> (AST.Require (expr2closed_formula e))::(aux sts local_vars)
+            | (Ensure e)::sts -> (AST.Ensure (expr2closed_formula e))::(aux sts local_vars)
 
         aux sts local_vars
     

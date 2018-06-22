@@ -52,12 +52,6 @@
     let add_var_declaration (d:VarDecl) (ds:Declarations) =
         { ds with v=Map.add d.Name d ds.v }
 
-    let type_default_value t =
-        match t with
-        | Void -> ConstVoid
-        | Bool -> ConstBool false
-        | Uninterpreted str -> ConstInt (str, 0)
-
     let all_values infos data_type =
         match data_type with
         | Void -> Seq.singleton ConstVoid
@@ -95,13 +89,13 @@
         // Init
         let var_env =
             List.fold
-                (fun acc (vdecl:VarDecl) -> Map.add vdecl.Name (type_default_value vdecl.Type) acc)
+                (fun acc (vdecl:VarDecl) -> Map.add vdecl.Name (AST.type_default_value vdecl.Type) acc)
                 Map.empty m.Vars
         let fun_env =
             List.fold
                 (fun acc (fdecl:FunDecl) ->
                     Seq.fold (fun acc input ->
-                        Map.add (fdecl.Name, input) (type_default_value fdecl.Output) acc)
+                        Map.add (fdecl.Name, input) (AST.type_default_value fdecl.Output) acc)
                         acc (all_values_ext type_infos fdecl.Input)
                 ) Map.empty m.Funs
         // Apply constraints

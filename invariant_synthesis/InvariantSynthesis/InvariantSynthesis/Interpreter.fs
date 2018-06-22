@@ -62,7 +62,7 @@
     let enter_new_block _ (env:Model.Environment) lvars lvalues : Model.Environment =
         let add_decl acc (decl:VarDecl) v =
             match v with
-            | None -> Map.add decl.Name (Model.type_default_value decl.Type) acc
+            | None -> Map.add decl.Name (AST.type_default_value decl.Type) acc
             | Some v -> Map.add decl.Name v acc
         {env with v=List.fold2 add_decl env.v lvars lvalues }
 
@@ -153,7 +153,7 @@
         let env' = effect env'
         let res =
             match Map.tryFind output.Name env'.v with
-            | None -> Model.type_default_value output.Type
+            | None -> AST.type_default_value output.Type
             | Some cv -> cv
         (leave_block infos env' (output::input) env, res)
 

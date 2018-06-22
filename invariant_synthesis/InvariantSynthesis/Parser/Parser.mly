@@ -8,10 +8,10 @@
 %}
 
 %token CONJECTURE TYPE ACTION RETURNS INDIVIDUAL FUNCTION RELATION MODULE OBJECT INSTANCE
-%token AFTER BEFORE DEFINITION INSTANTIATE IMPLEMENT INTERPRET
+%token AFTER BEFORE DEFINITION INSTANTIATE IMPLEMENT INTERPRET RULE
 
 %token SEMI_COLON LEFT_BRACE RIGHT_BRACE
-%token ASSIGN CALL IF ASSERT VAR
+%token ASSIGN CALL IF VAR ASSERT ASSUME REQUIRE ENSURE
 
 %token BOOL TRUE FALSE
 %token <int> INT
@@ -90,6 +90,7 @@ element:
   | AFTER ; name = ID ; list(EOL) ; st = block_statement { After (name, st) }
   | BEFORE ; name = ID ; list(EOL) ; st = block_statement { Before (name, st) }
   | CONJECTURE ; e = expression { Conjecture e }
+  | RULE ; e = expression { Rule e }
   | MODULE ; name = ID ; args = module_args ; EQUAL ; list(EOL) ; els = block_of_elements { Module (name, args, els) }
   | OBJECT ; name = ID ; EQUAL ; list(EOL) ; els = block_of_elements { Object (name, els) }
   | INSTANCE ; name = ID ; COLON ; mod_name = ID ; args = module_args_with_infix { ObjectFromModule (name, mod_name, args) }
@@ -171,6 +172,9 @@ statement:
   | IF ; SOME ; d = decl ; POINT ; e = expression ; list (EOL) ; sif = block_statement ; list (EOL) ;
     ELSE ; list (EOL) ; selse = block_statement { IfSomeElse (d, e, sif, selse) }
   | ASSERT ; e = expression { Assert (e) }
+  | ASSUME ; e = expression { Assume (e) }
+  | REQUIRE ; e = expression { Require (e) }
+  | ENSURE ; e = expression { Ensure (e) }
   ;
 
 decl:

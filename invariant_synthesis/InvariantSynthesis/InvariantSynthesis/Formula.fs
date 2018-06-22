@@ -16,7 +16,7 @@
         let r = [RelPattern (PatternConst relvalue, relname, [PatternVar "X"; PatternVar "X"])] |> Set.ofList
         let i1 = (l,r)
         let l = [RelPattern (PatternConst (not relvalue), relname, [PatternVar "X"; PatternVar "Y"])] |> Set.ofList
-        let r = [ValueDiffPattern (typename, PatternVar "X", PatternVar "Y")] |> Set.ofList
+        let r = [ValueDiffPattern (Uninterpreted typename, PatternVar "X", PatternVar "Y")] |> Set.ofList
         let i2 = (l,r)
         [i1;i2]
     
@@ -46,7 +46,7 @@
 
     let antisymetric relname relvalue typename =
         let l = [RelPattern (PatternConst relvalue, relname, [PatternVar "X"; PatternVar "Y"]) ;
-            ValueDiffPattern (typename, PatternVar "X", PatternVar "Y")] |> Set.ofList
+            ValueDiffPattern (Uninterpreted typename, PatternVar "X", PatternVar "Y")] |> Set.ofList
         let r = [RelPattern (PatternConst (not relvalue), relname, [PatternVar "Y"; PatternVar "X"])] |> Set.ofList
         let i1 = (l,r)
         [i1]
@@ -80,8 +80,7 @@
             | RelPattern (_, str, vs) ->
                 let types = (Map.find str decls.f).Input
                 List.fold2 aux Set.empty types vs
-            | ValueDiffPattern (type_str,n1,n2) ->
-                let t = Uninterpreted type_str
+            | ValueDiffPattern (t,n1,n2) ->
                 List.fold2 aux Set.empty [t;t] [n1;n2]
         
         let free_vars_of_patterns ps =
@@ -118,8 +117,7 @@
                             Set.add (List.fold2 update_dico dico pvs relvalues) acc
                         with :? DoesntMatch -> acc
                 Set.fold aux Set.empty mf
-            | ValueDiffPattern (type_str, pv1, pv2) ->
-                let t = Uninterpreted type_str
+            | ValueDiffPattern (t, pv1, pv2) ->
                 let aux acc (cv1,cv2) =
                     if t <> type_of_const_value cv1 || t <> type_of_const_value cv2 then acc
                     else
@@ -127,6 +125,7 @@
                             let dico = update_dico prev_dico pv1 cv1
                             Set.add (update_dico dico pv2 cv2) acc
                         with :? DoesntMatch -> acc
+               // let diffs = Synthesis.add_diff_constraint // TODO: Add boolean diffs
                 Set.fold aux Set.empty diffs
 
         let all_dicos_matching_free_var vars prev_dico =

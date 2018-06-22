@@ -39,7 +39,7 @@
     type Pattern =
         | VarPattern of PatternValue * string
         | RelPattern of PatternValue * string * List<PatternValue>
-        | ValueDiffPattern of string * PatternValue * PatternValue
+        | ValueDiffPattern of Type * PatternValue * PatternValue
 
     type ImplicationRule = Set<Pattern> * Set<Pattern>
 
@@ -96,6 +96,9 @@
         | IfElse of Expression * Statement * Statement
         | IfSomeElse of VarDecl * Value * Statement * Statement
         | Assert of Value
+        | Assume of Value
+        | Require of Value
+        | Ensure of Value
 
     type ActionDecl = { Name: string; Args: List<VarDecl>; Output: VarDecl; Content: Statement }
 
@@ -226,6 +229,44 @@
         | ExprImply (e1, e2) -> ValueImply (expr_to_value e1, expr_to_value e2)
         | ExprInterpreted (str, args) -> ValueInterpreted (str, List.map expr_to_value args)
 
+    let value_to_pattern_value v =
+        match v with
+        | ValueConst (ConstBool b) -> PatternConst b
+        | ValueVar str -> PatternVar str
+        | _ -> failwith "Invalid pattern value."
+
+    let rec value_to_pattern v =
+        match v with
+        | ValueNot (ValueEqual (v1, v2)) -> ()// ValueDiffPattern
+            // TODO: Finish it (1. make a function type_of_pattern_value)
+        // TODO: Parse implication rules in ParserAST
+
+    (*
+    type PatternValue =
+        | PatternConst of bool
+        | PatternVar of string
+
+    type Pattern =
+        | VarPattern of PatternValue * string
+        | RelPattern of PatternValue * string * List<PatternValue>
+        | ValueDiffPattern of Type * PatternValue * PatternValue
+
+
+        | ValueConst of ConstValue
+        | ValueVar of string
+        | ValueFun of string * List<Value>
+        | ValueMacro of string * List<Value>
+        | ValueEqual of Value * Value
+        | ValueOr of Value * Value
+        | ValueAnd of Value * Value
+        | ValueNot of Value
+        | ValueSomeElse of VarDecl * Value * Value
+        | ValueForall of VarDecl * Value
+        | ValueExists of VarDecl * Value
+        | ValueImply of Value * Value
+        | ValueInterpreted of string * List<Value>
+    *)
+
     let expand_macro (macro:MacroDecl) args =
         let dico = List.fold2 (fun acc (d:VarDecl) v -> Map.add d.Name v acc) Map.empty macro.Args args
         map_vars_in_value (macro.Value) dico
@@ -242,6 +283,12 @@
     let value_equal _ v1 v2 = v1=v2
 
     let type_equal t1 t2 = t1=t2
+
+    let type_default_value t =
+        match t with
+        | Void -> ConstVoid
+        | Bool -> ConstBool false
+        | Uninterpreted str -> ConstInt (str, 0)
 
     let rec type_of_value<'a,'b> (m:ModuleDecl<'a,'b>) value dico =
         match value with

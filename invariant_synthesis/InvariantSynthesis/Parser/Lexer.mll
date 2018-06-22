@@ -32,9 +32,9 @@ rule read ignore_nls =
   | "if"     { IF }
   | "var"     { VAR }
   | "assert" { ASSERT }
-  | "ensure" { ASSERT }
-  | "require" { ASSERT }
-  | "assume" { ASSERT }
+  | "ensure" { ENSURE }
+  | "require" { REQUIRE }
+  | "assume" { ASSUME }
   | "conjecture" { CONJECTURE }
   | "type"   { TYPE }
   | "action" { ACTION }
@@ -52,6 +52,7 @@ rule read ignore_nls =
   | "definition" { DEFINITION }
   | "derived" { DEFINITION }
   | "interpret" { INTERPRET }
+  | "#rule"  { RULE }
   | "~="     { DIFFERENT }
   | "->"     { RIGHT_ARROW }
   | ":="     { ASSIGN }

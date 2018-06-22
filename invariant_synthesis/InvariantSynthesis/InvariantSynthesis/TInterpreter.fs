@@ -76,7 +76,7 @@
             if is_fully_executed tr
             then
                 match Map.tryFind output.Name env'.v with
-                | None -> Some (Model.type_default_value output.Type)
+                | None -> Some (AST.type_default_value output.Type)
                 | Some cv -> Some cv
             else None
 
