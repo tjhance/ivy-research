@@ -37,10 +37,10 @@ object incrementable = {
 
 	interpret t -> int
 
+	#rule succ(X,Y) -> X < Y
 	definition succ(X,Y) = (Y = X + 1)
 
         implement next {
-			assume input + 1 > input ;
             output := input + 1;
 			assert succ(input,output);
         }

@@ -34,7 +34,7 @@
         | IfElse of Value * Statement * Statement
         | IfSomeElse of VarDecl * Value * Statement * Statement
         | Assert of Value
-        | Assume of Value // TODO: Convert require/ensure to either assert or assume (depending on the context)
+        | Assume of Value
 
     type ActionDecl = { Name: string; Args: List<VarDecl>; Output: VarDecl; Content: Statement }
     type MacroDecl = { Name: string; Args: List<VarDecl>; Output: Type; Value: Value ; Representation: RepresentationInfos }
@@ -233,6 +233,8 @@
                 let st = IfSomeElse (d, v, packIfNecessary dsif sif, packIfNecessary dselse selse)
                 ([], [st])
             | AST.Assert v -> ([], [Assert (value2minimal m v)])
+            | AST.Assume v -> ([], [Assume (value2minimal m v)])
+            // TODO: Convert require/ensure to either assert or assume (depending on the context)
         let (decls, sts) = aux s
         packIfNecessary decls sts
 
