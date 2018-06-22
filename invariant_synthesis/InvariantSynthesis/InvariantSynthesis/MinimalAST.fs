@@ -187,7 +187,7 @@
         | (AST.Expr _)::lst, v::vals -> (Val v)::(hvals_of_hexprs lst vals)
         | _ -> failwith "Invalid HoleExpression!"
 
-    let statement2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) (s:AST.Statement) =
+    let statement2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) (s:AST.Statement) is_main_action =
         reinit_tmp_vars ()
         let packIfNecessary decls sts =
             if List.length sts = 1 && List.isEmpty decls
@@ -234,13 +234,16 @@
                 ([], [st])
             | AST.Assert v -> ([], [Assert (value2minimal m v)])
             | AST.Assume v -> ([], [Assume (value2minimal m v)])
-            // TODO: Convert require/ensure to either assert or assume (depending on the context)
+            | AST.Require v ->
+                if is_main_action then ([], [Assume (value2minimal m v)]) else ([], [Assert (value2minimal m v)])
+            | AST.Ensure v ->
+                if is_main_action then ([], [Assert (value2minimal m v)]) else ([], [Assume (value2minimal m v)])
         let (decls, sts) = aux s
         packIfNecessary decls sts
 
-    let module2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) =
+    let module2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) main_action =
         let action2minimal (a:AST.ActionDecl) =
-            let st = statement2minimal m a.Content
+            let st = statement2minimal m a.Content (a.Name = main_action)
             { ActionDecl.Name = a.Name; ActionDecl.Args = a.Args ; ActionDecl.Output = a.Output ; ActionDecl.Content = st }
 
         let actions = List.map action2minimal m.Actions

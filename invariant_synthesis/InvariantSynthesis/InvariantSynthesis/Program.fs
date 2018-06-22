@@ -54,7 +54,6 @@ let main argv =
                 printfn "Converting parsed AST..."
                 ParserAST.ivy_elements_to_ast_module filename parsed_elts
     let decls = Model.declarations_of_module md
-    let mmd = MinimalAST.module2minimal md
         
     printfn "Please enter constraints:"
     let str = read_until_line_jump ()
@@ -80,6 +79,8 @@ let main argv =
                     | Uninterpreted str -> ConstInt (str, Convert.ToInt32 (Console.ReadLine()))
             )
             (find_action md name false).Args
+
+    let mmd = MinimalAST.module2minimal md name
     printfn "Executing..."
     let tr = TInterpreter.trace_action mmd infos env name (List.map (fun cv -> MinimalAST.ValueConst cv) args) AST.impossible_var_prefix
     let env' = Trace.final_env tr
