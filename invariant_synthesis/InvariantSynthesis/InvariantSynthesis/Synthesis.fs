@@ -223,7 +223,7 @@
             {um with f = Set.remove (str,cvs) um.f},
             remove_ufmi_entry ad str cvs)
 
-    let fun_marks_matching_ext infos (m, um, ad) str ovs md_predicate : (FunMarks * FunMarks) =
+    let fun_marks_matching_ext (m, um, ad) str ovs md_predicate : (FunMarks * FunMarks) =
         let aux m =
             let value_match v dv =
                 match dv with
@@ -247,13 +247,13 @@
         let (matches'', umatches) = aux um
         (Set.unionMany [matches; matches'; matches''], umatches)
 
-    let fun_marks_matching infos cfg str ovs : (FunMarks * FunMarks) =
+    let fun_marks_matching cfg str ovs : (FunMarks * FunMarks) =
         let md_pred ufmi =
             Helper.existsi (fun i ov -> ov = None && Set.contains i ufmi) ovs
-        fun_marks_matching_ext infos cfg str ovs md_pred
+        fun_marks_matching_ext cfg str ovs md_pred
 
     // Used in the fun assign case
-    let compute_neighbors_with_perm infos cfg marked str vs hvs none_uvs permut =
+    let compute_neighbors_with_perm cfg marked str vs hvs none_uvs permut =
 
         let transform cvs_opt =
             Interpreter.reconstruct_hvals hvs cvs_opt none_uvs
@@ -274,7 +274,7 @@
                 let ufmi_lst = List.init (List.length full_constraints) (fun i -> Set.contains i ufmi)
                 List.item real_i (inv_trans1 ufmi_lst)
                 
-            let (neighbors_m, neighbors_um) = fun_marks_matching_ext infos cfg str full_constraints md_pred
+            let (neighbors_m, neighbors_um) = fun_marks_matching_ext cfg str full_constraints md_pred
             let neighbors_m = Set.map (fun (_, l) -> List.item real_i (inv_trans2 l)) neighbors_m
             let neighbors_m = Set.remove v neighbors_m
             let neighbors_um = Set.map (fun (_, l) -> List.item real_i (inv_trans2 l)) neighbors_um
@@ -363,7 +363,7 @@
                     let some_cvs = List.map (fun a -> Some a) cvs
                     let none_uvs = List.map (fun _ -> None) uvs
                     let constraints = Interpreter.reconstruct_hvals hvs some_cvs none_uvs
-                    let (m_marks,um_marks) = fun_marks_matching infos cfg str constraints
+                    let (m_marks,um_marks) = fun_marks_matching cfg str constraints
                     let all_marks = Set.union m_marks um_marks
 
                     let marked = not (Set.isEmpty all_marks)
@@ -391,7 +391,7 @@
 
                     // Adding marks for the important args (vs)
                     let permutations = List.ofSeq (Helper.all_permutations (List.length cvs))
-                    let vals_possibilities = List.map (compute_neighbors_with_perm infos cfg marked str cvs hvs none_uvs) permutations
+                    let vals_possibilities = List.map (compute_neighbors_with_perm cfg marked str cvs hvs none_uvs) permutations
 
                     let treat_possibility (vs_marks, neighbors, uneighbors) =
                         let args = List.zip vs vs_marks
