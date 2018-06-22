@@ -56,7 +56,7 @@
 
     let simplify_marks infos (impls:List<AST.ImplicationRule>) (decls:Model.Declarations) (env:Model.Environment) (m:Synthesis.Marks) =
 
-        let value_equal cv1 cv2 = AST.value_equal infos cv1 cv2
+        let value_equal cv1 cv2 = AST.value_equal cv1 cv2
 
         let value_diff diffs cv1 cv2 =
             if Synthesis.is_model_dependent_value cv1 && Synthesis.is_model_dependent_value cv2
@@ -125,8 +125,16 @@
                             let dico = update_dico prev_dico pv1 cv1
                             Set.add (update_dico dico pv2 cv2) acc
                         with :? DoesntMatch -> acc
-               // let diffs = Synthesis.add_diff_constraint // TODO: Add boolean diffs
-                Set.fold aux Set.empty diffs
+               // We add disequalities for non model-dependent types
+                let diffs_for_nmd_type t =
+                    if Synthesis.is_model_dependent_type t then Set.empty
+                    else
+                        let couples = Model.all_values_ext infos [t;t]
+                        let couples = Seq.map Helper.lst_to_couple couples
+                        let couples = Seq.filter (fun (a,b) -> not (value_equal a b)) couples
+                        Set.ofSeq couples
+                let nmd_diffs = diffs_for_nmd_type Bool
+                Set.fold aux Set.empty (Set.union diffs nmd_diffs)
 
         let all_dicos_matching_free_var vars prev_dico =
             let is_free_var (d:VarDecl) =

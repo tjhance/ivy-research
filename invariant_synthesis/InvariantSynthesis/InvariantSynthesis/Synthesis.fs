@@ -142,7 +142,7 @@
             let (cv1, cfg1) = marks_for_value mdecl infos env uvar v1
             let (cv2, cfg2) = marks_for_value mdecl infos env uvar v2
             let (m,um,ad) = config_union cfg1 cfg2
-            if AST.value_equal infos cv1 cv2 then (AST.ConstBool true, (m, um, ad))
+            if AST.value_equal cv1 cv2 then (AST.ConstBool true, (m, um, ad))
             else if ad.md
             then (AST.ConstBool false, (m, add_diff_constraint infos um cv1 cv2, ad))
             else (AST.ConstBool false, (add_diff_constraint infos m cv1 cv2, um, ad))
@@ -228,7 +228,7 @@
             let value_match v dv =
                 match dv with
                 | None -> true
-                | Some dv -> AST.value_equal infos v dv
+                | Some dv -> AST.value_equal v dv
             let match_pattern model_dep fm =
                 match fm with
                 | (s, _) when s<>str -> false

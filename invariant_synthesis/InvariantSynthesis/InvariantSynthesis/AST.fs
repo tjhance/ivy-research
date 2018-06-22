@@ -235,38 +235,54 @@
         | ValueVar str -> PatternVar str
         | _ -> failwith "Invalid pattern value."
 
-    let rec value_to_pattern v =
+    let type_of_pattern_value dico pv =
+        match pv with
+        | PatternConst _ -> Bool
+        | PatternVar str -> Map.find str dico
+
+    let value_to_pattern dico v =
         match v with
-        | ValueNot (ValueEqual (v1, v2)) -> ()// ValueDiffPattern
-            // TODO: Finish it (1. make a function type_of_pattern_value)
-        // TODO: Parse implication rules in ParserAST
+        | ValueNot (ValueEqual (v1, v2)) ->
+            let pv1 = value_to_pattern_value v1
+            let pv2 = value_to_pattern_value v2
+            let t1 = type_of_pattern_value dico pv1
+            let t2 = type_of_pattern_value dico pv2
+            if t1 <> t2 then failwith "ValueDiffPattern has incoherent types!"
+            else
+                ValueDiffPattern (t1, pv1, pv2)
+        | ValueEqual (ValueVar str, v) ->
+            let pv = value_to_pattern_value v
+            VarPattern (pv, str)
+        | ValueEqual (ValueFun (str,vs), v) ->
+            let pv = value_to_pattern_value v
+            let pvs = List.map value_to_pattern_value vs
+            RelPattern (pv, str, pvs)
+        | ValueVar str ->
+            VarPattern (PatternConst true, str)
+        | ValueNot (ValueVar str) ->
+            VarPattern (PatternConst false, str)
+        | ValueFun (str,vs) ->
+            let pvs = List.map value_to_pattern_value vs
+            RelPattern (PatternConst true, str, pvs)
+        | ValueNot (ValueFun (str,vs)) ->
+            let pvs = List.map value_to_pattern_value vs
+            RelPattern (PatternConst false, str, pvs)
+        | _ -> failwith "Invalid pattern."
 
-    (*
-    type PatternValue =
-        | PatternConst of bool
-        | PatternVar of string
+    let rec value_to_set_of_patterns dico v =
+        match v with
+        | ValueAnd (v1, v2) ->
+            Set.union (value_to_set_of_patterns dico v1) (value_to_set_of_patterns dico v2)
+        | v -> Set.singleton (value_to_pattern dico v)
 
-    type Pattern =
-        | VarPattern of PatternValue * string
-        | RelPattern of PatternValue * string * List<PatternValue>
-        | ValueDiffPattern of Type * PatternValue * PatternValue
-
-
-        | ValueConst of ConstValue
-        | ValueVar of string
-        | ValueFun of string * List<Value>
-        | ValueMacro of string * List<Value>
-        | ValueEqual of Value * Value
-        | ValueOr of Value * Value
-        | ValueAnd of Value * Value
-        | ValueNot of Value
-        | ValueSomeElse of VarDecl * Value * Value
-        | ValueForall of VarDecl * Value
-        | ValueExists of VarDecl * Value
-        | ValueImply of Value * Value
-        | ValueInterpreted of string * List<Value>
-    *)
-
+    let rec value_to_implication_rule dico v =
+        match v with
+        | ValueImply (v1, v2) ->
+            let s1 = value_to_set_of_patterns dico v1
+            let s2 = value_to_set_of_patterns dico v2
+            (s1, s2)
+        | _ -> failwith "Invalid implication rule."
+        
     let expand_macro (macro:MacroDecl) args =
         let dico = List.fold2 (fun acc (d:VarDecl) v -> Map.add d.Name v acc) Map.empty macro.Args args
         map_vars_in_value (macro.Value) dico
@@ -280,7 +296,7 @@
         | ConstInt (s,_) -> Uninterpreted s
 
     // Note: In synthesis.fs, operations like Set.contains or Set.remove doesn't take value_equal into account.
-    let value_equal _ v1 v2 = v1=v2
+    let value_equal v1 v2 = v1=v2
 
     let type_equal t1 t2 = t1=t2
 

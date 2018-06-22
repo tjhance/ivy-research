@@ -31,7 +31,7 @@
         | ValueEqual (v1, v2) ->
             let cv1 = evaluate_value m infos env v1
             let cv2 = evaluate_value m infos env v2
-            AST.ConstBool (AST.value_equal env cv1 cv2)
+            AST.ConstBool (AST.value_equal cv1 cv2)
         | ValueOr (v1, v2) -> 
             let cv1 = evaluate_value m infos env v1
             let cv2 = evaluate_value m infos env v2

@@ -722,6 +722,11 @@ open Prime
                     let expr = close_formula m dico Map.empty Set.empty expr
                     let v = AST.expr_to_value expr
                     ({ m with AST.Invariants=(v::m.Invariants) }, tmp_elements)
+                | Rule expr ->
+                    let (dico, expr) = p2a_expr m base_name Map.empty Map.empty (Some AST.Bool) expr
+                    let v = AST.expr_to_value expr
+                    let ir = AST.value_to_implication_rule dico v
+                    ({ m with AST.Implications=(ir::m.Implications) }, tmp_elements)
                 | AbstractAction (name, args, ret_opt) ->
                     let name = compose_name base_name name
                     let args = p2a_args m base_name args Map.empty
