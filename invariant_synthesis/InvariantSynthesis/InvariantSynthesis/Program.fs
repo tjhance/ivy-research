@@ -85,7 +85,7 @@ let main argv =
     let env' = Trace.final_env tr
     if verbose
     then
-        printfn "%A" tr
+        printfn "%A" env'
 
     let ((m,um,ad),formula,b) =
         if Trace.is_fully_executed tr

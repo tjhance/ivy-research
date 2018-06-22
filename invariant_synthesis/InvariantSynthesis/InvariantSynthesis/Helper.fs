@@ -54,6 +54,19 @@
         | None::olst -> option_lst_to_lst olst
         | (Some h)::olst -> h::(option_lst_to_lst olst)
 
+    let foralli f lst =
+        let rec aux i lst =
+            match lst with
+            | [] -> true
+            | h::lst ->
+                if f i h
+                then aux (i+1) lst
+                else false
+        aux 0 lst
+
+    let existsi f lst =
+        not (foralli (fun x y -> not (f x y)) lst)
+
     // Misc
 
     let identity a = a

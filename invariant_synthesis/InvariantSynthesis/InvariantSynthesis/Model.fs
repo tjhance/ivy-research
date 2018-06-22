@@ -66,9 +66,6 @@
             let max = Map.find s infos
             seq { for x in 0..max -> ConstInt (s, x) }
 
-    let pick_value infos data_type =
-        Seq.head (all_values infos data_type)
-
     let rec all_values_ext infos lst =
         match lst with
         | [] -> Seq.singleton []

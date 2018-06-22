@@ -59,10 +59,10 @@
 
     exception AssertionFailed of Model.Environment * Value
 
-    let enter_new_block infos (env:Model.Environment) lvars lvalues : Model.Environment =
+    let enter_new_block _ (env:Model.Environment) lvars lvalues : Model.Environment =
         let add_decl acc (decl:VarDecl) v =
             match v with
-            | None -> Map.add decl.Name (Model.pick_value infos decl.Type) acc
+            | None -> Map.add decl.Name (Model.type_default_value decl.Type) acc
             | Some v -> Map.add decl.Name v acc
         {env with v=List.fold2 add_decl env.v lvars lvalues }
 

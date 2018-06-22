@@ -164,7 +164,7 @@
             let aux (diffs,mv,mf) (ls,rs) =
                 let rec all_dicos ls =
                     match ls with
-                    | [] -> Seq.singleton (Map.empty)
+                    | [] -> Seq.singleton Map.empty
                     | l::ls ->
                         let dicos = all_dicos ls
                         Seq.concat (Seq.map (all_dicos_matching_pattern (diffs,mv,mf) l) dicos)

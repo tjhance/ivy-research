@@ -1,8 +1,5 @@
 ﻿module MinimalAST
 
-open System.Numerics
-open FParsec
-
     type Type = AST.Type
     type RepresentationInfos = AST.RepresentationInfos
     type ImplicationRule = AST.ImplicationRule

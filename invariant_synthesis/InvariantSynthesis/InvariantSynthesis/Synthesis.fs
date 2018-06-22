@@ -11,7 +11,7 @@
     type Marks = { f : FunMarks; v : VarMarks; d: DiffConstraint }
 
     // Indicate for each umark which arguments are potentially model-dependent
-    type UniversalFunMarksInfo = Map<FunMarks,Set<string>>
+    type UniversalFunMarksInfo = Map<string * List<ConstValue>,Set<int>>
     type AdditionalData = { md : bool ; ufmi : UniversalFunMarksInfo } // md means model-dependent
 
     let empty_marks = { f = Set.empty; v = Set.empty ; d = Set.empty }
@@ -88,6 +88,19 @@
         let d' = Set.add (cv2, cv1) d'
         { m with d=d' }
 
+    let get_ufmi_entry (ad:AdditionalData) str cvs =
+         match Map.tryFind (str, cvs) ad.ufmi with
+         | None -> Set.empty
+         | Some s -> s
+
+    let add_ufmi_entry (ad:AdditionalData) str cvs arg =
+        let s = get_ufmi_entry ad str cvs
+        let s = Set.add arg s
+        { ad with ufmi = Map.add (str, cvs) s ad.ufmi }
+
+    let remove_ufmi_entry (ad:AdditionalData) str cvs =
+        { ad with ufmi = Map.remove (str, cvs) ad.ufmi }
+
     let is_var_marked _ (m, um, _) var =
         (Set.contains var m.v) || (Set.contains var um.v)
     
@@ -117,6 +130,11 @@
             let eval = evaluate_value mdecl infos env (ValueFun (str, vs))
             if ad.md
             then
+                let add_entry_if_needed (i, acc) (_,_,ad:AdditionalData) =
+                    if ad.md
+                    then (i+1, add_ufmi_entry acc str cvs i)
+                    else (i+1, acc)
+                let (_,ad) = List.fold add_entry_if_needed (0, ad) cfgs
                 (eval, (m, { um with f = Set.add (str, cvs) um.f }, ad))
             else
                 (eval, ({ m with f = Set.add (str, cvs) m.f }, um, ad))
@@ -158,8 +176,8 @@
                 is_model_dependent_type decl.Type && 
                 (not (Set.isEmpty uvar) || evaluate_value mdecl infos env (ValueForall (decl, v)) = AST.ConstBool true)
             let uvar = if is_uvar then Set.add decl.Name uvar else uvar
-            let values = Model.all_values infos decl.Type
-            let all_possibilities = Seq.map (fun cv -> marks_for_value_with mdecl infos env uvar v [decl.Name] [cv]) values
+            let values = List.ofSeq (Model.all_values infos decl.Type)
+            let all_possibilities = List.map (fun cv -> marks_for_value_with mdecl infos env uvar v [decl.Name] [cv]) values
             if Seq.forall (fun (b,_) -> b = AST.ConstBool true) all_possibilities
             then
                 // We mix all contraints (some will probably be model-dependent)
@@ -199,27 +217,49 @@
             let rm acc (decl:VarDecl) = Set.remove decl.Name acc
             { m with v=List.fold rm m.v lvars }
         (marks_enter_block m, marks_enter_block um, ad)
-
-    let is_fun_marked _ (m, um, _) str vs =
-        Set.contains (str, vs) m.f || Set.contains (str, vs) um.f
     
-    let remove_fun_marks _ (m, um, ad) str vs : Marks * Marks * AdditionalData =
-        ({m with f = Set.remove (str,vs) m.f}, {um with f = Set.remove (str,vs) um.f}, ad)
+    let remove_fun_marks _ (m, um, ad) str cvs : Marks * Marks * AdditionalData =
+        ({m with f = Set.remove (str,cvs) m.f},
+            {um with f = Set.remove (str,cvs) um.f},
+            remove_ufmi_entry ad str cvs)
 
-    let fun_marks_matching infos m str ovs : FunMarks =
-        let value_match v dv =
-            match dv with
-            | None -> true
-            | Some dv -> AST.value_equal infos v dv
-        let match_pattern fm =
-            match fm with
-            | (s, _) when s<>str -> false
-            | (_, lst) -> List.forall2 value_match lst ovs
-        (Set.filter match_pattern m.f)
+    let fun_marks_matching_ext infos (m, um, ad) str ovs md_predicate : (FunMarks * FunMarks) =
+        let aux m =
+            let value_match v dv =
+                match dv with
+                | None -> true
+                | Some dv -> AST.value_equal infos v dv
+            let match_pattern model_dep fm =
+                match fm with
+                | (s, _) when s<>str -> false
+                | (_, lst) ->
+                    if List.forall2 value_match lst ovs
+                    then
+                        let ufmi = get_ufmi_entry ad str lst
+                        if model_dep
+                        then md_predicate ufmi
+                        else not (md_predicate ufmi)
+                    else false
+            let matches = (Set.filter (match_pattern false) m.f)
+            let matches' = (Set.filter (match_pattern true) m.f)
+            (matches, matches')
+        let (matches, matches') = aux m
+        let (matches'', umatches) = aux um
+        (Set.unionMany [matches; matches'; matches''], umatches)
+
+    let fun_marks_matching infos cfg str ovs : (FunMarks * FunMarks) =
+        let md_pred ufmi =
+            Helper.existsi (fun i ov -> ov = None && Set.contains i ufmi) ovs
+        fun_marks_matching_ext infos cfg str ovs md_pred
 
     // Used in the fun assign case
-    let compute_neighbors_with_perm infos cfg marked str vs transform inv_trans permut =
-        let (m,um,_) = cfg
+    let compute_neighbors_with_perm infos cfg marked str vs hvs none_uvs permut =
+
+        let transform cvs_opt =
+            Interpreter.reconstruct_hvals hvs cvs_opt none_uvs
+        let inv_trans1 = Interpreter.keep_only_vals hvs
+        let inv_trans2 = Interpreter.keep_only_vals hvs
+
         let f = Helper.permutation_to_fun permut
         let inv_f = Helper.permutation_to_fun (Helper.inv_permutation permut)
         let n = List.length vs
@@ -227,11 +267,17 @@
         // acc: i, constraints, neighbors list, universally quantified neighbors list
         let aux (i, prev_constraints, nlist, unlist) v =
             let real_i = inv_f i
-            let neighbors_m = fun_marks_matching infos m str (transform prev_constraints)
-            let neighbors_m = Set.map (fun (_, l) -> List.item real_i (inv_trans l)) neighbors_m
+
+            let full_constraints = transform prev_constraints
+
+            let md_pred ufmi =
+                let ufmi_lst = List.init (List.length full_constraints) (fun i -> Set.contains i ufmi)
+                List.item real_i (inv_trans1 ufmi_lst)
+                
+            let (neighbors_m, neighbors_um) = fun_marks_matching_ext infos cfg str full_constraints md_pred
+            let neighbors_m = Set.map (fun (_, l) -> List.item real_i (inv_trans2 l)) neighbors_m
             let neighbors_m = Set.remove v neighbors_m
-            let neighbors_um = fun_marks_matching infos um str (transform prev_constraints)
-            let neighbors_um = Set.map (fun (_, l) -> List.item real_i (inv_trans l)) neighbors_um
+            let neighbors_um = Set.map (fun (_, l) -> List.item real_i (inv_trans2 l)) neighbors_um
             let neighbors_um = Set.remove v neighbors_um
             let marked = marked || not (Set.isEmpty neighbors_m && Set.isEmpty neighbors_um)
 
@@ -309,9 +355,7 @@
             let some_cvs = List.map (fun a -> Some a) cvs
             let none_uvs = List.map (fun _ -> None) uvs
             let constraints = Interpreter.reconstruct_hvals hvs some_cvs none_uvs
-            let (m,um,_) = cfg
-            let m_marks = fun_marks_matching infos m str constraints
-            let um_marks = fun_marks_matching infos um str constraints
+            let (m_marks,um_marks) = fun_marks_matching infos cfg str constraints
             let all_marks = Set.union m_marks um_marks
 
             let marked = not (Set.isEmpty all_marks)
@@ -338,11 +382,8 @@
             let cfg = add_marks_for_all env v uvs true um_marks cfg
 
             // Adding marks for the important args (vs)
-            let permutations = Helper.all_permutations (List.length cvs)
-            let transform cvs_opt =
-                Interpreter.reconstruct_hvals hvs cvs_opt none_uvs
-            let inv_trans = Interpreter.keep_only_vals hvs
-            let vals_possibilities = Seq.map (compute_neighbors_with_perm infos cfg marked str cvs transform inv_trans) permutations
+            let permutations = List.ofSeq (Helper.all_permutations (List.length cvs))
+            let vals_possibilities = List.map (compute_neighbors_with_perm infos cfg marked str cvs hvs none_uvs) permutations
 
             let treat_possibility (vs_marks, neighbors, uneighbors) =
                 let args = List.zip vs vs_marks
@@ -355,7 +396,7 @@
                 let um = Seq.fold2 (fun um cv ns -> add_ineq_between infos um (Set.singleton cv) ns) um cvs uneighbors
                 (m,um,ad)
 
-            let results = Seq.map treat_possibility vals_possibilities
+            let results = List.map treat_possibility vals_possibilities
             Helper.seq_min is_better_config results
         | TrIfElse ((env,_,_), v, tr) ->
             let cfg = marks_before_statement mdecl infos tr cfg
