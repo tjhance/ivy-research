@@ -5,6 +5,8 @@
     type ModuleDecl = ModuleDecl<Model.TypeInfos,Model.Environment>
 
     exception TypeError
+    exception EnvironmentError of string
+
     let value_or v1 v2 =
         match v1, v2 with
         | AST.ConstBool b1, AST.ConstBool b2 -> AST.ConstBool (b1 || b2)
@@ -144,6 +146,9 @@
         | Assert v ->
             if evaluate_value m infos env v = AST.ConstBool true
             then env else raise (AssertionFailed (env, v))
+        | Assume v -> // Here the environment is fixed, so assumptions are treated like assertions
+            if evaluate_value m infos env v = AST.ConstBool true
+            then env else raise (EnvironmentError "Incorrect environment: Assumption failed...")
 
     and execute_statements (m:ModuleDecl) infos (env:Model.Environment) ss =
         List.fold (execute_statement m infos) env ss

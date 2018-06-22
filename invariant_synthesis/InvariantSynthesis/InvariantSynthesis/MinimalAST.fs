@@ -35,7 +35,6 @@
         | IfSomeElse of VarDecl * Value * Statement * Statement
         | Assert of Value
         | Assume of Value // TODO: Convert require/ensure to either assert or assume (depending on the context)
-        // TODO: Handle the Assume case everywhere
 
     type ActionDecl = { Name: string; Args: List<VarDecl>; Output: VarDecl; Content: Statement }
     type MacroDecl = { Name: string; Args: List<VarDecl>; Output: Type; Value: Value ; Representation: RepresentationInfos }

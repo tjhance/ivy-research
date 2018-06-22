@@ -433,6 +433,7 @@
                 | TrAssert ((env,_,_),v) ->
                     let (_, cfg') = marks_for_value mdecl infos env Set.empty v
                     aux group_trs (config_union cfg cfg')
+                | TrAssume _ -> aux group_trs cfg
         aux [tr] cfg
 
     // Statements are analysed in reverse order

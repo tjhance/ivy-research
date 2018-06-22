@@ -15,6 +15,7 @@
         | TrIfElse of RuntimeData * Value * TrStatement
         | TrIfSomeElse of RuntimeData * Option<ConstValue> * VarDecl * Value * TrStatement
         | TrAssert of RuntimeData * Value
+        | TrAssume of RuntimeData * Value
 
     let runtime_data s =
         match s with
@@ -25,7 +26,8 @@
         | TrFunAssign (rd,_,_,_)
         | TrIfElse (rd,_,_)
         | TrIfSomeElse (rd,_,_,_,_)
-        | TrAssert (rd,_) -> rd
+        | TrAssert (rd,_)
+        | TrAssume (rd,_) -> rd
 
     let is_fully_executed st =
         let (_,_,b) = runtime_data st

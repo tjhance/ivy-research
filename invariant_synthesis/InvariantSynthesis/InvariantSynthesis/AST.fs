@@ -2,9 +2,6 @@
 
     (* A VERY BASIC AST FOR IVY *)
 
-    // TODO: Find a way to add implication rules when parsing
-    // TODO: treat differently 'assume', 'assert', 'require' and 'ensure'
-
     // TODO: Enumerated types
     // TODO: "For" loops
     // TODO: "if some" with multiple var decls
