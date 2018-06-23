@@ -63,6 +63,7 @@
         | ValueAnd of Value * Value
         | ValueNot of Value
         | ValueSomeElse of VarDecl * Value * Value
+        | ValueIfElse of Value * Value * Value
         | ValueForall of VarDecl * Value
         | ValueExists of VarDecl * Value
         | ValueImply of Value * Value
@@ -80,6 +81,7 @@
         | ExprAnd of Expression * Expression
         | ExprNot of Expression
         | ExprSomeElse of VarDecl * Value * Value
+        | ExprIfElse of Expression * Value * Value
         | ExprForall of VarDecl * Value
         | ExprExists of VarDecl * Value
         | ExprImply of Expression * Expression
@@ -205,6 +207,8 @@
             ValueNot (map_vars_in_value v dico)
         | ValueSomeElse (d, v1, v2) ->
             ValueSomeElse (d, map_vars_in_value v1 dico, map_vars_in_value v2 dico)
+        | ValueIfElse (f, v1, v2) ->
+            ValueIfElse (map_vars_in_value f dico, map_vars_in_value v1 dico, map_vars_in_value v2 dico)
         | ValueForall (d,v) ->
             ValueForall (d, map_vars_in_value v dico)
         | ValueExists (d,v) ->
@@ -226,6 +230,7 @@
         | ExprAnd (e1, e2) -> ValueAnd (expr_to_value e1, expr_to_value e2)
         | ExprNot e -> ValueNot (expr_to_value e)
         | ExprSomeElse (d, v1, v2) -> ValueSomeElse (d, v1, v2)
+        | ExprIfElse (f, v1, v2) -> ValueIfElse (expr_to_value f, v1, v2)
         | ExprForall (d,v) -> ValueForall (d,v)
         | ExprExists (d,v) -> ValueExists (d,v)
         | ExprImply (e1, e2) -> ValueImply (expr_to_value e1, expr_to_value e2)
@@ -320,6 +325,7 @@
         | ValueEqual _ | ValueOr _ | ValueAnd _ | ValueNot _ | ValueImply _
         | ValueForall _ | ValueExists _ -> Bool
         | ValueSomeElse (_,_,v) -> type_of_value m v dico
+        | ValueIfElse (_,_,v) -> type_of_value m v dico
         | ValueInterpreted (str, _) -> (find_interpreted_action m str).Output
 
     let type_of_expr<'a,'b> (m:ModuleDecl<'a,'b>) expr dico =
@@ -335,6 +341,7 @@
         | ExprEqual _ | ExprOr _ | ExprAnd _ | ExprNot _ | ExprImply _
         | ExprForall _ | ExprExists _ -> Bool
         | ExprSomeElse (_,_,v) -> type_of_value m v dico
+        | ExprIfElse (_,_,v) -> type_of_value m v dico
         | ExprInterpreted (str, _) -> (find_interpreted_action m str).Output
 
     let type_of_hole_expr<'a,'b> (m:ModuleDecl<'a,'b>) hexpr dico =

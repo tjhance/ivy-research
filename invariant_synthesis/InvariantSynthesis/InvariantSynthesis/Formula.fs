@@ -443,4 +443,5 @@
         | ValueFun (str, vs) -> ValueFun (str, List.map simplify_value vs)
         | ValueMacro (str, vs) -> ValueMacro (str, List.map simplify_value vs)
         | ValueSomeElse (d, v1, v2) -> ValueSomeElse (d, simplify_value v1, simplify_value v2)
+        | ValueIfElse (f, v1, v2) -> ValueIfElse (simplify_value f, simplify_value v1, simplify_value v2)
         | ValueInterpreted (str, vs) -> ValueInterpreted (str, List.map simplify_value vs)

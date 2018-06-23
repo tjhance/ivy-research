@@ -18,6 +18,7 @@
         | ValueOr of Value * Value
         | ValueNot of Value
         | ValueSomeElse of VarDecl * Value * Value
+        | ValueIfElse of Value * Value * Value
         | ValueForall of VarDecl * Value
         | ValueInterpreted of string * List<Value>
 
@@ -91,6 +92,7 @@
                 aux (AST.ValueNot (AST.ValueOr (AST.ValueNot v1, AST.ValueNot v2)))
             | AST.ValueNot v -> ValueNot (aux v)
             | AST.ValueSomeElse (d,vsome,velse) -> ValueSomeElse (d,aux vsome,aux velse)
+            | AST.ValueIfElse (f,vif,velse) -> ValueIfElse (aux f,aux vif,aux velse)
             | AST.ValueForall (d, v) -> ValueForall (d, aux v)
             | AST.ValueExists (d, v) ->
                 aux (AST.ValueNot (AST.ValueForall (d, AST.ValueNot v)))
@@ -155,11 +157,18 @@
                 let (ds, sts, v) = aux e
                 (ds, sts, ValueNot v)
             | AST.ExprSomeElse (d, v1, v2) ->
-                ([], [], ValueSomeElse (d, value2minimal m v1, value2minimal m v2))
+                let (d, st, name) = new_var_assign (ValueSomeElse (d, value2minimal m v1, value2minimal m v2))
+                ([d], [st], ValueVar name)
+            | AST.ExprIfElse (f, v1, v2) ->
+                let (ds, sts, v) = aux f
+                let (d, st, name) = new_var_assign (ValueIfElse (v, value2minimal m v1, value2minimal m v2))
+                (d::ds, sts@[st], ValueVar name)
             | AST.ExprForall (d, v) ->
-                ([], [], ValueForall (d, value2minimal m v))
+                let (d, st, name) = new_var_assign (ValueForall (d, value2minimal m v))
+                ([d], [st], ValueVar name)
             | AST.ExprExists (d, v) ->
-                ([], [], value2minimal m (AST.ValueExists (d,v)))
+                let (d, st, name) = new_var_assign (value2minimal m (AST.ValueExists (d,v)))
+                ([d], [st], ValueVar name)
             | AST.ExprImply (e1, e2) ->
                 let (ds1, sts1, v1) = aux e1
                 let (ds2, sts2, v2) = aux e2

@@ -38,6 +38,7 @@ type parsed_expression =
     | Exists of var_decl * parsed_expression
     | Imply of parsed_expression * parsed_expression
     | SomeElse of var_decl * parsed_expression * parsed_expression opt
+    | ExprIfElse of parsed_expression * parsed_expression * parsed_expression
     [@@deriving sexp]
 
 (* STATEMENT *)

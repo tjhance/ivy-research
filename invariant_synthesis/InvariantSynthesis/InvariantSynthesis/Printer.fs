@@ -105,6 +105,8 @@
         | ValueSomeElse (d,f,v) ->
             let decls' = Model.add_var_declaration d decls
             sprintf "(some %s. %s else %s)" (var_decl_to_string d) (value_to_string decls' f 0) (value_to_string decls v 0)
+        | ValueIfElse (f,v1,v2) ->
+            sprintf "(%s if %s else %s)" (value_to_string decls v1 0) (value_to_string decls f 0) (value_to_string decls v2 0)
 
     (*
     Precedence:

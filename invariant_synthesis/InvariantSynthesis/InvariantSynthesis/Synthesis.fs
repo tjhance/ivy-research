@@ -171,6 +171,14 @@
                 let (_,cfg1) = marks_for_value mdecl infos env uvar (ValueForall (d, ValueNot f))
                 let (cv,cfg2) = marks_for_value mdecl infos env uvar v
                 (cv, config_union cfg1 cfg2)
+        | ValueIfElse (f, v1, v2) ->
+            let (b, cfg) = marks_for_value mdecl infos env uvar f
+            let (res, cfg') =
+                match b with
+                | AST.ConstBool true -> marks_for_value mdecl infos env uvar v1
+                | AST.ConstBool false -> marks_for_value mdecl infos env uvar v2
+                | _ -> raise TypeError
+            (res, config_union cfg cfg')
         | ValueForall (decl, v) ->
             let is_uvar = 
                 is_model_dependent_type decl.Type && 

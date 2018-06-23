@@ -33,6 +33,7 @@ open Prime
         | Exists of var_decl * parsed_expression
         | Imply of parsed_expression * parsed_expression
         | SomeElse of var_decl * parsed_expression * parsed_expression option
+        | ExprIfElse of parsed_expression * parsed_expression * parsed_expression
 
     (* STATEMENT *)
 
@@ -131,6 +132,7 @@ open Prime
             | Exists (d, expr) -> let (_, d) = rewrite_arg dico d in Forall (d, rewrite_expr dico expr)
             | Imply (expr1, expr2) -> Imply (rewrite_expr dico expr1, rewrite_expr dico expr2)
             | SomeElse (d, expr, expr_opt) -> let (_, d) = rewrite_arg dico d in SomeElse (d, rewrite_expr dico expr, Option.map (rewrite_expr dico) expr_opt)
+            | ExprIfElse (expr, expr1, expr2) -> ExprIfElse (rewrite_expr dico expr, rewrite_expr dico expr1, rewrite_expr dico expr2)
 
         let rec rewrite_stat dico s =
             let sts = rewrite_stats dico [s]
@@ -445,6 +447,22 @@ open Prime
                     | Some e2 -> aux local_vars_types e2 (Some new_type)
                     | None -> (local_vars_types, AST.ExprConst (AST.type_default_value new_type))
                 (local_vars_types, AST.ExprSomeElse (decl, AST.expr_to_value res_e1, AST.expr_to_value res_e2))
+
+            | ExprIfElse (e, eif, eelse) ->
+                let (local_vars_types, res_e) = aux local_vars_types e (Some AST.Bool)
+
+                let candidates = all_types m
+                let candidates = List.filter (fun t -> types_match ret_val (Some t)) candidates
+                let results = List.fold (fun acc ret -> match proceed_if_possible local_vars_types [ret;ret] [eif;eelse] with None -> acc | Some r -> r::acc) [] candidates
+
+                if List.length results = 1
+                then
+                    let (local_vars_types, res_es) = List.head results
+                    let (res_eif, res_eelse) = Helper.lst_to_couple res_es
+                    (local_vars_types, AST.ExprIfElse (res_e, AST.expr_to_value res_eif, AST.expr_to_value res_eelse))
+                else if List.length results = 0
+                then raise (NoMatch "If-Else expressions must have same value type on each branch!")
+                else failwith "Can't resolve local types: many matches !"
 
         aux local_vars_types v ret_val
 

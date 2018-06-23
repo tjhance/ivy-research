@@ -26,7 +26,7 @@
 %token NOT
 %token EOL EOF
 
-%right POINT ELSE
+%right POINT IF ELSE
 %right RIGHT_ARROW
 %left OR
 %left AND
@@ -217,6 +217,8 @@ expression:
     { Not e }
   | e1 = expression; RIGHT_ARROW; e2 = expression
     { Imply (e1, e2) }
+  | eif = expression; IF ; e = expression ; ELSE ; eelse = expression
+    { ExprIfElse (e, eif, eelse) }
   | FORALL; ds = qvar_decls; POINT; e = expression
     {
       List.fold_left (fun acc d -> Forall (d, acc)) e (List.rev ds)

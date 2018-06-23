@@ -45,6 +45,10 @@
             match if_some_value m infos env d f with
             | Some v -> v
             | None -> evaluate_value m infos env v
+        | ValueIfElse (f,v1,v2) ->
+            if evaluate_value m infos env f = AST.ConstBool true
+            then evaluate_value m infos env v1
+            else evaluate_value m infos env v2
         | ValueForall (d,v) ->
             let possible_values = Model.all_values infos d.Type
             AST.ConstBool (Seq.forall (fun cv -> eval_value_with m infos env v [d.Name] [cv] = AST.ConstBool true) possible_values)
