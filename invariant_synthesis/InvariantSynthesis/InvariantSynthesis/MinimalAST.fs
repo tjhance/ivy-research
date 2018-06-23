@@ -74,6 +74,30 @@
     let find_interpreted_action (m:ModuleDecl<'a,'b>) str =
         List.find (fun (decl:InterpretedActionDecl<'a,'b>) -> decl.Name = str) m.InterpretedActions
 
+    let rec map_vars_in_value v dico =
+        match v with
+        | ValueConst c -> ValueConst c
+        | ValueVar str ->
+            if Map.containsKey str dico
+            then Map.find str dico
+            else ValueVar str
+        | ValueFun (str, vs) ->
+            ValueFun (str, List.map (fun v -> map_vars_in_value v dico) vs)
+        | ValueEqual (v1, v2) ->
+            ValueEqual (map_vars_in_value v1 dico, map_vars_in_value v2 dico)
+        | ValueOr (v1, v2) ->
+            ValueOr (map_vars_in_value v1 dico, map_vars_in_value v2 dico)
+        | ValueNot v ->
+            ValueNot (map_vars_in_value v dico)
+        | ValueSomeElse (d, v1, v2) ->
+            ValueSomeElse (d, map_vars_in_value v1 dico, map_vars_in_value v2 dico)
+        | ValueIfElse (f, v1, v2) ->
+            ValueIfElse (map_vars_in_value f dico, map_vars_in_value v1 dico, map_vars_in_value v2 dico)
+        | ValueForall (d,v) ->
+            ValueForall (d, map_vars_in_value v dico)
+        | ValueInterpreted (str, vs) ->
+            ValueInterpreted (str, List.map (fun v -> map_vars_in_value v dico) vs)
+
     // Conversion functions
 
     let value2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) (v:AST.Value) =

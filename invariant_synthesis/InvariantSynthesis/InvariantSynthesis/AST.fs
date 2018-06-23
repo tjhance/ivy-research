@@ -146,10 +146,15 @@
 
     let impossible_var_prefix = "$$"
 
+    let quantified_impossible_var_prefix = "Q$"
+
     let void_return_decl = default_var_decl impossible_var_prefix Void
 
     let impossible_name name =
         sprintf "%s%s" impossible_var_prefix name
+
+    let impossible_qname name =
+        sprintf "%s%s" quantified_impossible_var_prefix name
 
     let local_name name =
         sprintf "%s%s" local_var_prefix name
