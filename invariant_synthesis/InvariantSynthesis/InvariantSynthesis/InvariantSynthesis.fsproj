@@ -22,6 +22,7 @@
     <Compile Include="TInterpreter.fs" />
     <Compile Include="Synthesis.fs" />
     <Compile Include="Formula.fs" />
+    <Compile Include="WPR.fs" />
     <Compile Include="ConstraintsParser.fs" />
     <Compile Include="ParserAST.fs" />
     <Compile Include="TestModule.fs" />

@@ -94,6 +94,9 @@
     <Compile Include="..\InvariantSynthesis\Formula.fs">
       <Link>Formula.fs</Link>
     </Compile>
+	<Compile Include="..\InvariantSynthesis\WPR.fs">
+      <Link>WPR.fs</Link>
+    </Compile>
     <Compile Include="..\InvariantSynthesis\ConstraintsParser.fs">
       <Link>ConstraintsParser.fs</Link>
     </Compile>
