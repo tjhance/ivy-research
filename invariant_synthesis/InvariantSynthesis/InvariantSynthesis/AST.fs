@@ -144,17 +144,15 @@
 
     let local_var_prefix = "$" // We assign a prefix to non-global vars in order to avoid bugs due to vars scope
 
-    let impossible_var_prefix = "$$"
+    let impossible_var_factor = "$$"
 
-    let quantified_impossible_var_prefix = "Q$"
+    let void_return_decl = default_var_decl impossible_var_factor Void
 
-    let void_return_decl = default_var_decl impossible_var_prefix Void
+    let generated_name name =
+        sprintf "%s%s" impossible_var_factor name
 
-    let impossible_name name =
-        sprintf "%s%s" impossible_var_prefix name
-
-    let impossible_qname name =
-        sprintf "%s%s" quantified_impossible_var_prefix name
+    let make_name_unique name id =
+        sprintf "%s%s%i" name impossible_var_factor id
 
     let local_name name =
         sprintf "%s%s" local_var_prefix name

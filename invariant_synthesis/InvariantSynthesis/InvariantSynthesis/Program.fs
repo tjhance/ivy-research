@@ -82,7 +82,7 @@ let main argv =
 
     let mmd = MinimalAST.module2minimal md name
     printfn "Executing..."
-    let tr = TInterpreter.trace_action mmd infos env name (List.map (fun cv -> MinimalAST.ValueConst cv) args) AST.impossible_var_prefix
+    let tr = TInterpreter.trace_action mmd infos env name (List.map (fun cv -> MinimalAST.ValueConst cv) args) AST.impossible_var_factor
     let env' = Trace.final_env tr
     if verbose
     then
@@ -161,7 +161,7 @@ let main argv =
             printfn "Building new environment..."
             let (infos_allowed, env_allowed) = Model.constraints_to_env md (cs@cs')
             printfn "Computing..."
-            let tr_allowed = TInterpreter.trace_action mmd infos_allowed env_allowed name (List.map (fun cv -> MinimalAST.ValueConst cv) args) AST.impossible_var_prefix
+            let tr_allowed = TInterpreter.trace_action mmd infos_allowed env_allowed name (List.map (fun cv -> MinimalAST.ValueConst cv) args) AST.impossible_var_factor
             let env_allowed' = Trace.final_env tr_allowed
             match formula with
             | None ->

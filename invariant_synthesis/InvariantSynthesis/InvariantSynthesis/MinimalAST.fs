@@ -135,7 +135,7 @@
     let new_tmp_var () =
         let res = sprintf "%i" (!next_var)
         next_var := (!next_var) + 1
-        AST.impossible_name res
+        AST.generated_name res
 
     // Return a list of var decls & statements (var assignemnts) & a minimal value
     let expr2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) (e:AST.Expression) =
