@@ -118,6 +118,22 @@
             Set.remove d.Name fv
         | ValueInterpreted (_, vs) -> Set.unionMany (List.map free_vars_of_value vs)
 
+    let rec value2ast v =
+        match v with
+        | ValueConst cv -> AST.ValueConst cv
+        | ValueVar str -> AST.ValueVar str
+        | ValueFun (str, vs) -> AST.ValueFun (str, List.map value2ast vs)
+        | ValueEqual (v1, v2) -> AST.ValueEqual (value2ast v1, value2ast v2)
+        | ValueOr (v1, v2) -> AST.ValueOr (value2ast v1, value2ast v2)
+        | ValueNot v -> AST.ValueNot (value2ast v)
+        | ValueSomeElse (d, v1, v2) -> AST.ValueSomeElse (d, value2ast v1, value2ast v2)
+        | ValueIfElse (c, v1, v2) -> AST.ValueIfElse (value2ast c, value2ast v1, value2ast v2)
+        | ValueForall (d, v) -> AST.ValueForall (d, value2ast v)
+        | ValueInterpreted (str, vs) -> AST.ValueInterpreted (str, List.map value2ast vs)
+
+    let type_of_value (m:AST.ModuleDecl<'a,'b>) v dico =
+        AST.type_of_value m (value2ast v) dico
+
     // Conversion functions
 
     let value2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) (v:AST.Value) =
@@ -158,73 +174,73 @@
         AST.generated_name res
 
     // Return a list of var decls & statements (var assignemnts) & a minimal value
-    let expr2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) (e:AST.Expression) =
-        let new_var_assign v =
-            let tmp_name = new_tmp_var () // TODO: compute the type!! (needed by z3)
-            let t = AST.Void // type_of_value m v _ // Note: For now, we don't need to bother with the type!
+    let rec expr2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) dico_types (e:AST.Expression) =
+        let new_var_assign v dico_types =
+            let tmp_name = new_tmp_var ()
+            let t = type_of_value m v dico_types
             let d = AST.default_var_decl tmp_name t
             let st = VarAssign (tmp_name, v)
             (d, st, tmp_name)
-        let rec aux e =
+        let rec aux dico_types e =
             match e with
             | AST.ExprConst cv -> ([], [], ValueConst cv)
             | AST.ExprVar str ->
-                let (d, st, name) = new_var_assign (ValueVar str)
+                let (d, st, name) = new_var_assign (ValueVar str) dico_types
                 ([d], [st], ValueVar name)
             | AST.ExprFun (str, es) ->
-                let (ds,sts,vs) = List.unzip3 (List.map aux es)
-                let (d, st, name) = new_var_assign (ValueFun (str, vs))
-                (d::(List.concat ds), (List.concat sts)@[st], ValueVar name)
+                let (ds,sts,vs) = exprs2minimal m dico_types es
+                let (d, st, name) = new_var_assign (ValueFun (str, vs)) dico_types
+                (d::ds, sts@[st], ValueVar name)
             | AST.ExprMacro (str, vs) ->
-                let (d, st, name) = new_var_assign (value2minimal m (AST.ValueMacro (str,vs)))
+                let (d, st, name) = new_var_assign (value2minimal m (AST.ValueMacro (str,vs))) dico_types
                 ([d], [st], ValueVar name)
             | AST.ExprAction (str, es) ->
                 let tmp_name = new_tmp_var ()
                 let t = (AST.find_action m str false).Output.Type
                 let d = AST.default_var_decl tmp_name t
-                let (ds,sts,vs) = List.unzip3 (List.map aux es)
+                let (ds,sts,vs) = exprs2minimal m dico_types es
                 let st = VarAssignAction (tmp_name, str, vs)
-                (d::(List.concat ds), (List.concat sts)@[st], ValueVar tmp_name)
+                (d::ds, sts@[st], ValueVar tmp_name)
             | AST.ExprEqual (e1, e2) ->
-                let (ds1, sts1, v1) = aux e1
-                let (ds2, sts2, v2) = aux e2
+                let (ds1, sts1, v1) = aux dico_types e1
+                let (ds2, sts2, v2) = aux dico_types e2
                 (ds1@ds2, sts1@sts2, ValueEqual (v1, v2))
             | AST.ExprOr (e1, e2) ->
-                let (ds1, sts1, v1) = aux e1
-                let (ds2, sts2, v2) = aux e2
+                let (ds1, sts1, v1) = aux dico_types e1
+                let (ds2, sts2, v2) = aux dico_types e2
                 (ds1@ds2, sts1@sts2, ValueOr (v1, v2))
             | AST.ExprAnd (e1, e2) ->
-                let (ds1, sts1, v1) = aux e1
-                let (ds2, sts2, v2) = aux e2
+                let (ds1, sts1, v1) = aux dico_types e1
+                let (ds2, sts2, v2) = aux dico_types e2
                 (ds1@ds2, sts1@sts2, ValueNot (ValueOr (ValueNot v1, ValueNot v2)))
             | AST.ExprNot e ->
-                let (ds, sts, v) = aux e
+                let (ds, sts, v) = aux dico_types e
                 (ds, sts, ValueNot v)
             | AST.ExprSomeElse (d, v1, v2) ->
-                let (d, st, name) = new_var_assign (ValueSomeElse (d, value2minimal m v1, value2minimal m v2))
+                let (d, st, name) = new_var_assign (ValueSomeElse (d, value2minimal m v1, value2minimal m v2)) dico_types
                 ([d], [st], ValueVar name)
             | AST.ExprIfElse (f, v1, v2) ->
-                let (ds, sts, v) = aux f
-                let (d, st, name) = new_var_assign (ValueIfElse (v, value2minimal m v1, value2minimal m v2))
+                let (ds, sts, v) = aux dico_types f
+                let (d, st, name) = new_var_assign (ValueIfElse (v, value2minimal m v1, value2minimal m v2)) dico_types
                 (d::ds, sts@[st], ValueVar name)
             | AST.ExprForall (d, v) ->
-                let (d, st, name) = new_var_assign (ValueForall (d, value2minimal m v))
+                let (d, st, name) = new_var_assign (ValueForall (d, value2minimal m v)) dico_types
                 ([d], [st], ValueVar name)
             | AST.ExprExists (d, v) ->
-                let (d, st, name) = new_var_assign (value2minimal m (AST.ValueExists (d,v)))
+                let (d, st, name) = new_var_assign (value2minimal m (AST.ValueExists (d,v))) dico_types
                 ([d], [st], ValueVar name)
             | AST.ExprImply (e1, e2) ->
-                let (ds1, sts1, v1) = aux e1
-                let (ds2, sts2, v2) = aux e2
+                let (ds1, sts1, v1) = aux dico_types e1
+                let (ds2, sts2, v2) = aux dico_types e2
                 (ds1@ds2, sts1@sts2, ValueOr (ValueNot v1, v2))
             | AST.ExprInterpreted (str, es) ->
-                let (ds,sts,vs) = List.unzip3 (List.map aux es)
-                let (d, st, name) = new_var_assign (ValueInterpreted (str, vs))
-                (d::(List.concat ds), (List.concat sts)@[st], ValueVar name)
-        aux e
+                let (ds,sts,vs) = exprs2minimal m dico_types es
+                let (d, st, name) = new_var_assign (ValueInterpreted (str, vs)) dico_types
+                (d::ds, sts@[st], ValueVar name)
+        aux dico_types e
 
-    let exprs2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) es =
-        let (ds, sts, vs) = List.unzip3 (List.map (expr2minimal m) es)
+    and exprs2minimal (m:AST.ModuleDecl<'a,'b>) dico_types es =
+        let (ds, sts, vs) = List.unzip3 (List.map (expr2minimal m dico_types) es)
         (List.concat ds, List.concat sts, vs)
 
     let rec exprs_of_hexprs hexprs =
@@ -233,6 +249,12 @@
         | (AST.Hole _)::lst -> exprs_of_hexprs lst
         | (AST.Expr e)::lst -> e::(exprs_of_hexprs lst)
 
+    let rec holes_of_hexprs hexprs =
+        match hexprs with
+        | [] -> []
+        | (AST.Hole d)::lst -> d::(holes_of_hexprs lst)
+        | (AST.Expr _)::lst -> holes_of_hexprs lst
+
     let rec hvals_of_hexprs hexprs vals =
         match hexprs, vals with
         | [], [] -> []
@@ -240,7 +262,7 @@
         | (AST.Expr _)::lst, v::vals -> (Val v)::(hvals_of_hexprs lst vals)
         | _ -> failwith "Invalid HoleExpression!"
 
-    let statement2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) (s:AST.Statement) is_main_action =
+    let statement2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) dico_types (s:AST.Statement) is_main_action =
         reinit_tmp_vars ()
         let packIfNecessary decls sts =
             if List.length sts = 1 && List.isEmpty decls
@@ -249,40 +271,42 @@
         let group_sts sts =
             [AtomicGroup (sts)]
         // Returns a list of var decls + a list of statements
-        let rec aux s =
+        let rec aux dico_types s =
             match s with
             | AST.NewBlock (ds, sts) ->
-                let (nds, sts) = List.unzip (List.map aux sts)
+                let dico_types = List.fold (fun acc (d:VarDecl) -> Map.add d.Name d.Type acc) dico_types ds
+                let (nds, sts) = List.unzip (List.map (aux dico_types) sts)
                 ([], [NewBlock (List.concat (ds::nds), List.concat sts)])
             | AST.Expression e ->
-                let (ds, sts, _) = expr2minimal m e
+                let (ds, sts, _) = expr2minimal m dico_types e
                 (ds, group_sts sts)
             | AST.VarAssign (str, e) ->
-                let (ds, sts, v) = expr2minimal m e
+                let (ds, sts, v) = expr2minimal m dico_types e
                 let st = VarAssign (str, v)
                 (ds, group_sts (sts@[st]))
             | AST.FunAssign (str, es, e) ->
-                let (ds1, sts1, vs) = exprs2minimal m es
-                let (ds2, sts2, v) = expr2minimal m e
+                let (ds1, sts1, vs) = exprs2minimal m dico_types es
+                let (ds2, sts2, v) = expr2minimal m dico_types e
                 let (ds, sts) = (ds1@ds2, sts1@sts2)
                 let st = FunAssign (str, List.map (fun v -> Val v) vs, v)
                 (ds, group_sts (sts@[st]))
             | AST.ForallFunAssign (str, hes, v) ->
                 let es = exprs_of_hexprs hes
-                let (ds, sts, vs) = exprs2minimal m es
+                let (ds, sts, vs) = exprs2minimal m dico_types es
                 let v = value2minimal m v
                 let st = FunAssign (str, hvals_of_hexprs hes vs, v)
                 (ds, group_sts (sts@[st]))
             | AST.IfElse (e, sif, selse) ->
-                let (ds, sts, v) = expr2minimal m e
-                let (dsif, sif) = aux sif
-                let (dselse, selse) = aux selse
+                let (ds, sts, v) = expr2minimal m dico_types e
+                let (dsif, sif) = aux dico_types sif
+                let (dselse, selse) = aux dico_types selse
                 let st = IfElse (v, packIfNecessary dsif sif, packIfNecessary dselse selse)
                 (ds, group_sts (sts@[st]))
             | AST.IfSomeElse (d, v, sif, selse) ->
                 let v = value2minimal m v
-                let (dsif, sif) = aux sif
-                let (dselse, selse) = aux selse
+                let dico_types' = Map.add d.Name d.Type dico_types
+                let (dsif, sif) = aux dico_types' sif
+                let (dselse, selse) = aux dico_types selse
                 let st = IfSomeElse (d, v, packIfNecessary dsif sif, packIfNecessary dselse selse)
                 ([], [st])
             | AST.Assert v -> ([], [Assert (value2minimal m v)])
@@ -291,12 +315,13 @@
                 if is_main_action then ([], [Assume (value2minimal m v)]) else ([], [Assert (value2minimal m v)])
             | AST.Ensure v ->
                 if is_main_action then ([], [Assert (value2minimal m v)]) else ([], [Assume (value2minimal m v)])
-        let (decls, sts) = aux s
+        let (decls, sts) = aux dico_types s
         packIfNecessary decls sts
 
     let module2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) main_action =
         let action2minimal (a:AST.ActionDecl) =
-            let st = statement2minimal m a.Content (a.Name = main_action)
+            let dico_types = List.fold (fun acc (d:VarDecl) -> Map.add d.Name d.Type acc) Map.empty (a.Output::a.Args)
+            let st = statement2minimal m dico_types a.Content (a.Name = main_action)
             { ActionDecl.Name = a.Name; ActionDecl.Args = a.Args ; ActionDecl.Output = a.Output ; ActionDecl.Content = st }
 
         let actions = List.map action2minimal m.Actions
