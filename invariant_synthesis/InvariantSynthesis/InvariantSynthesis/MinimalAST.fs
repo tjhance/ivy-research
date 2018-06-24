@@ -100,6 +100,24 @@
         | ValueInterpreted (str, vs) ->
             ValueInterpreted (str, List.map (fun v -> map_vars_in_value v dico) vs)
 
+    let rec free_vars_of_value v =
+        match v with
+        | ValueConst _ -> Set.empty
+        | ValueVar str -> Set.singleton str
+        | ValueFun (_, vs) -> Set.unionMany (List.map free_vars_of_value vs)
+        | ValueEqual (v1, v2) -> Set.union (free_vars_of_value v1) (free_vars_of_value v2)
+        | ValueOr (v1, v2) -> Set.union (free_vars_of_value v1) (free_vars_of_value v2)
+        | ValueNot v -> free_vars_of_value v
+        | ValueSomeElse (d, v1, v2) -> 
+            let fv = Set.union (free_vars_of_value v1) (free_vars_of_value v2)
+            Set.remove d.Name fv
+        | ValueIfElse (f, v1, v2) ->
+            Set.unionMany [free_vars_of_value f ; free_vars_of_value v1 ; free_vars_of_value v2]
+        | ValueForall (d, v) -> 
+            let fv = free_vars_of_value v
+            Set.remove d.Name fv
+        | ValueInterpreted (_, vs) -> Set.unionMany (List.map free_vars_of_value vs)
+
     // Conversion functions
 
     let value2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) (v:AST.Value) =
@@ -142,7 +160,7 @@
     // Return a list of var decls & statements (var assignemnts) & a minimal value
     let expr2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) (e:AST.Expression) =
         let new_var_assign v =
-            let tmp_name = new_tmp_var ()
+            let tmp_name = new_tmp_var () // TODO: compute the type!! (needed by z3)
             let t = AST.Void // type_of_value m v _ // Note: For now, we don't need to bother with the type!
             let d = AST.default_var_decl tmp_name t
             let st = VarAssign (tmp_name, v)

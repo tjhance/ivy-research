@@ -17,6 +17,9 @@
 
     // TODO: Use an automated method: computing weakest precondition (wp) and finding a finite model for (wp AND NOT new_strong_invariant).
 
+    // Refactor:
+    // Create a function that retrieve the name of a var decl, and use it everywhere.
+
     // Optimisations:
     // TODO: Synthesis: compute all possibilities for marks_for_value, and choose the better at the end
     // using an evaluation function taking into account the current marks and the remaining statements in atomic block
