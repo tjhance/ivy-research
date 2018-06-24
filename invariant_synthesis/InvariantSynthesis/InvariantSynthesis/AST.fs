@@ -3,7 +3,7 @@
     (* A VERY BASIC AST FOR IVY *)
 
     // TODO: Enumerated types
-    // TODO: "For" loops
+    // TODO: "while" loops
     // TODO: "if some" with multiple var decls
     // TODO: Allow multiple return values for actions.
     // If used in an expression, returns ConstVoid.
