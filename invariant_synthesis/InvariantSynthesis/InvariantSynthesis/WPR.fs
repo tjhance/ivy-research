@@ -18,7 +18,8 @@
         | Z3Exists of VarDecl * Z3Value
         | Z3Hole // Used for contexts
 
-    type Z3ContextValue = Z3Value * Z3Value // (quantification/constraints needed, value in this context)
+    type Z3ContextValue = Z3Value * Z3Value
+    // (quantification/constraints needed (value with holes), value in this context (the same for each hole))
 
     type Statement =
         | NewBlock of List<VarDecl> * List<Statement>
@@ -32,7 +33,7 @@
 
     // Utility functions on types
 
-    let replace_holes_with h v =
+    let replace_all_holes_with h v =
         let rec aux v =
             match v with
             | Z3Const c -> Z3Const c
@@ -82,21 +83,30 @@
             | ValueVar str -> (Z3Hole, Z3Var str)
             | ValueFun (str, vs) ->
                 let (ctxs, vs) = List.unzip (List.map aux vs)
-                let ctx = List.fold replace_holes_with Z3Hole ctxs
+                let ctx = List.fold replace_all_holes_with Z3Hole ctxs
                 (ctx, Z3Fun (str, vs))
             | ValueEqual (v1, v2) ->
                 let (ctx1, v1) = aux v1
                 let (ctx2, v2) = aux v2
-                let ctx = List.fold replace_holes_with Z3Hole [ctx1;ctx2]
+                let ctx = replace_all_holes_with ctx2 ctx1
                 (ctx, Z3Equal (v1, v2))
             | ValueOr (v1, v2) ->
                 let (ctx1, v1) = aux v1
                 let (ctx2, v2) = aux v2
-                let ctx = List.fold replace_holes_with Z3Hole [ctx1;ctx2]
+                let ctx = replace_all_holes_with ctx2 ctx1
                 (ctx, Z3Or (v1, v2))
             | ValueNot v ->
                 let (ctx, v) = aux v
                 (ctx, Z3Not v)
+            | ValueSomeElse (d, v1, v2) ->
+                let (ctx1, v1) = aux v1
+                let (ctx2, v2) = aux v2
+                let none_case = Z3And (Z3Not (Z3Exists (d, v1)), Z3Forall (d, Z3Imply (Z3Equal (Z3Var d.Name, v2), Z3Hole)))
+                let some_case = Z3Forall (d, Z3Imply (v1, Z3Hole))
+                let ctx3 = Z3Or (some_case, none_case)
+                let ctx = List.fold replace_all_holes_with Z3Hole [ctx3;ctx2;ctx1]
+                let v = Z3Var d.Name
+                (ctx, v)
             // TODO
         aux v
 
