@@ -90,10 +90,12 @@
         | ValueNot v ->
             ValueNot (map_vars_in_value v dico)
         | ValueSomeElse (d, v1, v2) ->
-            ValueSomeElse (d, map_vars_in_value v1 dico, map_vars_in_value v2 dico)
+            let dico' = Map.remove d.Name dico
+            ValueSomeElse (d, map_vars_in_value v1 dico', map_vars_in_value v2 dico)
         | ValueIfElse (f, v1, v2) ->
             ValueIfElse (map_vars_in_value f dico, map_vars_in_value v1 dico, map_vars_in_value v2 dico)
         | ValueForall (d,v) ->
+            let dico = Map.remove d.Name dico
             ValueForall (d, map_vars_in_value v dico)
         | ValueInterpreted (str, vs) ->
             ValueInterpreted (str, List.map (fun v -> map_vars_in_value v dico) vs)
