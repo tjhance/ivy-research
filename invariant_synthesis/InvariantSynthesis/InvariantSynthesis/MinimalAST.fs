@@ -105,8 +105,7 @@
         | ValueConst _ -> Set.empty
         | ValueVar str -> Set.singleton str
         | ValueFun (_, vs) -> Set.unionMany (List.map free_vars_of_value vs)
-        | ValueEqual (v1, v2) -> Set.union (free_vars_of_value v1) (free_vars_of_value v2)
-        | ValueOr (v1, v2) -> Set.union (free_vars_of_value v1) (free_vars_of_value v2)
+        | ValueEqual (v1, v2) | ValueOr (v1, v2) -> Set.union (free_vars_of_value v1) (free_vars_of_value v2)
         | ValueNot v -> free_vars_of_value v
         | ValueSomeElse (d, v1, v2) -> 
             let fv = Set.union (free_vars_of_value v1) (free_vars_of_value v2)

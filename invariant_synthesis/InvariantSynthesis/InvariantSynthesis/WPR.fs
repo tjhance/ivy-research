@@ -50,6 +50,25 @@
             | Z3Declare (d, vdecl, v) -> Z3Declare (d, aux vdecl, aux v)
             | Z3Hole -> repl
         aux v
+    
+    let rec free_vars_of_value v =
+        match v with
+        | Z3Const _ -> Set.empty
+        | Z3Var str -> Set.singleton str
+        | Z3Fun (_, vs) -> Set.unionMany (List.map free_vars_of_value vs)
+        | Z3Equal (v1, v2) | Z3Or (v1, v2) | Z3And (v1, v2) | Z3Imply (v1, v2)
+            -> Set.union (free_vars_of_value v1) (free_vars_of_value v2)
+        | Z3Not v -> free_vars_of_value v
+        | Z3IfElse (f, v1, v2) ->
+            Set.unionMany [free_vars_of_value f ; free_vars_of_value v1 ; free_vars_of_value v2]
+        | Z3Forall (d, v) | Z3Exists (d, v) -> 
+            let fv = free_vars_of_value v
+            Set.remove d.Name fv
+        | Z3Declare (d, v1, v2) ->
+            let fv = free_vars_of_value v2
+            let fv = Set.remove d.Name fv
+            Set.union fv (free_vars_of_value v1)
+        | Z3Hole -> Set.empty
 
     // Conversion tools
 
@@ -86,6 +105,11 @@
 
     // We convert the AST to a simpler one & we rename each local variable in order for them to be unique
     let minimal_val2z3_val (m:ModuleDecl<'a,'b>) v =
+        let formula_of_context_value (ctx,v) dependances =
+            if Set.isEmpty (Set.intersect (free_vars_of_value ctx) dependances)
+            then replace_holes_with v ctx
+            else failwith "Can't convert value to a FO Z3 value..."
+
         let rec aux v =
             match v with
             | ValueConst c -> (Z3Hole, Z3Const c)
@@ -112,12 +136,12 @@
                 let renaming = Map.add d.Name new_d.Name Map.empty
                 let v1 = rename_value renaming v1
 
-                let (ctx1, v1) = aux v1
+                let f1 = formula_of_context_value (aux v1) (Set.singleton new_d.Name)
                 let (ctx2, v2) = aux v2
-                let none_case = Z3And (Z3Not (Z3Exists (new_d, v1)), Z3Declare (new_d, v2, Z3Hole))
-                let some_case = Z3Forall (new_d, Z3Imply (v1, Z3Hole))
-                let ctx3 = Z3Or (some_case, none_case)
-                let ctx = List.fold replace_holes_with Z3Hole [ctx3;ctx2;ctx1]
+                let ctx2 = replace_holes_with (Z3Declare (new_d, v2, Z3Hole)) ctx2
+                let none_case = Z3Imply (Z3Not (Z3Exists (new_d, f1)), ctx2)
+                let some_case = Z3Forall (new_d, Z3Imply (f1, Z3Hole))
+                let ctx = Z3And (some_case, none_case)
                 let v = Z3Var new_d.Name
                 (ctx, v)
             | ValueIfElse (c,i,e) ->
@@ -131,10 +155,9 @@
                 let renaming = Map.add d.Name new_d.Name Map.empty
                 let v = rename_value renaming v
 
-                let (ctx, v) = aux v
-                let ctx = replace_holes_with v ctx
-                let ctx = Z3Forall (new_d, ctx)
-                (Z3Hole, ctx)
+                let f = formula_of_context_value (aux v) (Set.singleton new_d.Name)
+                let f = Z3Forall (new_d, f)
+                (Z3Hole, f)
             | ValueInterpreted (str, _) ->
                 let name = unique_name "IV"
                 let d = AST.default_var_decl name (MinimalAST.find_interpreted_action m str).Output
