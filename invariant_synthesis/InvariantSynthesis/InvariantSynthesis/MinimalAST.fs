@@ -262,7 +262,6 @@
         | _ -> failwith "Invalid HoleExpression!"
 
     let statement2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) dico_types (s:AST.Statement) is_main_action =
-        reinit_tmp_vars ()
         let packIfNecessary decls sts =
             if List.length sts = 1 && List.isEmpty decls
             then List.head sts
@@ -318,6 +317,8 @@
         packIfNecessary decls sts
 
     let module2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) main_action =
+        reinit_tmp_vars ()
+
         let action2minimal (a:AST.ActionDecl) =
             let dico_types = List.fold (fun acc (d:VarDecl) -> Map.add d.Name d.Type acc) Map.empty (a.Output::a.Args)
             let st = statement2minimal m dico_types a.Content (a.Name = main_action)

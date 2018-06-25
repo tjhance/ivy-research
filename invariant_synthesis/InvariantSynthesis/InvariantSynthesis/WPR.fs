@@ -351,3 +351,8 @@
                 replace_holes_with f ctx
             | Abort -> Z3Const (AST.ConstBool false)
         aux f st
+
+    let wpr_for_action<'a,'b> (m:ModuleDecl<'a,'b>) f action =
+        reinit_tmp_vars ()
+        let action = minimal_action2wpr_action m action true false
+        weakest_precondition m f action.Content
