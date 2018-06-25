@@ -77,7 +77,15 @@
 
     *)
 
-    let minimal_val2z3_val v =
+    let rename_value renaming v =
+        let dico = Map.map (fun _ str -> ValueVar str) renaming
+        map_vars_in_value v dico
+    let rename_var renaming str =
+        if Map.containsKey str renaming
+        then Map.find str renaming else str
+
+    // We convert the AST to a simpler one & we rename each local variable in order for them to be unique
+    let minimal_val2z3_val (m:ModuleDecl<'a,'b>) v =
         let rec aux v =
             match v with
             | ValueConst c -> (Z3Hole, Z3Const c)
@@ -100,13 +108,17 @@
                 let (ctx, v) = aux v
                 (ctx, Z3Not v)
             | ValueSomeElse (d, v1, v2) ->
+                let new_d = AST.default_var_decl (unique_name d.Name) d.Type
+                let renaming = Map.add d.Name new_d.Name Map.empty
+                let v1 = rename_value renaming v1
+
                 let (ctx1, v1) = aux v1
                 let (ctx2, v2) = aux v2
-                let none_case = Z3And (Z3Not (Z3Exists (d, v1)), Z3Declare (d, v2, Z3Hole))
-                let some_case = Z3Forall (d, Z3Imply (v1, Z3Hole))
+                let none_case = Z3And (Z3Not (Z3Exists (new_d, v1)), Z3Declare (new_d, v2, Z3Hole))
+                let some_case = Z3Forall (new_d, Z3Imply (v1, Z3Hole))
                 let ctx3 = Z3Or (some_case, none_case)
                 let ctx = List.fold replace_holes_with Z3Hole [ctx3;ctx2;ctx1]
-                let v = Z3Var d.Name
+                let v = Z3Var new_d.Name
                 (ctx, v)
             | ValueIfElse (c,i,e) ->
                 let (ctx1, c) = aux c
@@ -114,20 +126,29 @@
                 let (ctx3, e) = aux e
                 let ctx = List.fold replace_holes_with Z3Hole [ctx3;ctx2;ctx1]
                 (ctx, Z3IfElse (c,i,e))
-            // TODO
+            | ValueForall (d, v) ->
+                let new_d = AST.default_var_decl (unique_name d.Name) d.Type
+                let renaming = Map.add d.Name new_d.Name Map.empty
+                let v = rename_value renaming v
+
+                let (ctx, v) = aux v
+                let ctx = replace_holes_with v ctx
+                let ctx = Z3Forall (new_d, ctx)
+                (Z3Hole, ctx)
+            | ValueInterpreted (str, _) ->
+                let name = unique_name "IV"
+                let d = AST.default_var_decl name (MinimalAST.find_interpreted_action m str).Output
+                let ctx = Z3Forall (d, Z3Hole)
+                (ctx, Z3Var name)
         aux v
 
     // We convert the AST to a simpler one & we rename each local variable in order for them to be unique
     let minimal_stat2wpr_stat<'a,'b> (m:ModuleDecl<'a,'b>) renaming st =
+        let minimal_val2z3_val = minimal_val2z3_val m
+
         let packIfNecessary sts =
             if List.length sts = 1 then List.head sts
             else NewBlock ([],sts)
-        let rename_value renaming v =
-            let dico = Map.map (fun _ str -> ValueVar str) renaming
-            map_vars_in_value v dico
-        let rename_var renaming str =
-            if Map.containsKey str renaming
-            then Map.find str renaming else str
 
         let rec aux renaming st =
             match st with

@@ -19,6 +19,7 @@
 
     // Refactor:
     // Create a function that retrieve the name of a var decl, and use it everywhere.
+    // Factorize parameters passed to marks_for_value (etc.) by redefining this function. 
 
     // Optimisations:
     // TODO: Synthesis: compute all possibilities for marks_for_value, and choose the better at the end
