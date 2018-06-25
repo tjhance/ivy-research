@@ -91,13 +91,13 @@
         if Map.containsKey str renaming
         then Map.find str renaming else str
 
+    let fail_if_ctx_depends_on ctx dependances =
+        if Set.isEmpty (Set.intersect (free_vars_of_value ctx) dependances)
+        then ()
+        else failwith "Can't convert value to a FO Z3 value..."
+
     // We convert the AST to a simpler one & we rename each local variable in order for them to be unique
     let minimal_val2z3_val (m:ModuleDecl<'a,'b>) v =
-        let formula_of_context_value (ctx,v) dependances =
-            if Set.isEmpty (Set.intersect (free_vars_of_value ctx) dependances)
-            then replace_holes_with v ctx
-            else failwith "Can't convert value to a FO Z3 value..."
-
         let rec aux v =
             match v with
             | ValueConst c -> (Z3Hole, Z3Const c)
@@ -124,14 +124,15 @@
                 let renaming = Map.add d.Name new_d.Name Map.empty
                 let v1 = rename_value renaming v1
 
-                let f1 = formula_of_context_value (aux v1) (Set.singleton new_d.Name)
+                let (ctx1, v1) = aux v1
+                fail_if_ctx_depends_on ctx1 (Set.singleton new_d.Name)
                 let (ctx2, v2) = aux v2
                 let ctx2 = replace_holes_with (Z3Declare (new_d, v2, Z3Hole)) ctx2
-                let none_case = Z3Imply (Z3Not (Z3Exists (new_d, f1)), ctx2)
-                let some_case = Z3Forall (new_d, Z3Imply (f1, Z3Hole))
+                let none_case = Z3Imply (Z3Not (Z3Exists (new_d, v1)), ctx2)
+                let some_case = Z3Forall (new_d, Z3Imply (v1, Z3Hole))
                 let ctx = Z3And (some_case, none_case)
-                let v = Z3Var new_d.Name
-                (ctx, v)
+                let ctx = replace_holes_with ctx ctx1
+                (ctx, Z3Var new_d.Name)
             | ValueIfElse (c,i,e) ->
                 let (ctx1, c) = aux c
                 let (ctx2, i) = aux i
@@ -143,9 +144,10 @@
                 let renaming = Map.add d.Name new_d.Name Map.empty
                 let v = rename_value renaming v
 
-                let f = formula_of_context_value (aux v) (Set.singleton new_d.Name)
-                let f = Z3Forall (new_d, f)
-                (Z3Hole, f)
+                let (ctx, v) = aux v
+                fail_if_ctx_depends_on ctx (Set.singleton new_d.Name)
+                let v = Z3Forall (new_d, v)
+                (ctx, v)
             | ValueInterpreted (str, _) ->
                 let name = unique_name "IV"
                 let d = AST.default_var_decl name (MinimalAST.find_interpreted_action m str).Output
@@ -340,6 +342,12 @@
             | FunAssign (str, ds, (ctx,v)) ->
                 let f = replace_fun ds str v f
                 replace_holes_with f ctx
-            // TODO
-
+            | Parallel (st1, st2) ->
+                let f1 = aux f st1
+                let f2 = aux f st2
+                Z3And (f1, f2)
+            | Assume (ctx, v) ->
+                let f = Z3Imply (v, f)
+                replace_holes_with f ctx
+            | Abort -> Z3Const (AST.ConstBool false)
         aux f st
