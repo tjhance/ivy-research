@@ -82,19 +82,7 @@
         next_var := (!next_var) + 1
         AST.make_name_unique name id
 
-    (*
-        | ValueConst of ConstValue
-        | ValueVar of string
-        | ValueFun of string * List<Value>
-        | ValueEqual of Value * Value
-        | ValueOr of Value * Value
-        | ValueNot of Value
-        | ValueSomeElse of VarDecl * Value * Value
-        | ValueIfElse of Value * Value * Value
-        | ValueForall of VarDecl * Value
-        | ValueInterpreted of string * List<Value>
-
-    *)
+    // Utility functions
 
     let rename_value renaming v =
         let dico = Map.map (fun _ str -> ValueVar str) renaming
@@ -242,7 +230,9 @@
 
     type ActionDecl = { Name: string; Args: List<VarDecl>; Output: VarDecl; Content: Statement }
 
-    let minimal_actions2wpr_action<'a,'b> (m:ModuleDecl<'a,'b>) (action:MinimalAST.ActionDecl) rename_args =
+    let minimal_action2wpr_action<'a,'b> (m:ModuleDecl<'a,'b>) action add_variants rename_args =
+        let action = find_action m action add_variants
+
         let rename_decl renaming (decl:VarDecl) =
             if Map.containsKey decl.Name renaming
             then { decl with Name = Map.find decl.Name renaming } else decl
@@ -257,6 +247,73 @@
 
     // WPR
 
+    let replace_vars dico v =
+        let rec aux dico v =
+            match v with
+            | Z3Const c -> Z3Const c
+            | Z3Var str ->
+                if Map.containsKey str dico
+                then Map.find str dico
+                else Z3Var str
+            | Z3Fun (str, vs) ->
+                Z3Fun (str, List.map (aux dico) vs)
+            | Z3Equal (v1, v2) ->
+                Z3Equal (aux dico v1, aux dico v2)
+            | Z3Or (v1, v2) ->
+                Z3Or (aux dico v1, aux dico v2)
+            | Z3And (v1, v2) ->
+                Z3And (aux dico v1, aux dico v2)
+            | Z3Imply (v1, v2) ->
+                Z3Imply (aux dico v1, aux dico v2)
+            | Z3Not v ->
+                Z3Not (aux dico v)
+            | Z3IfElse (f, v1, v2) ->
+                Z3IfElse (aux dico f, aux dico v1, aux dico v2)
+            | Z3Forall (d,v) ->
+                let dico = Map.remove d.Name dico
+                Z3Forall (d, aux dico v)
+            | Z3Exists (d,v) ->
+                 let dico = Map.remove d.Name dico
+                 Z3Exists (d, aux dico v)
+            | Z3Declare (d,v1,v2) ->
+                let dico' = Map.remove d.Name dico
+                Z3Declare (d, aux dico v1, aux dico' v2)
+            | Z3Hole -> Z3Hole
+        aux dico v
+
+    let replace_var str repl v =
+        replace_vars (Map.add str repl Map.empty) v
+
+    let replace_fun decls str repl v =
+        let rec aux v =
+            match v with
+            | Z3Const c -> Z3Const c
+            | Z3Var str -> Z3Var str
+            | Z3Fun (str', vs) ->
+                if str' = str
+                then
+                    let dico = List.fold2 (fun acc (d:VarDecl) v -> Map.add d.Name v acc) Map.empty decls vs
+                    replace_vars dico repl
+                else
+                    Z3Fun (str', List.map aux vs)
+            | Z3Equal (v1, v2) ->
+                Z3Equal (aux v1, aux v2)
+            | Z3Or (v1, v2) ->
+                Z3Or (aux v1, aux v2)
+            | Z3And (v1, v2) ->
+                Z3And (aux v1, aux v2)
+            | Z3Imply (v1, v2) ->
+                Z3Imply (aux v1, aux v2)
+            | Z3Not v ->
+                Z3Not (aux v)
+            | Z3IfElse (f, v1, v2) ->
+                Z3IfElse (aux f, aux v1, aux v2)
+            | Z3Forall (d,v) -> Z3Forall (d, aux v)
+            | Z3Exists (d,v) -> Z3Exists (d, aux v)
+            | Z3Declare (d,v1,v2) -> Z3Declare (d, aux v1, aux v2)
+            | Z3Hole -> Z3Hole
+        aux v
+
     let weakest_precondition<'a,'b> (m:ModuleDecl<'a,'b>) f st =
         let rec aux f st =
             match st with
@@ -267,7 +324,22 @@
                 let f = List.fold aux f (List.rev sts)
                 assert Set.isEmpty (Set.difference (free_vars_of_value f) fv) // No new free variable!
                 f
+            | VarAssign (str, (ctx, v)) ->
+                let f = replace_var str v f
+                replace_holes_with f ctx
+            | VarAssignAction (str, action, vs) ->
+                let action = minimal_action2wpr_action m action true true
+                let f = replace_var str (Z3Var action.Output.Name) f
+                let f = aux f action.Content
+
+                let assign_arg f (d:VarDecl) (ctx, v) =
+                    let f = replace_var d.Name v f
+                    replace_holes_with f ctx
+
+                List.fold2 assign_arg f (List.rev action.Args) (List.rev vs)
+            | FunAssign (str, ds, (ctx,v)) ->
+                let f = replace_fun ds str v f
+                replace_holes_with f ctx
             // TODO
-            //| VarAssign (str, v) ->
 
         aux f st
