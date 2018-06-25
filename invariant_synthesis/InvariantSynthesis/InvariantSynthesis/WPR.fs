@@ -16,24 +16,24 @@
         | Z3IfElse of Z3Value * Z3Value * Z3Value
         | Z3Forall of VarDecl * Z3Value
         | Z3Exists of VarDecl * Z3Value
+        | Z3Declare of VarDecl * Z3Value * Z3Value
         | Z3Hole // Used for contexts
 
-    type Z3ContextValue = Z3Value * Z3Value
-    // (quantification/constraints needed (value with holes), value in this context (the same for each hole))
+    type ValueContext = Z3Value * Z3Value
+    // (context for using the value, value)
 
     type Statement =
         | NewBlock of List<VarDecl> * List<Statement>
-        | VarAssign of string * Z3ContextValue
-        | VarAssignAction of string * string * List<Z3ContextValue>
-        | FunAssign of string * List<VarDecl> * Z3ContextValue
+        | VarAssign of string * ValueContext
+        | VarAssignAction of string * string * List<ValueContext>
+        | FunAssign of string * List<VarDecl> * ValueContext
         | Parallel of Statement * Statement
-        | Assume of Z3ContextValue
+        | Assume of ValueContext
         | Abort
-
 
     // Utility functions on types
 
-    let replace_all_holes_with h v =
+    let replace_holes_with repl v =
         let rec aux v =
             match v with
             | Z3Const c -> Z3Const c
@@ -47,7 +47,8 @@
             | Z3IfElse (c,i,e) -> Z3IfElse (aux c, aux i, aux e)
             | Z3Forall (d, v) -> Z3Forall (d, aux v)
             | Z3Exists (d, v) -> Z3Exists (d, aux v)
-            | Z3Hole -> h
+            | Z3Declare (d, vdecl, v) -> Z3Declare (d, aux vdecl, aux v)
+            | Z3Hole -> repl
         aux v
 
     // Conversion tools
@@ -83,17 +84,17 @@
             | ValueVar str -> (Z3Hole, Z3Var str)
             | ValueFun (str, vs) ->
                 let (ctxs, vs) = List.unzip (List.map aux vs)
-                let ctx = List.fold replace_all_holes_with Z3Hole ctxs
+                let ctx = List.fold replace_holes_with Z3Hole (List.rev ctxs)
                 (ctx, Z3Fun (str, vs))
             | ValueEqual (v1, v2) ->
                 let (ctx1, v1) = aux v1
                 let (ctx2, v2) = aux v2
-                let ctx = replace_all_holes_with ctx2 ctx1
+                let ctx = replace_holes_with ctx2 ctx1
                 (ctx, Z3Equal (v1, v2))
             | ValueOr (v1, v2) ->
                 let (ctx1, v1) = aux v1
                 let (ctx2, v2) = aux v2
-                let ctx = replace_all_holes_with ctx2 ctx1
+                let ctx = replace_holes_with ctx2 ctx1
                 (ctx, Z3Or (v1, v2))
             | ValueNot v ->
                 let (ctx, v) = aux v
@@ -101,12 +102,18 @@
             | ValueSomeElse (d, v1, v2) ->
                 let (ctx1, v1) = aux v1
                 let (ctx2, v2) = aux v2
-                let none_case = Z3And (Z3Not (Z3Exists (d, v1)), Z3Forall (d, Z3Imply (Z3Equal (Z3Var d.Name, v2), Z3Hole)))
+                let none_case = Z3And (Z3Not (Z3Exists (d, v1)), Z3Declare (d, v2, Z3Hole))
                 let some_case = Z3Forall (d, Z3Imply (v1, Z3Hole))
                 let ctx3 = Z3Or (some_case, none_case)
-                let ctx = List.fold replace_all_holes_with Z3Hole [ctx3;ctx2;ctx1]
+                let ctx = List.fold replace_holes_with Z3Hole [ctx3;ctx2;ctx1]
                 let v = Z3Var d.Name
                 (ctx, v)
+            | ValueIfElse (c,i,e) ->
+                let (ctx1, c) = aux c
+                let (ctx2, i) = aux i
+                let (ctx3, e) = aux e
+                let ctx = List.fold replace_holes_with Z3Hole [ctx3;ctx2;ctx1]
+                (ctx, Z3IfElse (c,i,e))
             // TODO
         aux v
 
