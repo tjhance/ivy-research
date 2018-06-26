@@ -68,7 +68,7 @@ and parsed_element =
     | Function of fun_decl
     | Variable of var_decl
     | Macro of string * var_decl list * parsed_expression * bool (* Infix? *)
-    | Definition of string * var_decl list * parsed_expression
+    | Axiom of parsed_expression
     | Conjecture of parsed_expression
     | Rule of parsed_expression
     | AbstractAction of string * var_decl list * var_decl opt

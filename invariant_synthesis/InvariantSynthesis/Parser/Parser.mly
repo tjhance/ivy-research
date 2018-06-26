@@ -8,7 +8,7 @@
 %}
 
 %token CONJECTURE TYPE ACTION RETURNS INDIVIDUAL FUNCTION RELATION MODULE OBJECT INSTANCE
-%token AFTER BEFORE DEFINITION INSTANTIATE IMPLEMENT INTERPRET RULE
+%token AFTER BEFORE AXIOM DEFINITION INSTANTIATE IMPLEMENT INTERPRET RULE
 
 %token SEMI_COLON LEFT_BRACE RIGHT_BRACE
 %token ASSIGN CALL IF VAR ASSERT ASSUME REQUIRE ENSURE
@@ -83,7 +83,10 @@ element:
   | RELATION ; LEFT_PARENTHESIS ; d1 = qvar_decl ; name = INFIX_CMP_ID ; d2 = qvar_decl ; RIGHT_PARENTHESIS { Function(name, type_of_decls([d1;d2]), Bool, true) }
   | DEFINITION ; name = ID ; args = action_args ; EQUAL ; e = expression { Macro (name, args, e, false) }
   | DEFINITION ; LEFT_PARENTHESIS ; d1 = decl ; name = INFIX_FUN_ID ; d2 = decl ; RIGHT_PARENTHESIS ; EQUAL ; e = expression { Macro (name, [d1;d2], e, true) }
-  | DEFINITION ; name = ID ; LEFT_PARENTHESIS ; args = qvar_decls_ne ; RIGHT_PARENTHESIS ; EQUAL ; e = expression { Definition (name, args, e) }
+  | DEFINITION ; name = ID ; LEFT_PARENTHESIS ; args = qvar_decls_ne ; RIGHT_PARENTHESIS ; EQUAL ; e = expression {
+    let args = List.map (fun arg -> QVar arg) args in
+    Axiom (Equal (VarFunMacroAction (name, args), e)) }
+  | AXIOM ; e = expression { Axiom e }
   | ACTION ; name = ID ; args = action_args ; ret = action_ret { AbstractAction (name, args, ret) }
   | ACTION ; name = ID ; args = action_args ; ret = action_ret ; EQUAL ; list(EOL) ; st = block_statement { Action (name, args, ret, st) }
   | IMPLEMENT ; name = ID ; list(EOL) ; st = block_statement { Implement (name, st) }

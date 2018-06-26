@@ -84,6 +84,11 @@
 
     // Utility functions
 
+    let conjunction_of fs =
+        match fs with
+        | [] -> Z3Const (AST.ConstBool true)
+        | h::tl -> List.fold (fun acc f -> Z3And (acc, f)) h tl
+
     let rename_value renaming v =
         let dico = Map.map (fun _ str -> ValueVar str) renaming
         map_vars_in_value v dico
@@ -316,7 +321,7 @@
             | Z3Hole -> Z3Hole
         aux v
 
-    let weakest_precondition<'a,'b> (m:ModuleDecl<'a,'b>) f st =
+    let weakest_precondition<'a,'b> (m:ModuleDecl<'a,'b>) axioms f st =
         let rec aux f st =
             match st with
             | NewBlock (ds, sts) ->
@@ -327,19 +332,25 @@
                 assert Set.isEmpty (Set.difference (free_vars_of_value f) fv) // No new free variable!
                 f
             | VarAssign (str, (ctx, v)) ->
+                // TODO: assume axioms only if not local
+                let f = Z3Imply(axioms, f) // Mutations are assumed to not break axioms (when non-deterministic)
                 let f = replace_var str v f
                 replace_holes_with f ctx
             | VarAssignAction (str, action, vs) ->
                 let action = minimal_action2wpr_action m action true true
                 let f = replace_var str (Z3Var action.Output.Name) f
                 let f = aux f action.Content
+                assert not (Set.contains action.Output.Name (free_vars_of_value f))
 
                 let assign_arg f (d:VarDecl) (ctx, v) =
+                    // Note: No need to assume axioms here because these vars are local (so no axiom is involving them)
                     let f = replace_var d.Name v f
                     replace_holes_with f ctx
 
                 List.fold2 assign_arg f (List.rev action.Args) (List.rev vs)
             | FunAssign (str, ds, (ctx,v)) ->
+                // TODO: assume axioms only if not local
+                let f = Z3Imply(axioms, f) // Mutations are assumed to not break axioms (when non-deterministic)
                 let f = replace_fun ds str v f
                 replace_holes_with f ctx
             | Parallel (st1, st2) ->
@@ -355,4 +366,8 @@
     let wpr_for_action<'a,'b> (m:ModuleDecl<'a,'b>) f action =
         reinit_tmp_vars ()
         let action = minimal_action2wpr_action m action true false
-        weakest_precondition m f action.Content
+        let (ctxs, axioms) = List.unzip (List.map (minimal_val2z3_val m) m.Axioms)
+        if List.exists (fun ctx -> ctx <> Z3Hole) ctxs
+        then failwith "Axiom not allowed!"
+        let axioms = conjunction_of axioms
+        weakest_precondition m f axioms action.Content

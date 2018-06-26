@@ -131,6 +131,7 @@
                 Name=name; Types=types; Funs=funs; Vars=vars;
                 Actions=actions; Macros=[]; Implications=impl;
                 Invariants=invariants; InterpretedActions=[];
+                Axioms = []
             }
 
 (*

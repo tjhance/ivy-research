@@ -43,7 +43,7 @@
     [<NoEquality;NoComparison>]
     type ModuleDecl<'a,'b> =
         { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; Vars: List<VarDecl>; InterpretedActions: List<InterpretedActionDecl<'a,'b>>;
-            Actions: List<ActionDecl>; Invariants: List<Value>; Implications: List<ImplicationRule> }
+            Actions: List<ActionDecl>; Invariants: List<Value>; Implications: List<ImplicationRule> ; Axioms: List<Value> }
 
     // Utility functions
 
@@ -326,6 +326,7 @@
 
         let actions = List.map action2minimal m.Actions
         let invariants = List.map (value2minimal m) m.Invariants
+        let axioms = List.map (value2minimal m) m.Axioms
 
         { Name = m.Name; Types = m.Types; Funs = m.Funs; Vars = m.Vars; InterpretedActions = m.InterpretedActions;
-            Actions = actions ; Invariants = invariants; Implications = m.Implications }
+            Actions = actions ; Invariants = invariants; Implications = m.Implications; Axioms = axioms }

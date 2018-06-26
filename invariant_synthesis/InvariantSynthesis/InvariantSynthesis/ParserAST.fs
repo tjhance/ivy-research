@@ -61,7 +61,7 @@ open Prime
         | Function of fun_decl
         | Variable of var_decl
         | Macro of string * var_decl list * parsed_expression * bool (* Infix? *)
-        | Definition of string * var_decl list * parsed_expression
+        | Axiom of parsed_expression
         | Conjecture of parsed_expression
         | Rule of parsed_expression
         | AbstractAction of string * var_decl list * var_decl option
@@ -174,10 +174,7 @@ open Prime
                 test dico str
                 let (dico, args) = rewrite_args dico args
                 Macro (str, args, rewrite_expr dico expr, infix)
-            | Definition (str, args, expr) ->
-                let str = rewrite dico str
-                let (dico, args) = rewrite_args dico args
-                Definition (str, args, rewrite_expr dico expr)
+            | Axiom (expr) -> Axiom (rewrite_expr dico expr)
             | Conjecture expr -> Conjecture (rewrite_expr dico expr)
             | Rule expr -> Rule (rewrite_expr dico expr)
             | AbstractAction (str, args, ret_opt) ->
@@ -732,9 +729,11 @@ open Prime
                             else AST.default_representation
                         let macro = { AST.MacroDecl.Name = full_name; AST.MacroDecl.Args = args; AST.MacroDecl.Output = output_t; AST.MacroDecl.Value = v ; AST.MacroDecl.Representation = rep }
                         ({ m with AST.Macros=(macro::m.Macros) }, tmp_elements)
-                | Definition _ ->
-                    printfn "Definition ignored."
-                    (m, tmp_elements)
+                | Axiom expr ->
+                    let (dico, expr) = p2a_expr m base_name Map.empty Map.empty (Some AST.Bool) expr
+                    let expr = close_formula m dico Map.empty Set.empty expr
+                    let v = AST.expr_to_value expr
+                    ({ m with AST.Axioms=(v::m.Axioms) }, tmp_elements)
                 | Conjecture expr ->
                     let (dico, expr) = p2a_expr m base_name Map.empty Map.empty (Some AST.Bool) expr
                     let expr = close_formula m dico Map.empty Set.empty expr

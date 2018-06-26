@@ -12,14 +12,14 @@
     // For that, we can consider those functions an instance of the corresponding module,
     // with an additionals first parameters for every var/fun/action/etc (that corresponds the parameters of the initial function)
     // TODO: non-deterministic stuff (like 'var a = *')
-    // TODO: Axiom, isolate, inductive, export, extract, interpret, property...
+    // TODO: isolate, inductive, export, extract, interpret, property...
     // TODO: Infer types for macro args (currently, type annotations is required)
 
     // TODO: Use an automated method: computing weakest precondition (wp) and finding a finite model for (wp AND NOT new_strong_invariant).
 
     // Refactor:
-    // Create a function that retrieve the name of a var decl, and use it everywhere.
-    // Factorize parameters passed to marks_for_value (etc.) by redefining this function. 
+    // TODO: Create a function that retrieve the name of a var decl, and use it everywhere.
+    // TODO: Factorize parameters passed to marks_for_value (etc.) by redefining this function. 
 
     // Optimisations:
     // TODO: Synthesis: compute all possibilities for marks_for_value, and choose the better at the end
@@ -118,7 +118,7 @@
     [<NoEquality;NoComparison>]
     type ModuleDecl<'a,'b> =
         { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; Vars: List<VarDecl>; InterpretedActions: List<InterpretedActionDecl<'a,'b>>;
-            Actions: List<ActionDecl>; Macros: List<MacroDecl>; Invariants: List<Value>; Implications: List<ImplicationRule> }
+            Actions: List<ActionDecl>; Macros: List<MacroDecl>; Invariants: List<Value>; Implications: List<ImplicationRule> ; Axioms: List<Value> }
 
 
     let empty_module name =
@@ -132,6 +132,7 @@
             Invariants=[];
             Implications=[];
             InterpretedActions=[];
+            Axioms=[]
         }
 
     let default_var_decl name t =
