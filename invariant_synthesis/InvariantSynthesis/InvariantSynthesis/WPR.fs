@@ -70,6 +70,20 @@
             Set.union fv (free_vars_of_value v1)
         | Z3Hole -> Set.empty
 
+    let rec funs_in_value v =
+        match v with
+        | Z3Const _ -> Set.empty
+        | Z3Var _ -> Set.empty
+        | Z3Fun (str, vs) -> Set.unionMany ((Set.singleton str)::(List.map funs_in_value vs))
+        | Z3Equal (v1, v2) | Z3Or (v1, v2) | Z3And (v1, v2) | Z3Imply (v1, v2)
+            -> Set.union (funs_in_value v1) (funs_in_value v2)
+        | Z3Not v -> funs_in_value v
+        | Z3IfElse (f, v1, v2) ->
+            Set.unionMany [funs_in_value f ; funs_in_value v1 ; funs_in_value v2]
+        | Z3Forall (_, v) | Z3Exists (_, v) -> funs_in_value v
+        | Z3Declare (_, v1, v2) -> Set.union (funs_in_value v1) (funs_in_value v2)
+        | Z3Hole -> Set.empty
+
     // Conversion tools
 
     let next_var = ref 0
@@ -322,10 +336,12 @@
         aux v
 
     let weakest_precondition<'a,'b> (m:ModuleDecl<'a,'b>) axioms f st =
-        let fv_axioms = (free_vars_of_value axioms)
-        let add_axioms_if_necessary str f = // Mutations are assumed to not break axioms (when non-deterministic)
+        let fv_axioms = free_vars_of_value axioms
+        let ff_axioms = funs_in_value axioms
+        let add_axioms_if_necessary is_fun str f = // Mutations are assumed to not break axioms (when non-deterministic)
             // That's why we need to assume axioms when non-deterministic values are assigned to global vars/funs
-            if Set.contains str fv_axioms
+            let free = if is_fun then ff_axioms else fv_axioms
+            if Set.contains str free
             then Z3Imply(axioms, f)
             else f
         let rec aux f st =
@@ -338,12 +354,12 @@
                 assert Set.isEmpty (Set.difference (free_vars_of_value f) fv) // No new free variable!
                 f
             | VarAssign (str, (ctx, v)) ->
-                let f = add_axioms_if_necessary str f
+                let f = add_axioms_if_necessary false str f
                 let f = replace_var str v f
                 replace_holes_with f ctx
             | VarAssignAction (str, action, vs) ->
                 let action = minimal_action2wpr_action m action true true
-                let f = add_axioms_if_necessary str f
+                let f = add_axioms_if_necessary false str f
                 let f = replace_var str (Z3Var action.Output.Name) f
                 let f = aux f action.Content
                 assert not (Set.contains action.Output.Name (free_vars_of_value f)) // Return var should have been assigned
@@ -355,7 +371,7 @@
 
                 List.fold2 assign_arg f (List.rev action.Args) (List.rev vs)
             | FunAssign (str, ds, (ctx,v)) ->
-                let f = add_axioms_if_necessary str f
+                let f = add_axioms_if_necessary true str f
                 let f = replace_fun ds str v f
                 replace_holes_with f ctx
             | Parallel (st1, st2) ->
