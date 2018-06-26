@@ -322,6 +322,12 @@
         aux v
 
     let weakest_precondition<'a,'b> (m:ModuleDecl<'a,'b>) axioms f st =
+        let fv_axioms = (free_vars_of_value axioms)
+        let add_axioms_if_necessary str f = // Mutations are assumed to not break axioms (when non-deterministic)
+            // That's why we need to assume axioms when non-deterministic values are assigned to global vars/funs
+            if Set.contains str fv_axioms
+            then Z3Imply(axioms, f)
+            else f
         let rec aux f st =
             match st with
             | NewBlock (ds, sts) ->
@@ -332,15 +338,15 @@
                 assert Set.isEmpty (Set.difference (free_vars_of_value f) fv) // No new free variable!
                 f
             | VarAssign (str, (ctx, v)) ->
-                // TODO: assume axioms only if not local
-                let f = Z3Imply(axioms, f) // Mutations are assumed to not break axioms (when non-deterministic)
+                let f = add_axioms_if_necessary str f
                 let f = replace_var str v f
                 replace_holes_with f ctx
             | VarAssignAction (str, action, vs) ->
                 let action = minimal_action2wpr_action m action true true
+                let f = add_axioms_if_necessary str f
                 let f = replace_var str (Z3Var action.Output.Name) f
                 let f = aux f action.Content
-                assert not (Set.contains action.Output.Name (free_vars_of_value f))
+                assert not (Set.contains action.Output.Name (free_vars_of_value f)) // Return var should have been assigned
 
                 let assign_arg f (d:VarDecl) (ctx, v) =
                     // Note: No need to assume axioms here because these vars are local (so no axiom is involving them)
@@ -349,8 +355,7 @@
 
                 List.fold2 assign_arg f (List.rev action.Args) (List.rev vs)
             | FunAssign (str, ds, (ctx,v)) ->
-                // TODO: assume axioms only if not local
-                let f = Z3Imply(axioms, f) // Mutations are assumed to not break axioms (when non-deterministic)
+                let f = add_axioms_if_necessary str f
                 let f = replace_fun ds str v f
                 replace_holes_with f ctx
             | Parallel (st1, st2) ->
@@ -370,4 +375,4 @@
         if List.exists (fun ctx -> ctx <> Z3Hole) ctxs
         then failwith "Axiom not allowed!"
         let axioms = conjunction_of axioms
-        weakest_precondition m f axioms action.Content
+        weakest_precondition m axioms f action.Content
