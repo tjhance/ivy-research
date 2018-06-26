@@ -97,6 +97,9 @@
 	<Compile Include="..\InvariantSynthesis\WPR.fs">
       <Link>WPR.fs</Link>
     </Compile>
+	<Compile Include="..\InvariantSynthesis\Z3Utils.fs">
+      <Link>Z3Utils.fs</Link>
+    </Compile>
     <Compile Include="..\InvariantSynthesis\ConstraintsParser.fs">
       <Link>ConstraintsParser.fs</Link>
     </Compile>
