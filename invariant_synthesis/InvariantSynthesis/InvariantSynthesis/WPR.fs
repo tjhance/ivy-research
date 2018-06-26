@@ -174,6 +174,15 @@
                 (ctx, Z3Var name)
         aux v
 
+    exception ValueNotAllowed
+
+    let z3val2deterministic_formula (ctx,v) allow_contexts =
+        if allow_contexts
+        then replace_holes_with v ctx
+        else if ctx <> Z3Hole
+        then raise ValueNotAllowed
+        else v
+
     // We convert the AST to a simpler one & we rename each local variable in order for them to be unique
     let minimal_stat2wpr_stat<'a,'b> (m:ModuleDecl<'a,'b>) renaming st =
         let minimal_val2z3_val = minimal_val2z3_val m
@@ -204,7 +213,7 @@
                 let renaming = List.fold2 (fun acc (od:VarDecl) (nd:VarDecl) -> Map.add od.Name nd.Name acc) renaming ds new_ds
                 let names = List.map (fun (d:VarDecl) -> d.Name) new_ds
                 let names = Interpreter.reconstruct_hvals hvs added_names names
-                let decls = List.map2 (fun n (d:VarDecl) -> AST.default_var_decl n d.Type) names (find_action m str false).Args
+                let decls = List.map2 (fun n t -> AST.default_var_decl n t) names (find_function m str).Input
                 
                 let v = rename_value renaming v
                 let add_condition acc name vcond =
@@ -349,9 +358,10 @@
             | NewBlock (ds, sts) ->
                 let names = Set.ofList (List.map (fun (v:VarDecl) -> v.Name) ds)
                 let fv = free_vars_of_value f
-                assert Set.isEmpty (Set.intersect fv names)
+                assert Set.isEmpty (Set.intersect fv names) // New local vars should have unique names
                 let f = List.fold aux f (List.rev sts)
-                assert Set.isEmpty (Set.difference (free_vars_of_value f) fv) // No new free variable!
+                let fv = free_vars_of_value f
+                assert Set.isEmpty (Set.intersect fv names) // Used local vars should have been assigned!
                 f
             | VarAssign (str, (ctx, v)) ->
                 let f = add_axioms_if_necessary false str f
@@ -387,8 +397,13 @@
     let wpr_for_action<'a,'b> (m:ModuleDecl<'a,'b>) f action =
         reinit_tmp_vars ()
         let action = minimal_action2wpr_action m action true false
-        let (ctxs, axioms) = List.unzip (List.map (minimal_val2z3_val m) m.Axioms)
-        if List.exists (fun ctx -> ctx <> Z3Hole) ctxs
-        then failwith "Axiom not allowed!"
+        let axioms = 
+            List.fold
+                (
+                    fun acc v ->
+                        try
+                            (z3val2deterministic_formula (minimal_val2z3_val m v) false)::acc
+                        with :? ValueNotAllowed -> printfn "Illegal axiom ignored..." ; acc
+                ) [] m.Axioms
         let axioms = conjunction_of axioms
         weakest_precondition m axioms f action.Content

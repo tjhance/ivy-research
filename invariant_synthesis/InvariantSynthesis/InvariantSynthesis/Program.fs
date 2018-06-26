@@ -54,6 +54,23 @@ let main argv =
                 printfn "Converting parsed AST..."
                 ParserAST.ivy_elements_to_ast_module filename parsed_elts
     let decls = Model.declarations_of_module md
+
+    /////////////////////////////////////////////////////////////////
+
+    printfn "Select the conjecture to test:"
+    List.iteri (fun i v -> printfn "%i. %s" i (Printer.value_to_string decls v 0)) md.Invariants
+    let nb = Convert.ToInt32 (Console.ReadLine())
+    let formula = List.item nb md.Invariants
+    let formula = MinimalAST.value2minimal md formula
+
+    printfn "Enter the name of the action:"
+    let action = Console.ReadLine()
+    let mmd = MinimalAST.module2minimal md action
+    let z3formula = WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd formula) false
+    let wpr = WPR.wpr_for_action mmd z3formula action
+    printfn "%A" wpr
+
+    /////////////////////////////////////////////////////////////////
         
     printfn "Please enter constraints:"
     let str = read_until_line_jump ()
