@@ -42,7 +42,7 @@ object incrementable = {
 
         implement next {
             output := input + 1;
-			assert succ(input,output);
+			ensure succ(input,output);
         }
     }
 }

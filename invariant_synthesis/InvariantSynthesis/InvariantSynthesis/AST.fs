@@ -17,6 +17,10 @@
 
     // TODO: Use an automated method: computing weakest precondition (wp) and finding a finite model for (wp AND NOT new_strong_invariant).
 
+    // Important:
+    // TODO: Add possibility of non-determinism
+    // TODO: Do not execute/analyse/wpr the implementation of non-main content (only their specification)
+
     // Refactor:
     // TODO: Create a function that retrieve the name of a var decl, and use it everywhere.
     // TODO: Factorize parameters passed to marks_for_value (etc.) by redefining this function. 
@@ -24,7 +28,6 @@
     // Optimisations:
     // TODO: Synthesis: compute all possibilities for marks_for_value, and choose the better at the end
     // using an evaluation function taking into account the current marks and the remaining statements in atomic block
-    // TODO: Synthesis: take assertions into account only for "positive runs"
 
     type Type =
         | Void

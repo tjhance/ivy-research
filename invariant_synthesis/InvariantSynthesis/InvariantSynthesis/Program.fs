@@ -141,7 +141,7 @@ let main argv =
             (Synthesis.empty_config, None, ConstVoid)
 
     printfn "Going back through the action..."
-    let (m,um,ad) = Synthesis.marks_before_statement mmd infos tr (m,um,ad)
+    let (m,um,ad) = Synthesis.marks_before_statement mmd infos true tr (m,um,ad)
     if verbose
     then
         printfn "%A" m
@@ -185,7 +185,7 @@ let main argv =
                 if Trace.is_fully_executed tr_allowed
                 then
                     let (m_al,_,ad_al) =
-                        Synthesis.marks_before_statement mmd infos_allowed tr_allowed Synthesis.empty_config
+                        Synthesis.marks_before_statement mmd infos_allowed false tr_allowed Synthesis.empty_config
                     if ad_al.md
                     then printfn "Warning: Some marks still are model-dependent! Generated invariant could be weaker than expected."
                     let m_al' = Synthesis.marks_union m_al m'
@@ -199,7 +199,7 @@ let main argv =
                 if b_al <> b
                 then
                     let (m_al,_,ad_al) =
-                        Synthesis.marks_before_statement mmd infos_allowed tr_allowed (m_al,um_al,ad_al)
+                        Synthesis.marks_before_statement mmd infos_allowed true tr_allowed (m_al,um_al,ad_al)
                     if ad_al.md
                     then printfn "Warning: Some marks still are model-dependent! Generated invariant could be weaker than expected."
                     let m_al' = Synthesis.marks_union m_al m'
