@@ -94,10 +94,10 @@
     <Compile Include="..\InvariantSynthesis\Formula.fs">
       <Link>Formula.fs</Link>
     </Compile>
-	<Compile Include="..\InvariantSynthesis\WPR.fs">
+    <Compile Include="..\InvariantSynthesis\WPR.fs">
       <Link>WPR.fs</Link>
     </Compile>
-	<Compile Include="..\InvariantSynthesis\Z3Utils.fs">
+    <Compile Include="..\InvariantSynthesis\Z3Utils.fs">
       <Link>Z3Utils.fs</Link>
     </Compile>
     <Compile Include="..\InvariantSynthesis\ConstraintsParser.fs">
@@ -131,6 +131,9 @@
     </Reference>
     <Reference Include="FSharp.Core">
       <HintPath>..\packages\FSharp.Core.4.3.4\lib\net45\FSharp.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Z3">
+      <HintPath>..\z3-4.6.0-x64-win\bin\Microsoft.Z3.dll</HintPath>
     </Reference>
     <Reference Include="mscorlib" />
     <Reference Include="Prime">

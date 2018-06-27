@@ -207,7 +207,7 @@ open Prime
 
     let local_name = AST.local_name
 
-    let separator = '.'
+    let separator = AST.name_separator
 
     let variant_action_name = AST.variant_action_name
 

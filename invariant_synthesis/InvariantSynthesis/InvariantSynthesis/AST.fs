@@ -143,6 +143,8 @@
 
     // Var names functions
 
+    let name_separator = '.'
+
     let action_variant_char = ':'
 
     let variant_action_name name variant =

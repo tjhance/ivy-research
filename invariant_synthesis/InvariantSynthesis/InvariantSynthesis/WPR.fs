@@ -70,6 +70,22 @@
             Set.union fv (free_vars_of_value v1)
         | Z3Hole -> Set.empty
 
+    let rec const_int_in_value v =
+        match v with
+        | Z3Const (AST.ConstInt (t,i)) -> Set.singleton (t,i)
+        | Z3Const _ -> Set.empty
+        | Z3Var _ -> Set.empty
+        | Z3Fun (_, vs) -> Set.unionMany (List.map const_int_in_value vs)
+        | Z3Equal (v1, v2) | Z3Or (v1, v2) | Z3And (v1, v2) | Z3Imply (v1, v2)
+            -> Set.union (const_int_in_value v1) (const_int_in_value v2)
+        | Z3Not v -> const_int_in_value v
+        | Z3IfElse (f, v1, v2) ->
+            Set.unionMany [const_int_in_value f ; const_int_in_value v1 ; const_int_in_value v2]
+        | Z3Forall (_, v) | Z3Exists (_, v) -> const_int_in_value v
+        | Z3Declare (_, v1, v2) ->
+            Set.union (const_int_in_value v1) (const_int_in_value v2)
+        | Z3Hole -> Set.empty
+
     let rec funs_in_value v =
         match v with
         | Z3Const _ -> Set.empty
