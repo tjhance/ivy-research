@@ -660,7 +660,26 @@ open Prime
                     Formula.antisymetric lt.Name false type_name
                 ]
 
-        { m with Funs=lt::m.Funs ; Macros=leq::geq::gt::m.Macros ; Implications=impl@m.Implications }
+        // We also add these axioms to the module
+        let z = local_name "z"
+        let var_z = AST.default_var_decl z t
+        // Strict
+        let axiom1 = AST.ValueForall (var_x, AST.ValueNot (AST.ValueFun (lt.Name, [AST.ValueVar x ; AST.ValueVar x])))
+        // Transitivity
+        let axiom2 = AST.ValueAnd (AST.ValueFun (lt.Name, [AST.ValueVar x ; AST.ValueVar y]), AST.ValueFun (lt.Name, [AST.ValueVar y ; AST.ValueVar z]))
+        let axiom2 = AST.ValueImply (axiom2, AST.ValueFun (lt.Name, [AST.ValueVar x ; AST.ValueVar z]) )
+        let axiom2 = AST.ValueForall (var_x, AST.ValueForall (var_y, AST.ValueForall (var_z, axiom2)))
+        // Anti-symmetry
+        let axiom3 = AST.ValueAnd (AST.ValueFun (lt.Name, [AST.ValueVar x ; AST.ValueVar y]), AST.ValueFun (lt.Name, [AST.ValueVar y ; AST.ValueVar x]))
+        let axiom3 = AST.ValueNot (axiom3)
+        let axiom3 = AST.ValueForall (var_x, AST.ValueForall (var_y, axiom3))
+        // Totality
+        let axiom4 = AST.ValueOr (AST.ValueFun (lt.Name, [AST.ValueVar x ; AST.ValueVar y]), AST.ValueFun (lt.Name, [AST.ValueVar y ; AST.ValueVar x]))
+        let axiom4 = AST.ValueOr (axiom4, AST.ValueEqual (AST.ValueVar x, AST.ValueVar y))
+        let axiom4 = AST.ValueForall (var_x, AST.ValueForall (var_y, axiom4))
+        let axioms = [axiom1;axiom2;axiom3;axiom4]
+
+        { m with Funs=lt::m.Funs ; Macros=leq::geq::gt::m.Macros ; Implications=impl@m.Implications ; Axioms=axioms@m.Axioms }
 
     // Convert a list of ivy parser AST elements to a global AST.ModuleDecl.
     // Also add and/or adjust references to types, functions, variables or actions of the module.

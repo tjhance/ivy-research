@@ -361,14 +361,19 @@
         aux v
 
     let weakest_precondition<'a,'b> (m:ModuleDecl<'a,'b>) axioms f st =
-        let fv_axioms = free_vars_of_value axioms
-        let ff_axioms = funs_in_value axioms
-        let add_axioms_if_necessary is_fun str f = // Mutations are assumed to not break axioms (when non-deterministic)
+
+        let filter_axioms is_fun str =
+            let is_necessary axiom =
+                let free = if is_fun then funs_in_value axiom else free_vars_of_value axiom
+                Set.contains str free
+            List.filter is_necessary axioms
+
+        let add_necessary_axioms is_fun str f = // Mutations are assumed to not break axioms (when non-deterministic)
             // That's why we need to assume axioms when non-deterministic values are assigned to global vars/funs
-            let free = if is_fun then ff_axioms else fv_axioms
-            if Set.contains str free
-            then Z3Imply(axioms, f)
-            else f
+            let axioms = filter_axioms is_fun str
+            if List.isEmpty axioms
+            then f
+            else Z3Imply(conjunction_of axioms, f)
         let rec aux f st =
             match st with
             | NewBlock (ds, sts) ->
@@ -380,12 +385,12 @@
                 assert Set.isEmpty (Set.intersect fv names) // Used local vars should have been assigned!
                 f
             | VarAssign (str, (ctx, v)) ->
-                let f = add_axioms_if_necessary false str f
+                let f = add_necessary_axioms false str f
                 let f = replace_var str v f
                 replace_holes_with f ctx
             | VarAssignAction (str, action, vs) ->
                 let action = minimal_action2wpr_action m action true true
-                let f = add_axioms_if_necessary false str f
+                let f = add_necessary_axioms false str f
                 let f = replace_var str (Z3Var action.Output.Name) f
                 let f = aux f action.Content
                 assert not (Set.contains action.Output.Name (free_vars_of_value f)) // Return var should have been assigned
@@ -397,7 +402,7 @@
 
                 List.fold2 assign_arg f (List.rev action.Args) (List.rev vs)
             | FunAssign (str, ds, (ctx,v)) ->
-                let f = add_axioms_if_necessary true str f
+                let f = add_necessary_axioms true str f
                 let f = replace_fun ds str v f
                 replace_holes_with f ctx
             | Parallel (st1, st2) ->
@@ -409,20 +414,18 @@
                 replace_holes_with f ctx
             | Abort -> Z3Const (AST.ConstBool false)
         aux f st
-
-    let conjectures_to_z3value<'a,'b> (m:ModuleDecl<'a,'b>) conj =
-        let conj = 
-            List.fold
-                (
-                    fun acc v ->
-                        try
-                            (z3val2deterministic_formula (minimal_val2z3_val m v) false)::acc
-                        with :? ValueNotAllowed -> printfn "Illegal axiom ignored..." ; acc
-                ) [] conj
-        conjunction_of conj
+   
+    let conjectures_to_z3values<'a,'b> (m:ModuleDecl<'a,'b>) conj =
+        List.fold
+            (
+                fun acc v ->
+                    try
+                        (z3val2deterministic_formula (minimal_val2z3_val m v) false)::acc
+                    with :? ValueNotAllowed -> printfn "Illegal axiom/conjecture ignored..." ; acc
+            ) [] conj
 
     let wpr_for_action<'a,'b> (m:ModuleDecl<'a,'b>) f action =
         reinit_tmp_vars ()
         let action = minimal_action2wpr_action m action true false
-        let axioms = conjectures_to_z3value m m.Axioms
+        let axioms = conjectures_to_z3values m m.Axioms
         weakest_precondition m axioms f action.Content

@@ -17,8 +17,6 @@ let parser_args = "parser.native all %IN% %OUT% %ERR%"
 let parser_output_path = "parser.out"
 let parser_error_path = "parser.err"
 
-    // TODO: Add axioms for the orders
-
 [<EntryPoint>]
 let main argv =
 
@@ -72,8 +70,8 @@ let main argv =
     let wpr = WPR.wpr_for_action mmd z3formula action
     printfn "%A" wpr
 
-    let conjectures = WPR.conjectures_to_z3value mmd mmd.Invariants
-    let axioms = WPR.conjectures_to_z3value mmd mmd.Axioms
+    let conjectures = WPR.conjunction_of (WPR.conjectures_to_z3values mmd mmd.Invariants)
+    let axioms = WPR.conjunction_of (WPR.conjectures_to_z3values mmd mmd.Axioms)
     
     let is_inductive_v = WPR.Z3And (WPR.Z3And (conjectures, axioms), WPR.Z3Not wpr)
     let z3ctx = Z3Utils.build_context mmd
