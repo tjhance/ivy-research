@@ -410,16 +410,19 @@
             | Abort -> Z3Const (AST.ConstBool false)
         aux f st
 
-    let wpr_for_action<'a,'b> (m:ModuleDecl<'a,'b>) f action =
-        reinit_tmp_vars ()
-        let action = minimal_action2wpr_action m action true false
-        let axioms = 
+    let conjectures_to_z3value<'a,'b> (m:ModuleDecl<'a,'b>) conj =
+        let conj = 
             List.fold
                 (
                     fun acc v ->
                         try
                             (z3val2deterministic_formula (minimal_val2z3_val m v) false)::acc
                         with :? ValueNotAllowed -> printfn "Illegal axiom ignored..." ; acc
-                ) [] m.Axioms
-        let axioms = conjunction_of axioms
+                ) [] conj
+        conjunction_of conj
+
+    let wpr_for_action<'a,'b> (m:ModuleDecl<'a,'b>) f action =
+        reinit_tmp_vars ()
+        let action = minimal_action2wpr_action m action true false
+        let axioms = conjectures_to_z3value m m.Axioms
         weakest_precondition m axioms f action.Content

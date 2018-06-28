@@ -3,6 +3,7 @@
     open MinimalAST
     open WPR
     open Microsoft.Z3
+    open System.Runtime.CompilerServices
 
     let sort_of_type (ctx:Context) sorts t : Sort =
         match t with
@@ -72,9 +73,7 @@
             let fd = Map.find name lvars
             ctx.MkConst(fd)
 
-    let build_value<'a,'b> (m:ModuleDecl<'a,'b>) (ctx:ModuleContext) main_action (v:Z3Value) =
-
-        let lvars = declare_lvars m main_action ctx v
+    let build_value<'a,'b> (m:ModuleDecl<'a,'b>) (ctx:ModuleContext) lvars (v:Z3Value) =
 
         let rec aux qvars v =
             match v with
@@ -142,5 +141,66 @@
             Some s.Model
         | _ -> failwith "Solver returned an unknown status..."
 
-    //let z3model_to_ast_model model:Model =
-        
+    let cv_of_expr_str const_cv_map str =
+        match str with
+        | "true" -> AST.ConstBool true
+        | "false" -> AST.ConstBool false
+        | str -> AST.ConstInt (Map.find str const_cv_map)
+
+    let z3model_to_ast_model<'a,'b> (m:AST.ModuleDecl<'a,'b>) (ctx:ModuleContext) lvars (model:Model)
+        : (Model.TypeInfos * Model.Environment * Map<string, AST.ConstValue>) =
+        // Type infos
+        let treat_type (type_infos, const_cv_map) (t:AST.TypeDecl) =
+            let type_infos = Map.add t.Name -1 type_infos
+            let sort = Map.find t.Name ctx.Sorts
+            let univ = model.SortUniverse (sort)
+            let treat_expr (type_infos, const_cv_map) (e:Expr) =
+                let last_i = Map.find t.Name type_infos
+                let name = e.FuncDecl.Name.ToString()
+                let const_cv_map = Map.add name (t.Name, last_i+1) const_cv_map
+                let type_infos = Map.add t.Name (last_i+1) type_infos
+                (type_infos, const_cv_map)
+            Array.fold treat_expr (type_infos, const_cv_map) univ
+        let (type_infos, const_cv_map) = List.fold treat_type (Map.empty, Map.empty) m.Types
+
+        // Environment
+        let cv_of_expr (e:Expr) =
+            cv_of_expr_str const_cv_map (e.FuncDecl.Name.ToString())
+        let all_decls = model.Decls
+        let is_declared (fd:FuncDecl) =
+            Array.exists (fun (fd':FuncDecl) -> fd.Name = fd'.Name) all_decls
+
+        let treat_var (fd_map:Map<string,FuncDecl>) acc varname =
+            let fd = Map.find varname fd_map
+            if is_declared fd
+            then
+                let expr = model.ConstInterp (fd)
+                let cv = cv_of_expr expr
+                Map.add varname cv acc
+            else acc
+
+        let var_names = List.map (fun (d:VarDecl) -> d.Name) m.Vars
+        let var_env = List.fold (treat_var ctx.Vars) Map.empty var_names
+
+        let lvars_keys = Map.toList lvars
+        let lvars_keys = List.map (fun (k,_) -> k) lvars_keys
+        let lvars_env = List.fold (treat_var lvars) Map.empty lvars_keys
+
+        let treat_fun acc (d:AST.FunDecl) =
+            let fd = Map.find d.Name ctx.Funs
+            if is_declared fd
+            then
+                let fi = model.FuncInterp (fd)
+                let entries = fi.Entries
+                let aux acc (entry:FuncInterp.Entry) =
+                    let input_expr = entry.Args
+                    let input = Array.toList (Array.map cv_of_expr input_expr)
+                    let expr = entry.Value
+                    let cv = cv_of_expr expr
+                    Map.add (d.Name, input) cv acc
+                Array.fold aux acc entries
+            else acc
+
+        let fun_env = List.fold treat_fun Map.empty m.Funs
+
+        (type_infos, { Model.Environment.f = fun_env ; Model.Environment.v = var_env }, lvars_env)
