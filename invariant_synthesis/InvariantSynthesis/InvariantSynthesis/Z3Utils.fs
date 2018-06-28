@@ -50,14 +50,14 @@
             else acc
 
         let add_fv acc name =
-            let decl = List.find (fun (v:VarDecl) -> v.Name = name) action.Args
-            match decl.Type with
-            | AST.Void | AST.Bool -> acc
-            | AST.Uninterpreted t ->
-                let sort = Map.find t ctx.Sorts
-                if not (Map.containsKey name acc)
-                then Map.add name (ctx.Context.MkConstDecl(name,sort)) acc
-                else acc
+            if Map.containsKey name ctx.Vars
+            then acc
+            else if Map.containsKey name acc
+            then acc
+            else
+                let decl = List.find (fun (v:VarDecl) -> v.Name = name) action.Args
+                let sort = sort_of_type ctx.Context ctx.Sorts decl.Type
+                Map.add name (ctx.Context.MkConstDecl(name,sort)) acc
         
         let lvars = Set.fold add_civ Map.empty (const_int_in_value v)
         Set.fold add_fv lvars (free_vars_of_value v)
@@ -80,7 +80,9 @@
             match v with
             | Z3Const cv -> expr_of_cv ctx.Context lvars cv
             | Z3Var str ->
-                if Map.containsKey str lvars
+                if Map.containsKey str ctx.Vars
+                then ctx.Context.MkConst (Map.find str ctx.Vars)
+                else if Map.containsKey str lvars
                 then ctx.Context.MkConst (Map.find str lvars)
                 else Map.find str qvars
             | Z3Fun (str, vs) ->
