@@ -76,25 +76,69 @@
 
         let lvars = declare_lvars m main_action ctx v
 
-        let rec aux v =
+        let rec aux qvars v =
             match v with
             | Z3Const cv -> expr_of_cv ctx.Context lvars cv
+            | Z3Var str ->
+                if Map.containsKey str lvars
+                then ctx.Context.MkConst (Map.find str lvars)
+                else Map.find str qvars
+            | Z3Fun (str, vs) ->
+                let exprs = List.map (aux qvars) vs
+                let fd = Map.find str ctx.Funs
+                ctx.Context.MkApp (fd, exprs)
+            | Z3Equal (v1, v2) ->
+                let e1 = aux qvars v1
+                let e2 = aux qvars v2
+                ctx.Context.MkEq (e1, e2) :> Expr
+            | Z3Or (v1, v2) ->
+                let e1 = aux qvars v1 :?> BoolExpr
+                let e2 = aux qvars v2 :?> BoolExpr
+                ctx.Context.MkOr ([e1;e2]) :> Expr
+            | Z3And (v1, v2) ->
+                let e1 = aux qvars v1 :?> BoolExpr
+                let e2 = aux qvars v2 :?> BoolExpr
+                ctx.Context.MkAnd ([e1;e2]) :> Expr
+            | Z3Imply (v1, v2) ->
+                let e1 = aux qvars v1 :?> BoolExpr
+                let e2 = aux qvars v2 :?> BoolExpr
+                ctx.Context.MkImplies (e1,e2) :> Expr
+            | Z3Not v ->
+                let e = aux qvars v :?> BoolExpr
+                ctx.Context.MkNot (e) :> Expr
+            | Z3IfElse (vc, vif, velse) ->
+                let ec = aux qvars vc :?> BoolExpr
+                let eif = aux qvars vif
+                let eelse = aux qvars velse
+                ctx.Context.MkITE (ec, eif, eelse)
+            | Z3Forall (d, v) ->
+                let cst = ctx.Context.MkConst (d.Name, sort_of_type ctx.Context ctx.Sorts d.Type)
+                let qvars = Map.add d.Name cst qvars
+                let e = aux qvars v
+                ctx.Context.MkForall ([|cst|], e) :> Expr
+            | Z3Exists (d, v) ->
+                let cst = ctx.Context.MkConst (d.Name, sort_of_type ctx.Context ctx.Sorts d.Type)
+                let qvars = Map.add d.Name cst qvars
+                let e = aux qvars v
+                ctx.Context.MkExists ([|cst|], e) :> Expr
+            | Z3Declare (d, v, b) ->
+                let b = replace_var d.Name v b
+                aux qvars b
+            | Z3Hole -> failwith "Can't convert a context to a Z3 formula!"
+        aux Map.empty v
 
-        aux v
+    let check (ctx:ModuleContext) (e:Expr) =
+        let s = ctx.Context.MkSolver()
+        s.Assert ([|e:?> BoolExpr|])
+        match s.Check () with
+        | Status.UNKNOWN ->
+            printfn "ERROR: Satisfiability can't be decided! Assuming unSAT."
+            None
+        | Status.UNSATISFIABLE ->
+            None
+        | Status.SATISFIABLE ->
+            Some s.Model
+        | _ -> failwith "Solver returned an unknown status..."
 
-    (*
-        type Z3Value =
-        | Z3Const of ConstValue
-        | Z3Var of string
-        | Z3Fun of string * List<Z3Value>
-        | Z3Equal of Z3Value * Z3Value
-        | Z3Or of Z3Value * Z3Value
-        | Z3And of Z3Value * Z3Value
-        | Z3Imply of Z3Value * Z3Value
-        | Z3Not of Z3Value
-        | Z3IfElse of Z3Value * Z3Value * Z3Value
-        | Z3Forall of VarDecl * Z3Value
-        | Z3Exists of VarDecl * Z3Value
-        | Z3Declare of VarDecl * Z3Value * Z3Value
-        | Z3Hole // Used for contexts
-    *)
+    //let z3model_to_ast_model model:Model =
+        

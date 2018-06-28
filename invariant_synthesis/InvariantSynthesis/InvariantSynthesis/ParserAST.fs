@@ -720,7 +720,7 @@ open Prime
                         let args = p2a_args m base_name args Map.empty
                         let st_local_vars = List.fold (fun acc (d:AST.VarDecl) -> Map.add d.Name d.Type acc) Map.empty args
                         let (dico, expr) = p2a_expr m base_name st_local_vars Map.empty None expr
-                        let expr = close_formula m Map.empty dico Set.empty expr
+                        let expr = close_formula m st_local_vars dico Set.empty expr
                         let v = AST.expr_to_value expr
                         let output_t = AST.type_of_value m v st_local_vars
                         let rep =
@@ -731,12 +731,12 @@ open Prime
                         ({ m with AST.Macros=(macro::m.Macros) }, tmp_elements)
                 | Axiom expr ->
                     let (dico, expr) = p2a_expr m base_name Map.empty Map.empty (Some AST.Bool) expr
-                    let expr = close_formula m dico Map.empty Set.empty expr
+                    let expr = close_formula m Map.empty dico Set.empty expr
                     let v = AST.expr_to_value expr
                     ({ m with AST.Axioms=(v::m.Axioms) }, tmp_elements)
                 | Conjecture expr ->
                     let (dico, expr) = p2a_expr m base_name Map.empty Map.empty (Some AST.Bool) expr
-                    let expr = close_formula m dico Map.empty Set.empty expr
+                    let expr = close_formula m Map.empty dico Set.empty expr
                     let v = AST.expr_to_value expr
                     ({ m with AST.Invariants=(v::m.Invariants) }, tmp_elements)
                 | Rule expr ->

@@ -70,6 +70,19 @@ let main argv =
     let wpr = WPR.wpr_for_action mmd z3formula action
     printfn "%A" wpr
 
+    let conjectures = List.map (WPR.minimal_val2z3_val mmd) mmd.Invariants
+    let conjectures = List.map (fun ctx -> WPR.z3val2deterministic_formula ctx false) conjectures
+    let conjecture = WPR.conjunction_of conjectures
+    
+    let is_inductive_v = WPR.Z3And (conjecture, WPR.Z3Not wpr)
+    let z3ctx = Z3Utils.build_context mmd
+    let z3e = Z3Utils.build_value mmd z3ctx action is_inductive_v
+    match Z3Utils.check z3ctx z3e with
+    | None -> printfn "Invariant is inductive!"
+    | Some m ->
+        printfn "Invariant is not inductive!"
+        printfn "Model: %s" (m.ToString())
+
     /////////////////////////////////////////////////////////////////
         
     printfn "Please enter constraints:"
