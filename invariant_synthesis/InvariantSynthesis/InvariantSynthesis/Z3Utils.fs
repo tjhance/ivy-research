@@ -149,6 +149,9 @@
 
     let z3model_to_ast_model<'a,'b> (m:AST.ModuleDecl<'a,'b>) (ctx:ModuleContext) lvars (model:Model)
         : (Model.TypeInfos * Model.Environment * Map<string, AST.ConstValue>) =
+        // TODO: init env with default values for "useless" constraints (not in the model)
+        printfn "%s" (model.ToString())
+
         // Type infos
         let treat_type (type_infos, const_cv_map) (t:AST.TypeDecl) =
             let type_infos = Map.add t.Name -1 type_infos
@@ -191,6 +194,7 @@
             if is_declared fd
             then
                 let fi = model.FuncInterp (fd)
+                // TODO: fi.Else
                 let entries = fi.Entries
                 let aux acc (entry:FuncInterp.Entry) =
                     let input_expr = entry.Args

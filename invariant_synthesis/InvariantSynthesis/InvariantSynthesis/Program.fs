@@ -17,10 +17,86 @@ let parser_args = "parser.native all %IN% %OUT% %ERR%"
 let parser_output_path = "parser.out"
 let parser_error_path = "parser.err"
 
+// ----- MANUAL MODE -----
+
+let manual_counterexample (md:ModuleDecl) _ verbose =
+    printfn "Please enter constraints:"
+    let str = read_until_line_jump ()
+    printfn "Loading constraints..."
+    let cs = ConstraintsParser.parse_from_str md str
+    printfn "Building environment from constraints..."
+    let (infos, env) = Model.constraints_to_env md cs
+    if verbose
+    then
+        printfn "%A" infos
+        printfn "%A" env
+
+    printfn "Please enter the name of the (concrete) action to execute:"
+    let name = Console.ReadLine()
+    let args =
+        List.map
+            (
+                fun vd ->
+                    printfn "Please enter next arg:"
+                    match vd.Type with
+                    | Void -> ConstVoid
+                    | Bool -> ConstBool (Convert.ToBoolean (Console.ReadLine()))
+                    | Uninterpreted str -> ConstInt (str, Convert.ToInt32 (Console.ReadLine()))
+            )
+            (find_action md name false).Args
+
+    let mmd = MinimalAST.module2minimal md name
+    (mmd, name, args, infos, env, cs)
+
+// ----- AUTO MODE -----
+
+let auto_counterexample (md:ModuleDecl) decls verbose =
+
+    printfn "Enter the name of the action:"
+    let action = Console.ReadLine()
+    let mmd = MinimalAST.module2minimal md action
+
+    let counterexample = ref None
+
+    while (!counterexample) = None do
+
+        printfn "Select the conjecture to test:"
+        List.iteri (fun i v -> printfn "%i. %s" i (Printer.value_to_string decls v 0)) md.Invariants
+        let nb = Convert.ToInt32 (Console.ReadLine())
+        let formula = List.item nb md.Invariants
+        let formula = MinimalAST.value2minimal md formula
+
+        let z3formula = WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd formula) false
+        let wpr = WPR.wpr_for_action mmd z3formula action
+        if verbose then printfn "%A" wpr
+
+        let conjectures = WPR.conjunction_of (WPR.conjectures_to_z3values mmd mmd.Invariants)
+        let axioms = WPR.conjunction_of (WPR.conjectures_to_z3values mmd mmd.Axioms)
+    
+        let is_inductive_v = WPR.Z3And (WPR.Z3And (conjectures, axioms), WPR.Z3Not wpr)
+        let z3ctx = Z3Utils.build_context mmd
+        let z3lvars = Z3Utils.declare_lvars mmd action z3ctx is_inductive_v
+        let z3e = Z3Utils.build_value mmd z3ctx z3lvars is_inductive_v
+        
+        counterexample :=
+            match Z3Utils.check z3ctx z3e with
+            | None -> None
+            | Some m ->
+                let (infos, env, args) = Z3Utils.z3model_to_ast_model md z3ctx z3lvars m
+                let args = List.map (fun (d:VarDecl) -> Map.find d.Name args) (find_action md action false).Args 
+                Some (args, infos, env)
+
+    match !counterexample with
+    | None -> failwith "No counterexample found!"
+    | Some (args, infos, env) -> (mmd, action, args, infos, env, [])
+
+// ----- MAIN -----
+
 [<EntryPoint>]
 let main argv =
 
     let verbose = Array.contains "-v" argv
+    let manual = Array.contains "-m" argv
 
     let filename = 
         match Array.tryLast argv with
@@ -55,63 +131,11 @@ let main argv =
                 ParserAST.ivy_elements_to_ast_module filename parsed_elts
     let decls = Model.declarations_of_module md
 
-    /////////////////////////////////////////////////////////////////
+    let (mmd, name, args, infos, env, cs) =
+        if manual
+        then manual_counterexample md decls verbose
+        else auto_counterexample md decls verbose
 
-    printfn "Select the conjecture to test:"
-    List.iteri (fun i v -> printfn "%i. %s" i (Printer.value_to_string decls v 0)) md.Invariants
-    let nb = Convert.ToInt32 (Console.ReadLine())
-    let formula = List.item nb md.Invariants
-    let formula = MinimalAST.value2minimal md formula
-
-    printfn "Enter the name of the action:"
-    let action = Console.ReadLine()
-    let mmd = MinimalAST.module2minimal md action
-    let z3formula = WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd formula) false
-    let wpr = WPR.wpr_for_action mmd z3formula action
-    printfn "%A" wpr
-
-    let conjectures = WPR.conjunction_of (WPR.conjectures_to_z3values mmd mmd.Invariants)
-    let axioms = WPR.conjunction_of (WPR.conjectures_to_z3values mmd mmd.Axioms)
-    
-    let is_inductive_v = WPR.Z3And (WPR.Z3And (conjectures, axioms), WPR.Z3Not wpr)
-    let z3ctx = Z3Utils.build_context mmd
-    let z3lvars = Z3Utils.declare_lvars mmd action z3ctx is_inductive_v
-    let z3e = Z3Utils.build_value mmd z3ctx z3lvars is_inductive_v
-    match Z3Utils.check z3ctx z3e with
-    | None -> printfn "Invariant is inductive!"
-    | Some m ->
-        printfn "Invariant is not inductive!"
-        printfn "Model: %s" (m.ToString())
-        ignore (Z3Utils.z3model_to_ast_model md z3ctx z3lvars m)
-
-    /////////////////////////////////////////////////////////////////
-        
-    printfn "Please enter constraints:"
-    let str = read_until_line_jump ()
-    printfn "Loading constraints..."
-    let cs = ConstraintsParser.parse_from_str md str
-    printfn "Building environment from constraints..."
-    let (infos, env) = Model.constraints_to_env md cs
-    if verbose
-    then
-        printfn "%A" infos
-        printfn "%A" env
-
-    printfn "Please enter the name of the (concrete) action to execute:"
-    let name = Console.ReadLine()
-    let args =
-        List.map
-            (
-                fun vd ->
-                    printfn "Please enter next arg:"
-                    match vd.Type with
-                    | Void -> ConstVoid
-                    | Bool -> ConstBool (Convert.ToBoolean (Console.ReadLine()))
-                    | Uninterpreted str -> ConstInt (str, Convert.ToInt32 (Console.ReadLine()))
-            )
-            (find_action md name false).Args
-
-    let mmd = MinimalAST.module2minimal md name
     printfn "Executing..."
     let tr = TInterpreter.trace_action mmd infos env name (List.map (fun cv -> MinimalAST.ValueConst cv) args) AST.impossible_var_factor
     let env' = Trace.final_env tr

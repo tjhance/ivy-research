@@ -19,6 +19,7 @@
     // TODO: Add a final step that uses model checking to make the invariant the strongest possible by trying to weaken constraints
 
     // Important:
+    // TODO: For interpreted actions ('+'), don't assume that the order by < of values is respected (compute real order)
     // TODO: Add possibility of non-determinism
     // TODO: Do not execute/analyse/wpr the implementation of non-main content (only their specification)
 
