@@ -48,7 +48,7 @@
             if not (Map.containsKey name lvars)
             then
                 let lvars = Map.add name (ctx.Context.MkConstDecl(name,sort)) lvars
-                let z3concrete_map = Map.add name (t,i) z3concrete_map
+                let z3concrete_map = (name, (t,i))::z3concrete_map
                 (lvars,z3concrete_map)
             else (lvars,z3concrete_map)
 
@@ -62,7 +62,7 @@
                 let sort = sort_of_type ctx.Context ctx.Sorts decl.Type
                 Map.add name (ctx.Context.MkConstDecl(name,sort)) acc
         
-        let (lvars,z3concrete_map) = Set.fold add_civ (Map.empty,Map.empty) (const_int_in_value v)
+        let (lvars,z3concrete_map) = Set.fold add_civ (Map.empty,[]) (const_int_in_value v)
         let lvars = Set.fold add_fv lvars (free_vars_of_value v)
         (lvars,z3concrete_map)
 
@@ -160,29 +160,48 @@
             Seq.concat res
 
     let z3model_to_ast_model<'a,'b> (m:AST.ModuleDecl<'a,'b>) (ctx:ModuleContext) args lvars 
-        z3concrete_map (model:Model) // TODO
+        z3concrete_map (model:Model)
         : (Model.TypeInfos * Model.Environment * Map<string, AST.ConstValue>) =
 
-        // Type infos
-        let treat_type (type_infos, const_cv_map) (t:AST.TypeDecl) =
-            let type_infos = Map.add t.Name -1 type_infos
+        let all_decls = model.Decls
+        let is_declared (fd:FuncDecl) =
+            Array.exists (fun (fd':FuncDecl) -> fd.Name = fd'.Name) all_decls
+
+        // Fix concrete const values
+        let treat_concrete const_cv_map (name,cv) =
+            let (fd:FuncDecl) = Map.find name lvars
+            if is_declared fd
+            then
+                let (e:Expr) = model.ConstInterp (fd)
+                let fname = e.FuncDecl.Name.ToString()
+                Map.add fname cv const_cv_map
+            else const_cv_map
+        let const_cv_map = List.fold treat_concrete Map.empty z3concrete_map
+
+        let treat_type const_cv_map (t:AST.TypeDecl) =
             let sort = Map.find t.Name ctx.Sorts
             let univ = model.SortUniverse (sort)
-            let treat_expr (type_infos, const_cv_map) (e:Expr) =
-                let last_i = Map.find t.Name type_infos
+            let treat_expr const_cv_map (e:Expr) =
+                let rec next_available_i i =
+                    match Map.tryFindKey (fun _ (str,j) -> str=t.Name && j=i) const_cv_map with
+                    | None -> i
+                    | Some _ -> next_available_i (i+1)
                 let name = e.FuncDecl.Name.ToString()
-                let const_cv_map = Map.add name (t.Name, last_i+1) const_cv_map
-                let type_infos = Map.add t.Name (last_i+1) type_infos
-                (type_infos, const_cv_map)
-            Array.fold treat_expr (type_infos, const_cv_map) univ
-        let (type_infos, const_cv_map) = List.fold treat_type (Map.empty, Map.empty) m.Types
+                let const_cv_map = Map.add name (t.Name, next_available_i 0) const_cv_map
+                const_cv_map
+            Array.fold treat_expr const_cv_map univ
+        let const_cv_map = List.fold treat_type const_cv_map m.Types
+
+        // Type infos
+        let type_infos = List.fold (fun acc (t:AST.TypeDecl) -> Map.add t.Name 0 acc) Map.empty m.Types
+        let update_type_infos acc (_,(t,i)) =
+            let new_i = max i (Map.find t acc)
+            Map.add t new_i acc
+        let type_infos = List.fold update_type_infos type_infos (Map.toList const_cv_map)
 
         // Environment
         let cv_of_expr (e:Expr) =
             cv_of_expr_str const_cv_map (e.FuncDecl.Name.ToString())
-        let all_decls = model.Decls
-        let is_declared (fd:FuncDecl) =
-            Array.exists (fun (fd':FuncDecl) -> fd.Name = fd'.Name) all_decls
 
         let treat_var (fd_map:Map<string,FuncDecl>) acc (decl:VarDecl) =
             let fd = Map.find decl.Name fd_map
