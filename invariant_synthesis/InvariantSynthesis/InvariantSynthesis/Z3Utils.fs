@@ -42,12 +42,15 @@
         
         let action = find_action m action false
 
-        let add_civ acc (t,i) =
+        let add_civ (lvars,z3concrete_map) (t,i) =
             let name = name_of_constint (t,i)
             let sort = Map.find t ctx.Sorts
-            if not (Map.containsKey name acc)
-            then Map.add name (ctx.Context.MkConstDecl(name,sort)) acc
-            else acc
+            if not (Map.containsKey name lvars)
+            then
+                let lvars = Map.add name (ctx.Context.MkConstDecl(name,sort)) lvars
+                let z3concrete_map = Map.add name (t,i) z3concrete_map
+                (lvars,z3concrete_map)
+            else (lvars,z3concrete_map)
 
         let add_fv acc name =
             if Map.containsKey name ctx.Vars
@@ -59,8 +62,9 @@
                 let sort = sort_of_type ctx.Context ctx.Sorts decl.Type
                 Map.add name (ctx.Context.MkConstDecl(name,sort)) acc
         
-        let lvars = Set.fold add_civ Map.empty (const_int_in_value v)
-        Set.fold add_fv lvars (free_vars_of_value v)
+        let (lvars,z3concrete_map) = Set.fold add_civ (Map.empty,Map.empty) (const_int_in_value v)
+        let lvars = Set.fold add_fv lvars (free_vars_of_value v)
+        (lvars,z3concrete_map)
 
     let expr_of_cv (ctx:Context) lvars cv =
         match cv with
@@ -155,7 +159,8 @@
             let res = Seq.map (fun lst -> Seq.map (fun e -> e::lst) univ) res
             Seq.concat res
 
-    let z3model_to_ast_model<'a,'b> (m:AST.ModuleDecl<'a,'b>) (ctx:ModuleContext) args lvars (model:Model)
+    let z3model_to_ast_model<'a,'b> (m:AST.ModuleDecl<'a,'b>) (ctx:ModuleContext) args lvars 
+        z3concrete_map (model:Model) // TODO
         : (Model.TypeInfos * Model.Environment * Map<string, AST.ConstValue>) =
 
         // Type infos

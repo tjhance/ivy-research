@@ -48,6 +48,24 @@ let manual_counterexample (md:ModuleDecl) _ verbose =
     let mmd = MinimalAST.module2minimal md name
     (mmd, name, args, infos, env, cs)
 
+let manual_allowed_path (md:ModuleDecl) decls env cs m um' =
+    printfn "Please modify some constraints on the environment to change the final formula value."
+    printfn ""
+    printfn "Constraints you can't change:"
+    printfn "%s" (Printer.marks_to_string decls env m)
+    printfn ""
+    printfn "Constraints you should change (at least one):"
+    printfn "%s" (Printer.marks_to_string decls env um')
+
+    printfn ""
+    let str = read_until_line_jump ()
+    printfn "Loading constraints..."
+    let cs' = ConstraintsParser.parse_from_str md str
+    printfn "Building new environment..."
+    let (infos_allowed, env_allowed) = Model.constraints_to_env md (cs@cs')
+    printfn "Computing..."
+    Some (infos_allowed, env_allowed)
+
 // ----- AUTO MODE -----
 
 let auto_counterexample (md:ModuleDecl) decls verbose =
@@ -75,7 +93,7 @@ let auto_counterexample (md:ModuleDecl) decls verbose =
     
         let is_inductive_v = WPR.Z3And (WPR.Z3And (conjectures, axioms), WPR.Z3Not wpr)
         let z3ctx = Z3Utils.build_context mmd
-        let z3lvars = Z3Utils.declare_lvars mmd action z3ctx is_inductive_v
+        let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars mmd action z3ctx is_inductive_v
         let z3e = Z3Utils.build_value z3ctx z3lvars is_inductive_v
         
         counterexample :=
@@ -83,13 +101,17 @@ let auto_counterexample (md:ModuleDecl) decls verbose =
             | None -> None
             | Some m ->
                 let action_args = (find_action md action false).Args
-                let (infos, env, args) = Z3Utils.z3model_to_ast_model md z3ctx action_args z3lvars m
+                let (infos, env, args) = Z3Utils.z3model_to_ast_model md z3ctx action_args z3lvars z3concrete_map m
                 let args = List.map (fun (d:VarDecl) -> Map.find d.Name args) action_args
                 Some (args, infos, env)
 
     match !counterexample with
     | None -> failwith "No counterexample found!"
     | Some (args, infos, env) -> (mmd, action, args, infos, env, [])
+
+let auto_allowed_path (md:ModuleDecl) decls env (m, um, ad) =
+    // TODO
+    None
 
 // ----- MAIN -----
 
@@ -202,52 +224,46 @@ let main argv =
         printfn "Would you like to add an allowed path to the invariant? (y/n)"
         let answer = ref (Console.ReadLine())
         while !answer = "y" do
-            printfn "Please modify some constraints on the environment to change the final formula value."
-            printfn ""
-            printfn "Constraints you can't change:"
-            printfn "%s" (Printer.marks_to_string decls env m)
-            printfn ""
-            printfn "Constraints you should change (at least one):"
-            printfn "%s" (Printer.marks_to_string decls env um')
 
-            printfn ""
-            let str = read_until_line_jump ()
-            printfn "Loading constraints..."
-            let cs' = ConstraintsParser.parse_from_str md str
-            printfn "Building new environment..."
-            let (infos_allowed, env_allowed) = Model.constraints_to_env md (cs@cs')
-            printfn "Computing..."
-            let tr_allowed = TInterpreter.trace_action mmd infos_allowed env_allowed name (List.map (fun cv -> MinimalAST.ValueConst cv) args) AST.impossible_var_factor
-            let env_allowed' = Trace.final_env tr_allowed
-            match formula with
-            | None ->
-                if Trace.is_fully_executed tr_allowed
-                then
-                    let (m_al,_,ad_al) =
-                        Synthesis.marks_before_statement mmd infos_allowed false tr_allowed Synthesis.empty_config
-                    if ad_al.md
-                    then printfn "Warning: Some marks still are model-dependent! Generated invariant could be weaker than expected."
-                    let m_al' = Synthesis.marks_union m_al m'
-                    let m_al' = Formula.simplify_marks infos_allowed md.Implications decls env_allowed m_al'
-                    let m_al' = Synthesis.marks_diff m_al' m'
-                    allowed_paths := (m_al',env_allowed)::(!allowed_paths)
-                else printfn "ERROR: Execution still fail!"
-            | Some formula ->
-                let (b_al,(m_al,um_al,ad_al)) =
-                    Synthesis.marks_for_value mmd infos_allowed env_allowed' Set.empty formula
-                if b_al <> b
-                then
-                    let (m_al,_,ad_al) =
-                        Synthesis.marks_before_statement mmd infos_allowed true tr_allowed (m_al,um_al,ad_al)
-                    if ad_al.md
-                    then printfn "Warning: Some marks still are model-dependent! Generated invariant could be weaker than expected."
-                    let m_al' = Synthesis.marks_union m_al m'
-                    let m_al' = Formula.simplify_marks infos_allowed md.Implications decls env_allowed m_al'
-                    let m_al' = Synthesis.marks_diff m_al' m'
-                    allowed_paths := (m_al',env_allowed)::(!allowed_paths)
-                else printfn "ERROR: Formula has the same value than with the original environment!"
+            let allowed_path_opt =
+                if manual
+                then manual_allowed_path md decls env cs m um'
+                else auto_allowed_path md decls env (m,um,ad)
+
+            match allowed_path_opt with
+            | Some (infos_allowed, env_allowed) ->
+                let tr_allowed = TInterpreter.trace_action mmd infos_allowed env_allowed name (List.map (fun cv -> MinimalAST.ValueConst cv) args) AST.impossible_var_factor
+                let env_allowed' = Trace.final_env tr_allowed
+                match formula with
+                | None ->
+                    if Trace.is_fully_executed tr_allowed
+                    then
+                        let (m_al,_,ad_al) =
+                            Synthesis.marks_before_statement mmd infos_allowed false tr_allowed Synthesis.empty_config
+                        if ad_al.md
+                        then printfn "Warning: Some marks still are model-dependent! Generated invariant could be weaker than expected."
+                        let m_al' = Synthesis.marks_union m_al m'
+                        let m_al' = Formula.simplify_marks infos_allowed md.Implications decls env_allowed m_al'
+                        let m_al' = Synthesis.marks_diff m_al' m'
+                        allowed_paths := (m_al',env_allowed)::(!allowed_paths)
+                    else printfn "ERROR: Execution still fail!"
+                | Some formula ->
+                    let (b_al,(m_al,um_al,ad_al)) =
+                        Synthesis.marks_for_value mmd infos_allowed env_allowed' Set.empty formula
+                    if b_al <> b
+                    then
+                        let (m_al,_,ad_al) =
+                            Synthesis.marks_before_statement mmd infos_allowed true tr_allowed (m_al,um_al,ad_al)
+                        if ad_al.md
+                        then printfn "Warning: Some marks still are model-dependent! Generated invariant could be weaker than expected."
+                        let m_al' = Synthesis.marks_union m_al m'
+                        let m_al' = Formula.simplify_marks infos_allowed md.Implications decls env_allowed m_al'
+                        let m_al' = Synthesis.marks_diff m_al' m'
+                        allowed_paths := (m_al',env_allowed)::(!allowed_paths)
+                    else printfn "ERROR: Formula has the same value than with the original environment!"
+            | None -> printfn "No more allowed path found!"
             
-            printfn "Would you like to add an accepting path to the invariant? (y/n)"
+            printfn "Would you like to add an allowed path to the invariant? (y/n)"
             answer := Console.ReadLine()
     else
         printfn "These conditions are sufficient to satisfy/break the invariant!"
