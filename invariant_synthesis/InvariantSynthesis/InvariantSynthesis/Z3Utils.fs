@@ -3,7 +3,6 @@
     open MinimalAST
     open WPR
     open Microsoft.Z3
-    open System.Runtime.CompilerServices
 
     let sort_of_type (ctx:Context) sorts t : Sort =
         match t with
@@ -73,7 +72,7 @@
             let fd = Map.find name lvars
             ctx.MkConst(fd)
 
-    let build_value<'a,'b> (m:ModuleDecl<'a,'b>) (ctx:ModuleContext) lvars (v:Z3Value) =
+    let build_value<'a,'b> (ctx:ModuleContext) lvars (v:Z3Value) =
 
         let rec aux qvars v =
             match v with
@@ -147,10 +146,17 @@
         | "false" -> AST.ConstBool false
         | str -> AST.ConstInt (Map.find str const_cv_map)
 
-    let z3model_to_ast_model<'a,'b> (m:AST.ModuleDecl<'a,'b>) (ctx:ModuleContext) lvars (model:Model)
+    let rec universe_for_sorts (ctx:ModuleContext) (model:Model) (sorts:List<Sort>) =
+        match sorts with
+        | [] -> Seq.singleton []
+        | s::sorts ->
+            let res = universe_for_sorts ctx model sorts
+            let univ = model.SortUniverse (s)
+            let res = Seq.map (fun lst -> Seq.map (fun e -> e::lst) univ) res
+            Seq.concat res
+
+    let z3model_to_ast_model<'a,'b> (m:AST.ModuleDecl<'a,'b>) (ctx:ModuleContext) args lvars (model:Model)
         : (Model.TypeInfos * Model.Environment * Map<string, AST.ConstValue>) =
-        // TODO: init env with default values for "useless" constraints (not in the model)
-        printfn "%s" (model.ToString())
 
         // Type infos
         let treat_type (type_infos, const_cv_map) (t:AST.TypeDecl) =
@@ -173,28 +179,42 @@
         let is_declared (fd:FuncDecl) =
             Array.exists (fun (fd':FuncDecl) -> fd.Name = fd'.Name) all_decls
 
-        let treat_var (fd_map:Map<string,FuncDecl>) acc varname =
-            let fd = Map.find varname fd_map
+        let treat_var (fd_map:Map<string,FuncDecl>) acc (decl:VarDecl) =
+            let fd = Map.find decl.Name fd_map
             if is_declared fd
             then
                 let expr = model.ConstInterp (fd)
                 let cv = cv_of_expr expr
-                Map.add varname cv acc
-            else acc
+                Map.add decl.Name cv acc
+            else
+                Map.add decl.Name (AST.type_default_value decl.Type) acc
 
-        let var_names = List.map (fun (d:VarDecl) -> d.Name) m.Vars
-        let var_env = List.fold (treat_var ctx.Vars) Map.empty var_names
-
-        let lvars_keys = Map.toList lvars
-        let lvars_keys = List.map (fun (k,_) -> k) lvars_keys
-        let lvars_env = List.fold (treat_var lvars) Map.empty lvars_keys
+        let var_env = List.fold (treat_var ctx.Vars) Map.empty m.Vars
+        let lvars_env = List.fold (treat_var lvars) Map.empty args
 
         let treat_fun acc (d:AST.FunDecl) =
+            // Default vals
+            let all_entries = Model.all_values_ext type_infos d.Input
+            let default_val = AST.type_default_value d.Output
+            let acc = Seq.fold (fun acc cvs -> Map.add (d.Name, cvs) default_val acc) acc all_entries
+            // Z3 Entries
             let fd = Map.find d.Name ctx.Funs
             if is_declared fd
             then
                 let fi = model.FuncInterp (fd)
-                // TODO: fi.Else
+                // Else case
+                let expr = fi.Else
+                let treat_else_case_for acc exprs =
+                    let exprs = Array.ofList exprs
+                    (*let exprs = Array.sub exprs 0 (Array.length expr.Args)
+                    let expr = model.Eval(expr.Substitute(expr.Args, exprs),false)*)
+                    // Note: Right way to do???
+                    let expr = model.Eval(expr.SubstituteVars(exprs),false)
+                    let cv = cv_of_expr expr
+                    let cvs = List.ofArray (Array.map cv_of_expr exprs)
+                    Map.add (d.Name, cvs) cv acc
+                let acc = Seq.fold treat_else_case_for acc (universe_for_sorts ctx model (List.ofArray fd.Domain))
+                // Entries
                 let entries = fi.Entries
                 let aux acc (entry:FuncInterp.Entry) =
                     let input_expr = entry.Args

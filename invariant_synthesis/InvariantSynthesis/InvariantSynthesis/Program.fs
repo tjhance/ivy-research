@@ -76,14 +76,15 @@ let auto_counterexample (md:ModuleDecl) decls verbose =
         let is_inductive_v = WPR.Z3And (WPR.Z3And (conjectures, axioms), WPR.Z3Not wpr)
         let z3ctx = Z3Utils.build_context mmd
         let z3lvars = Z3Utils.declare_lvars mmd action z3ctx is_inductive_v
-        let z3e = Z3Utils.build_value mmd z3ctx z3lvars is_inductive_v
+        let z3e = Z3Utils.build_value z3ctx z3lvars is_inductive_v
         
         counterexample :=
             match Z3Utils.check z3ctx z3e with
             | None -> None
             | Some m ->
-                let (infos, env, args) = Z3Utils.z3model_to_ast_model md z3ctx z3lvars m
-                let args = List.map (fun (d:VarDecl) -> Map.find d.Name args) (find_action md action false).Args 
+                let action_args = (find_action md action false).Args
+                let (infos, env, args) = Z3Utils.z3model_to_ast_model md z3ctx action_args z3lvars m
+                let args = List.map (fun (d:VarDecl) -> Map.find d.Name args) action_args
                 Some (args, infos, env)
 
     match !counterexample with
