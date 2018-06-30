@@ -260,7 +260,7 @@
         | ExistingFun of string * List<ConstValue>
 
     let formula_from_marks (env:Model.Environment) (m:Synthesis.Marks)
-        (alt_exec:List<Synthesis.Marks*Model.Environment>) =
+        (alt_exec:List<Synthesis.Marks*Model.Environment>) semi_generalization =
       
         // Associate a var to each value
         let next_name_nb = ref 0
@@ -284,16 +284,21 @@
                 vars_map := Map.add cv (ExistingFun (str, cvs)) !vars_map
 
         // Return the associated var or CREATES a new existentially quantified var
-        let value2var cv =
+        let value2var no_generalization cv =
             match cv with
             | cv when not (Synthesis.is_model_dependent_value cv) -> VAConst cv
             | cv ->
                 try
                     Map.find cv !vars_map
                 with :? System.Collections.Generic.KeyNotFoundException ->
-                    let name = new_var_name ()
-                    vars_map := Map.add cv (New name) !vars_map
-                    New name
+                    if no_generalization
+                    then
+                        vars_map := Map.add cv (VAConst cv) !vars_map
+                        VAConst cv
+                    else
+                        let name = new_var_name ()
+                        vars_map := Map.add cv (New name) !vars_map
+                        New name
 
         let value_assigned cv =
             match cv with
@@ -312,16 +317,16 @@
                     ) content
             Set.ofList vars
 
-        let rec value_of_association va =
+        let rec value_of_association no_generalization va =
             match va with
             | VAConst cv -> ValueConst cv
             | New str -> ValueVar str
             | ExistingVar str -> ValueVar str
             | ExistingFun (str, cvs) ->
-                let vs = List.map (fun cv -> value_of_association (value2var cv)) cvs
+                let vs = List.map (fun cv -> value_of_association no_generalization (value2var no_generalization cv)) cvs
                 ValueFun (str, vs)
 
-        let constraints_for (m:Synthesis.Marks,env:Model.Environment) =
+        let constraints_for (m:Synthesis.Marks,env:Model.Environment) no_generalization =
             // Browse the constraints to associate an existing var to values when possible
             Set.iter (associate_existing_var env) m.v
             let v' = // We remove trivial equalities
@@ -329,7 +334,7 @@
                     (
                         fun str ->
                             let cv = Map.find str env.v
-                            value2var cv <> ExistingVar str
+                            value2var no_generalization cv <> ExistingVar str
                     ) m.v
             let m = {m with v=v'}
 
@@ -340,7 +345,7 @@
                     (
                         fun (str, cvs) ->
                             let cv = Map.find (str, cvs) env.f
-                            value2var cv <> ExistingFun (str, cvs)
+                            value2var no_generalization cv <> ExistingFun (str, cvs)
                     ) m.f
             let m = {m with f=f'}
 
@@ -350,15 +355,15 @@
                     (
                         fun str ->
                             let cv = Map.find str env.v
-                            ValueEqual (ValueVar str, value_of_association (value2var cv))
+                            ValueEqual (ValueVar str, value_of_association no_generalization (value2var no_generalization cv))
                     ) m.v
             let constraints_fun =
                 Set.map
                     (
                         fun (str,cvs) ->
                             let cv = Map.find (str,cvs) env.f
-                            let cvs = List.map (fun cv -> value_of_association (value2var cv)) cvs
-                            ValueEqual (ValueFun (str, cvs), value_of_association (value2var cv))
+                            let cvs = List.map (fun cv -> value_of_association no_generalization (value2var no_generalization cv)) cvs
+                            ValueEqual (ValueFun (str, cvs), value_of_association no_generalization (value2var no_generalization cv))
                     ) m.f
             let constraints = Set.union constraints_var constraints_fun
 
@@ -370,18 +375,20 @@
                     (
                         fun (cv1,cv2) ->
                             let (cv1,cv2) = Helper.order_tuple (cv1,cv2)
-                            ValueNot (ValueEqual (value_of_association (value2var cv1), value_of_association (value2var cv2)))
+                            let v1 = value_of_association no_generalization (value2var no_generalization cv1)
+                            let v2 = value_of_association no_generalization (value2var no_generalization cv2)
+                            ValueNot (ValueEqual (v1, v2))
                     ) ineq_constraints
             let constraints = Set.union constraints ineq_constraints
             constraints
 
-        let constraints = constraints_for (m, env)
+        let constraints = constraints_for (m, env) semi_generalization
         let vars = all_new_vars_decl_assigned ()
 
         let alt_constraints =
             List.map 
                 (fun e ->
-                    let c = constraints_for e
+                    let c = constraints_for e false
                     (c, all_new_vars_decl_assigned ())
                 ) alt_exec
         let alt_constraints = List.rev alt_constraints

@@ -240,7 +240,7 @@ let main argv =
 
     let m' = Formula.simplify_marks infos md.Implications decls env m
     let um' = Formula.simplify_marks infos md.Implications decls env um
-    let f = Formula.formula_from_marks env m' []
+    let f = Formula.formula_from_marks env m' [] false
     let f = Formula.simplify_value f
     printfn "%s" (Printer.value_to_string decls f 0)
     printfn ""
@@ -290,7 +290,7 @@ let main argv =
     let f =
         if not (List.isEmpty (!allowed_paths))
         then
-            let f = Formula.formula_from_marks env m' (!allowed_paths)
+            let f = Formula.formula_from_marks env m' (!allowed_paths) false
             Formula.simplify_value f
         else f
 
