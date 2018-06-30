@@ -148,9 +148,10 @@ let auto_counterexample (md:ModuleDecl) decls verbose =
         let tr = TInterpreter.trace_action mmd infos env action (List.map (fun cv -> MinimalAST.ValueConst cv) args) AST.impossible_var_factor
         (mmd, action, args, infos, env, [], formula, tr)
 
-let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) decls (env:Model.Environment) formula
-    action (m:Synthesis.Marks, um, ad) prev_allowed =
-    // TODO
+let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) _ (env:Model.Environment) formula
+    action (m:Synthesis.Marks) prev_allowed =
+
+    // TODO: fix it (example2.set_elt)
 
     // 1. Marked constraints
     let add_var_constraint cs str =
@@ -181,7 +182,19 @@ let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) 
     let axioms = WPR.conjunction_of (WPR.conjectures_to_z3values mmd mmd.Axioms)
     let valid_run = WPR.Z3And (axioms, WPR.Z3And(conjectures, wpr))
 
-    None
+    // All together
+    let f = WPR.Z3And (cs, WPR.Z3And(f,valid_run))
+    let z3ctx = Z3Utils.build_context mmd
+    let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars mmd action z3ctx f
+    let z3e = Z3Utils.build_value z3ctx z3lvars f
+
+    // Solve!
+    match Z3Utils.check z3ctx z3e with
+    | None -> None
+    | Some m ->
+        // This time, action args are quantified
+        let (infos, env, _) = Z3Utils.z3model_to_ast_model md z3ctx [] z3lvars z3concrete_map m
+        Some (infos, env)
 
 // ----- MAIN -----
 
@@ -263,7 +276,7 @@ let main argv =
             let allowed_path_opt =
                 if manual
                 then manual_allowed_path md decls env cs m um'
-                else auto_allowed_path md mmd decls env formula name (m,um,ad) (!allowed_paths)
+                else auto_allowed_path md mmd decls env formula name m (!allowed_paths)
 
             match allowed_path_opt with
             | Some (infos_allowed, env_allowed) ->
