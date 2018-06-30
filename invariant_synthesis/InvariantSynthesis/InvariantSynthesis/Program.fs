@@ -148,7 +148,7 @@ let auto_counterexample (md:ModuleDecl) decls verbose =
         let tr = TInterpreter.trace_action mmd infos env action (List.map (fun cv -> MinimalAST.ValueConst cv) args) AST.impossible_var_factor
         (mmd, action, args, infos, env, [], formula, tr)
 
-let auto_allowed_path (mmd:MinimalAST.ModuleDecl<'a,'b>) decls (env:Model.Environment) formula
+let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) decls (env:Model.Environment) formula
     action (m:Synthesis.Marks, um, ad) prev_allowed =
     // TODO
 
@@ -165,8 +165,14 @@ let auto_allowed_path (mmd:MinimalAST.ModuleDecl<'a,'b>) decls (env:Model.Enviro
     let add_diff_constraint cs (cv1, cv2) =
         ValueAnd (cs, ValueNot (ValueEqual (ValueConst cv1, ValueConst cv2)))
     let cs = Set.fold add_diff_constraint cs m.d
+    let cs = MinimalAST.value2minimal md cs
+    let cs = WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd cs) false
 
-    // 2. Previous semi-generalized allowed examples
+    // 2. NOT Previous semi-generalized allowed examples
+    let f = Formula.formula_from_marks env m prev_allowed true
+    let f = ValueNot f
+    let f = MinimalAST.value2minimal md f
+    let f = WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd f) false
 
     // 3. Possibly valid run: WPR & conjectures & axioms
     let z3formula = WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd formula) false
@@ -257,7 +263,7 @@ let main argv =
             let allowed_path_opt =
                 if manual
                 then manual_allowed_path md decls env cs m um'
-                else auto_allowed_path mmd decls env formula name (m,um,ad) (!allowed_paths)
+                else auto_allowed_path md mmd decls env formula name (m,um,ad) (!allowed_paths)
 
             match allowed_path_opt with
             | Some (infos_allowed, env_allowed) ->

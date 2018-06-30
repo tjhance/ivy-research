@@ -425,7 +425,6 @@
             ) [] conj
 
     let wpr_for_action<'a,'b> (m:ModuleDecl<'a,'b>) f action uq_args =
-        reinit_tmp_vars ()
         let action = minimal_action2wpr_action m action true false
         let axioms = conjectures_to_z3values m m.Axioms
         let res = weakest_precondition m axioms f action.Content
