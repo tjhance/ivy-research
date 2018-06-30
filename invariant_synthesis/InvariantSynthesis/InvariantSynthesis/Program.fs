@@ -43,7 +43,7 @@ let manual_counterexample (md:ModuleDecl) decls verbose =
                     | Bool -> ConstBool (Convert.ToBoolean (Console.ReadLine()))
                     | Uninterpreted str -> ConstInt (str, Convert.ToInt32 (Console.ReadLine()))
             )
-            (find_action md name false).Args
+            (find_action md name "").Args
 
     let mmd = MinimalAST.module2minimal md name
 
@@ -137,7 +137,7 @@ let auto_counterexample (md:ModuleDecl) decls verbose =
             match Z3Utils.check z3ctx z3e with
             | None -> None
             | Some m ->
-                let action_args = (find_action md action false).Args
+                let action_args = (MinimalAST.find_action mmd action).Args
                 let (infos, env, args) = Z3Utils.z3model_to_ast_model md z3ctx action_args z3lvars z3concrete_map m
                 let args = List.map (fun (d:VarDecl) -> Map.find d.Name args) action_args
                 Some (formula, args, infos, env)

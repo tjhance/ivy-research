@@ -276,8 +276,8 @@
 
     type ActionDecl = { Name: string; Args: List<VarDecl>; Output: VarDecl; Content: Statement }
 
-    let minimal_action2wpr_action<'a,'b> (m:ModuleDecl<'a,'b>) action add_variants rename_args =
-        let action = find_action m action add_variants
+    let minimal_action2wpr_action<'a,'b> (m:ModuleDecl<'a,'b>) action rename_args =
+        let action = find_action m action
 
         let rename_decl renaming (decl:VarDecl) =
             if Map.containsKey decl.Name renaming
@@ -389,7 +389,7 @@
                 let f = replace_var str v f
                 replace_holes_with f ctx
             | VarAssignAction (str, action, vs) ->
-                let action = minimal_action2wpr_action m action true true
+                let action = minimal_action2wpr_action m action true
                 let f = add_necessary_axioms false str f
                 let f = replace_var str (Z3Var action.Output.Name) f
                 let f = aux f action.Content
@@ -425,7 +425,7 @@
             ) [] conj
 
     let wpr_for_action<'a,'b> (m:ModuleDecl<'a,'b>) f action uq_args =
-        let action = minimal_action2wpr_action m action true false
+        let action = minimal_action2wpr_action m action false
         let axioms = conjectures_to_z3values m m.Axioms
         let res = weakest_precondition m axioms f action.Content
         if uq_args

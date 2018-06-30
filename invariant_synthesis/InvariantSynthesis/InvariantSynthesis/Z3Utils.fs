@@ -40,7 +40,7 @@
 
     let declare_lvars<'a,'b> (m:ModuleDecl<'a,'b>) action (ctx:ModuleContext) v =
         
-        let action = find_action m action false
+        let args = (find_action m action).Args
 
         let add_civ (lvars,z3concrete_map) (t,i) =
             let name = name_of_constint (t,i)
@@ -58,7 +58,7 @@
             else if Map.containsKey name acc
             then acc
             else
-                let decl = List.find (fun (v:VarDecl) -> v.Name = name) action.Args
+                let decl = List.find (fun (v:VarDecl) -> v.Name = name) args
                 let sort = sort_of_type ctx.Context ctx.Sorts decl.Type
                 Map.add name (ctx.Context.MkConstDecl(name,sort)) acc
         

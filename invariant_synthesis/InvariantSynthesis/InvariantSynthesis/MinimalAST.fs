@@ -53,23 +53,8 @@
     let find_variable (m:ModuleDecl<'a,'b>) str =
         List.find (fun (decl:VarDecl) -> decl.Name = str) m.Vars
 
-    let rec find_action (m:ModuleDecl<'a,'b>) str add_variants =
-        let action = List.find (fun (decl:ActionDecl) -> decl.Name = str) m.Actions
-        if add_variants
-        then
-            let action =
-                try
-                    let before = find_action m (AST.variant_action_name str "before") add_variants
-                    { action with Content=NewBlock([],[before.Content;action.Content]) }
-                with :? System.Collections.Generic.KeyNotFoundException -> action
-            let action =
-                try
-                    let after = find_action m (AST.variant_action_name str "after") add_variants
-                    { action with Content=NewBlock([],[action.Content;after.Content]) }
-                with :? System.Collections.Generic.KeyNotFoundException -> action
-            action
-        else
-            action
+    let rec find_action (m:ModuleDecl<'a,'b>) str =
+        List.find (fun (decl:ActionDecl) -> decl.Name = str) m.Actions
 
     let find_interpreted_action (m:ModuleDecl<'a,'b>) str =
         List.find (fun (decl:InterpretedActionDecl<'a,'b>) -> decl.Name = str) m.InterpretedActions
@@ -195,7 +180,7 @@
                 ([d], [st], ValueVar name)
             | AST.ExprAction (str, es) ->
                 let tmp_name = new_tmp_var ()
-                let t = (AST.find_action m str false).Output.Type
+                let t = (AST.find_action m str "").Output.Type
                 let d = AST.default_var_decl tmp_name t
                 let (ds,sts,vs) = exprs2minimal m dico_types es
                 let st = VarAssignAction (tmp_name, str, vs)
@@ -319,12 +304,27 @@
     let module2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) main_action =
         reinit_tmp_vars ()
 
-        let action2minimal (a:AST.ActionDecl) =
-            let dico_types = List.fold (fun acc (d:VarDecl) -> Map.add d.Name d.Type acc) Map.empty (a.Output::a.Args)
-            let st = statement2minimal m dico_types a.Content (a.Name = main_action)
-            { ActionDecl.Name = a.Name; ActionDecl.Args = a.Args ; ActionDecl.Output = a.Output ; ActionDecl.Content = st }
+        let convert_action acc (a:AST.ActionDecl) =
+            if AST.action_is_variant a.Name
+            then acc
+            else
+                // TODO: depending on main_action, take the implementation or not
+                let dico_types = List.fold (fun acc (d:VarDecl) -> Map.add d.Name d.Type acc) Map.empty (a.Output::a.Args)
+                let st = a.Content
+                let st =
+                    try
+                        let before = AST.find_action m a.Name "before"
+                        AST.NewBlock([],[before.Content;st])
+                    with :? System.Collections.Generic.KeyNotFoundException -> st
+                let st =
+                    try
+                        let after = AST.find_action m a.Name "after"
+                        AST.NewBlock([],[st;after.Content])
+                    with :? System.Collections.Generic.KeyNotFoundException -> st
+                let st = statement2minimal m dico_types st (a.Name = main_action)
+                { ActionDecl.Name = a.Name; ActionDecl.Args = a.Args ; ActionDecl.Output = a.Output ; ActionDecl.Content = st }::acc
 
-        let actions = List.map action2minimal m.Actions
+        let actions = List.fold convert_action [] m.Actions
         let invariants = List.map (value2minimal m) m.Invariants
         let axioms = List.map (value2minimal m) m.Axioms
 

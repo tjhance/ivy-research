@@ -155,6 +155,9 @@
         then name
         else sprintf "%s%c%s" name action_variant_char variant
 
+    let action_is_variant str =
+        String.exists (fun c -> c = action_variant_char) str
+
     let local_var_prefix = "$" // We assign a prefix to non-global vars in order to avoid bugs due to vars scope
 
     let impossible_var_factor = "$$"
@@ -178,23 +181,9 @@
     let find_variable (m:ModuleDecl<'a,'b>) str =
         List.find (fun (decl:VarDecl) -> decl.Name = str) m.Vars
 
-    let rec find_action (m:ModuleDecl<'a,'b>) str add_variants =
-        let action = List.find (fun (decl:ActionDecl) -> decl.Name = str) m.Actions
-        if add_variants
-        then
-            let action =
-                try
-                    let before = find_action m (variant_action_name str "before") add_variants
-                    { action with Content=NewBlock([],[before.Content;action.Content]) }
-                with :? System.Collections.Generic.KeyNotFoundException -> action
-            let action =
-                try
-                    let after = find_action m (variant_action_name str "after") add_variants
-                    { action with Content=NewBlock([],[action.Content;after.Content]) }
-                with :? System.Collections.Generic.KeyNotFoundException -> action
-            action
-        else
-            action
+    let find_action (m:ModuleDecl<'a,'b>) str variant =
+        let str = variant_action_name str variant
+        List.find (fun (decl:ActionDecl) -> decl.Name = str) m.Actions
 
     let find_interpreted_action (m:ModuleDecl<'a,'b>) str =
         List.find (fun (decl:InterpretedActionDecl<'a,'b>) -> decl.Name = str) m.InterpretedActions
@@ -356,7 +345,7 @@
             | Some t -> t
         | ExprFun (f,_) -> (find_function m f).Output
         | ExprMacro (str,_) -> (find_macro m str).Output
-        | ExprAction (str, _) -> (find_action m str false).Output.Type
+        | ExprAction (str, _) -> (find_action m str "").Output.Type
         | ExprEqual _ | ExprOr _ | ExprAnd _ | ExprNot _ | ExprImply _
         | ExprForall _ | ExprExists _ -> Bool
         | ExprSomeElse (_,_,v) -> type_of_value m v dico

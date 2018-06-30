@@ -167,6 +167,6 @@
         (leave_block infos env' (output::input) env, res)
 
     and execute_action (m:ModuleDecl) infos (env:Model.Environment) action args = // For now, we don't check the types
-        let action_decl = find_action m action true
+        let action_decl = find_action m action
         let effect env = execute_statement m infos env action_decl.Content
         execute_inline_action infos env action_decl.Args action_decl.Output effect args

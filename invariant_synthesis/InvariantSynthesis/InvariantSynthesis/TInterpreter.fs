@@ -95,6 +95,6 @@
         TrVarAssignAction (rd, res, assigned_var_name, input, output, vs, tr)
 
     and trace_action (m:ModuleDecl) infos (env:Model.Environment) name args assigned_var_name =
-        let action_decl = find_action m name true
+        let action_decl = find_action m name
         let effect env = trace_statement m infos env action_decl.Content
         trace_inline_action m infos env action_decl.Args action_decl.Output effect args assigned_var_name
