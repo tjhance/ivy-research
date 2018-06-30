@@ -109,8 +109,24 @@ let auto_counterexample (md:ModuleDecl) decls verbose =
     | None -> failwith "No counterexample found!"
     | Some (args, infos, env) -> (mmd, action, args, infos, env, [])
 
-let auto_allowed_path (md:ModuleDecl) decls env (m, um, ad) =
+let auto_allowed_path (md:ModuleDecl) decls (env:Model.Environment) (m:Synthesis.Marks, um, ad) prev_allowed =
     // TODO
+
+    // 1. Marked constraints
+    let add_var_constraint cs str =
+        let cv = Map.find str env.v
+        ValueAnd (cs, ValueEqual (ValueVar str, ValueConst cv))
+    let cs = Set.fold add_var_constraint (ValueConst (ConstBool true)) m.v
+    let add_fun_constraint cs (str, cvs) =
+        let cv = Map.find (str, cvs) env.f
+        let vs = List.map (fun cv -> ValueConst cv) cvs
+        ValueAnd (cs, ValueEqual (ValueFun (str, vs), ValueConst cv))
+    let cs = Set.fold add_fun_constraint cs m.f
+    // TODO: add ALL diff constraints between constants!
+    // 2. Previous semi-generalized allowed examples
+
+    // 3. WPR
+
     None
 
 // ----- MAIN -----
@@ -228,7 +244,7 @@ let main argv =
             let allowed_path_opt =
                 if manual
                 then manual_allowed_path md decls env cs m um'
-                else auto_allowed_path md decls env (m,um,ad)
+                else auto_allowed_path md decls env (m,um,ad) (!allowed_paths)
 
             match allowed_path_opt with
             | Some (infos_allowed, env_allowed) ->
