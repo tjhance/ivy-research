@@ -424,8 +424,12 @@
                     with :? ValueNotAllowed -> printfn "Illegal axiom/conjecture ignored..." ; acc
             ) [] conj
 
-    let wpr_for_action<'a,'b> (m:ModuleDecl<'a,'b>) f action =
+    let wpr_for_action<'a,'b> (m:ModuleDecl<'a,'b>) f action uq_args =
         reinit_tmp_vars ()
         let action = minimal_action2wpr_action m action true false
         let axioms = conjectures_to_z3values m m.Axioms
-        weakest_precondition m axioms f action.Content
+        let res = weakest_precondition m axioms f action.Content
+        if uq_args
+        then
+            List.fold (fun acc (d:VarDecl) -> Z3Forall (d,acc)) res action.Args
+        else res

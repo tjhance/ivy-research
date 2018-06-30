@@ -19,8 +19,9 @@
     // TODO: Add a final step that uses model checking to make the invariant the strongest possible by trying to weaken constraints
 
     // Important:
-    // TODO: Add possibility of non-determinism
+    // TODO: Add possibility of non-determinism (add a nd/deterministic minimal ast converter)
     // TODO: For interpreted actions ('+'), use a non-deterministic implementation
+    // TODO: Add the non-deterministic assignment ('*')
     // TODO: Do not execute/analyse/wpr the implementation of non-main content (only their specification)
 
     // Refactor:
