@@ -190,8 +190,10 @@
                         | None -> i
                         | Some _ -> next_available_i (i+1)
                     let name = e.FuncDecl.Name.ToString()
-                    let const_cv_map = Map.add name (t.Name, next_available_i 0) const_cv_map
-                    const_cv_map
+                    if not (Map.containsKey name const_cv_map) then
+                        Map.add name (t.Name, next_available_i 0) const_cv_map
+                    else
+                        const_cv_map
                 Array.fold treat_expr const_cv_map univ
             else const_cv_map
         let const_cv_map = List.fold treat_type const_cv_map m.Types

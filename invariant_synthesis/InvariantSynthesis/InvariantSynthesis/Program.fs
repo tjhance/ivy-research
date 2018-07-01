@@ -191,10 +191,7 @@ let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) 
     | None -> None
     | Some m ->
         // This time, action args are quantified
-        printfn "%s" (m.ToString()) //TMP
-        // TODO: fix it (example2.set_elt)
         let (infos, env, _) = Z3Utils.z3model_to_ast_model md z3ctx [] z3lvars z3concrete_map m
-        printfn "%A" (Map.filter (fun (str,_) _ -> str = "example2.dom") env.f) //TMP
         Some (infos, env)
 
 // ----- MAIN -----
