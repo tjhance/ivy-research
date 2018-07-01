@@ -17,10 +17,11 @@
     // TODO: Add a final step that uses model checking to make the invariant the strongest possible by trying to weaken constraints
 
     // Important:
-    // TODO: WPR: after a action execution (VarAssignAction), conjectures involved are suppoed to be satisfied
     // TODO: Add possibility of non-determinism (add a nd/deterministic minimal ast converter)
-    // TODO: For interpreted actions ('+'), use a non-deterministic implementation
+    // TODO: Add a system to choose which actions should be abstracted (specification only, implementation hidden)
     // TODO: Do not execute/analyse/wpr the implementation of non-main content (only their specification)
+    // In particular: non-deterministic assignments should be added for each var/fun declared in the module
+    // Conjectures declared in the module should be asserted at the begining and assumed at the end
 
     // Refactor:
     // TODO: Create a function that retrieve the name of a var decl, and use it everywhere.
