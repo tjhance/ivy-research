@@ -21,7 +21,9 @@
     // Important:
     // TODO: Add possibility of non-determinism (add a nd/deterministic minimal ast converter)
     // TODO: For interpreted actions ('+'), use a non-deterministic implementation
-    // TODO: Add the non-deterministic assignment ('*')
+    // TODO: Add the non-deterministic assignment ('*') and use it for:
+    // - the default 'else' case of 'some else' expressions (see parserAST)
+    // - the default value for 'if some' stateements when translating to Z3AST (seee WPR)
     // TODO: Do not execute/analyse/wpr the implementation of non-main content (only their specification)
 
     // Refactor:

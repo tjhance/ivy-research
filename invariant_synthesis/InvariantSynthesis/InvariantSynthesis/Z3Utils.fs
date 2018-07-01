@@ -166,6 +166,8 @@
         let all_decls = model.Decls
         let is_declared (fd:FuncDecl) =
             Array.exists (fun (fd':FuncDecl) -> fd.Name = fd'.Name) all_decls
+        let is_declared_sort (s:Sort) =
+            Array.exists (fun (s':Sort) -> s.Name = s'.Name) model.Sorts
 
         // Fix concrete const values
         let treat_concrete const_cv_map (name,cv) =
@@ -180,16 +182,18 @@
 
         let treat_type const_cv_map (t:AST.TypeDecl) =
             let sort = Map.find t.Name ctx.Sorts
-            let univ = model.SortUniverse (sort)
-            let treat_expr const_cv_map (e:Expr) =
-                let rec next_available_i i =
-                    match Map.tryFindKey (fun _ (str,j) -> str=t.Name && j=i) const_cv_map with
-                    | None -> i
-                    | Some _ -> next_available_i (i+1)
-                let name = e.FuncDecl.Name.ToString()
-                let const_cv_map = Map.add name (t.Name, next_available_i 0) const_cv_map
-                const_cv_map
-            Array.fold treat_expr const_cv_map univ
+            if is_declared_sort sort then
+                let univ = model.SortUniverse (sort)
+                let treat_expr const_cv_map (e:Expr) =
+                    let rec next_available_i i =
+                        match Map.tryFindKey (fun _ (str,j) -> str=t.Name && j=i) const_cv_map with
+                        | None -> i
+                        | Some _ -> next_available_i (i+1)
+                    let name = e.FuncDecl.Name.ToString()
+                    let const_cv_map = Map.add name (t.Name, next_available_i 0) const_cv_map
+                    const_cv_map
+                Array.fold treat_expr const_cv_map univ
+            else const_cv_map
         let const_cv_map = List.fold treat_type const_cv_map m.Types
 
         // Type infos
@@ -204,12 +208,16 @@
             cv_of_expr_str const_cv_map (e.FuncDecl.Name.ToString())
 
         let treat_var (fd_map:Map<string,FuncDecl>) acc (decl:VarDecl) =
-            let fd = Map.find decl.Name fd_map
-            if is_declared fd
+            if Map.containsKey decl.Name fd_map // For action args, the symbol sometimes does not exists (if useless)
             then
-                let expr = model.ConstInterp (fd)
-                let cv = cv_of_expr expr
-                Map.add decl.Name cv acc
+                let fd = Map.find decl.Name fd_map
+                if is_declared fd
+                then
+                    let expr = model.ConstInterp (fd)
+                    let cv = cv_of_expr expr
+                    Map.add decl.Name cv acc
+                else
+                    Map.add decl.Name (AST.type_default_value decl.Type) acc
             else
                 Map.add decl.Name (AST.type_default_value decl.Type) acc
 
