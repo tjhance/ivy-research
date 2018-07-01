@@ -9,8 +9,7 @@
         | TrAtomicGroup of RuntimeData * List<TrStatement>
         | TrNewBlock of RuntimeData * List<VarDecl> * List<TrStatement>
         | TrVarAssign of RuntimeData * string * Value
-        | TrVarAssignAction of
-            RuntimeData * Option<ConstValue> * string * List<VarDecl> * VarDecl * List<Value> * TrStatement
+        | TrVarAssignAction of RuntimeData * string * List<VarDecl> * VarDecl * List<Value> * TrStatement
         | TrFunAssign of RuntimeData * string * List<HoleValue> * Value
         | TrIfElse of RuntimeData * Value * TrStatement
         | TrIfSomeElse of RuntimeData * Option<ConstValue> * VarDecl * Value * TrStatement
@@ -22,7 +21,7 @@
         | TrAtomicGroup (rd,_)
         | TrNewBlock (rd,_,_)
         | TrVarAssign (rd,_,_)
-        | TrVarAssignAction (rd,_,_,_,_,_,_)
+        | TrVarAssignAction (rd,_,_,_,_,_)
         | TrFunAssign (rd,_,_,_)
         | TrIfElse (rd,_,_)
         | TrIfSomeElse (rd,_,_,_,_)

@@ -327,7 +327,7 @@
                         let (_,cfg') = marks_for_value mdecl infos env Set.empty v
                         aux group_trs (config_union cfg cfg')
                     else aux group_trs cfg
-                | TrVarAssignAction ((env,_,b), _, str, input, output, args, tr) ->
+                | TrVarAssignAction ((env,_,b), str, input, output, args, tr) ->
                     let (marked, cfg) =
                         if b then
                             (is_var_marked infos cfg str, remove_var_marks infos cfg str)

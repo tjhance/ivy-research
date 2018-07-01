@@ -92,7 +92,7 @@
             | Some cv ->
                 (env, Interpreter.execute_statement m infos env' (VarAssign (assigned_var_name,ValueConst cv)), true)
 
-        TrVarAssignAction (rd, res, assigned_var_name, input, output, vs, tr)
+        TrVarAssignAction (rd, assigned_var_name, input, output, vs, tr)
 
     and trace_action (m:ModuleDecl) infos (env:Model.Environment) name args assigned_var_name =
         let action_decl = find_action m name
