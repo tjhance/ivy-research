@@ -249,6 +249,12 @@ let main argv =
             (Some b, cfg)
         else (None,Synthesis.empty_config)
 
+    if b <> Some (ConstBool false) || b <> None
+    then
+        printfn "Invalid counterexample!"
+        ignore (Console.ReadLine ())
+        exit 0
+
     printfn "Going back through the action..."
     let (m,um,ad) = Synthesis.marks_before_statement mmd infos true tr (m,um,ad)
     if verbose
@@ -304,7 +310,7 @@ let main argv =
             printfn "Would you like to add an allowed path to the invariant? (y/n)"
             answer := Console.ReadLine()
     else
-        printfn "These conditions are sufficient to satisfy/break the invariant!"
+        printfn "These conditions are sufficient to break the invariant!"
 
     let f =
         if not (List.isEmpty (!allowed_paths))
