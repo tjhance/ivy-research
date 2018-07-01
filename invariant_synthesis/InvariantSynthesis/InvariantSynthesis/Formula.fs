@@ -439,6 +439,7 @@
         | ValueNot (ValueImply (f1, f2)) -> simplify_value (ValueAnd (f1, ValueNot f2))
         // Identity cases
         | ValueConst b -> ValueConst b
+        | ValueStar t -> ValueStar t
         | ValueEqual (v1, v2) -> ValueEqual (simplify_value v1, simplify_value v2)
         | ValueOr (f1, f2) -> ValueOr (simplify_value f1, simplify_value f2)
         | ValueAnd (f1, f2) -> ValueAnd (simplify_value f1, simplify_value f2)

@@ -23,6 +23,7 @@ open Prime
 
     type parsed_expression =
         | Const of const_value
+        | Star
         | QVar of var_decl
         | VarFunMacroAction of string * parsed_expression list
         | Equal of parsed_expression * parsed_expression
@@ -122,7 +123,7 @@ open Prime
 
         let rec rewrite_expr dico expr =
             match expr with
-            | Const cv -> Const (rewrite_cv dico cv) | QVar d -> QVar d
+            | Const cv -> Const (rewrite_cv dico cv) | QVar d -> QVar d | Star -> Star
             | VarFunMacroAction (str, exprs) -> VarFunMacroAction (rewrite dico str, List.map (rewrite_expr dico) exprs)
             | Equal (expr1, expr2) -> Equal (rewrite_expr dico expr1, rewrite_expr dico expr2)
             | Or (expr1, expr2) -> Or (rewrite_expr dico expr1, rewrite_expr dico expr2)
@@ -358,6 +359,11 @@ open Prime
             match v with
             | Const cv -> (local_vars_types, AST.ExprConst (p2a_cv cv ret_val))
 
+            | Star ->
+                match ret_val with
+                | None -> failwith "Can't infer type of non-deterministic star..."
+                | Some t -> (local_vars_types, AST.ExprStar t)
+
             | QVar (str, t) ->
                 let str = local_name str
                 let t = conciliate_types3 (Map.tryFind str local_vars_types) ret_val (try_p2a_type m base_name t)
@@ -442,7 +448,7 @@ open Prime
                 let (local_vars_types, res_e2) =
                     match e2 with
                     | Some e2 -> aux local_vars_types e2 (Some new_type)
-                    | None -> (local_vars_types, AST.ExprConst (AST.type_default_value new_type))
+                    | None -> (local_vars_types, AST.ExprStar new_type)
                 (local_vars_types, AST.ExprSomeElse (decl, AST.expr_to_value res_e1, AST.expr_to_value res_e2))
 
             | ExprIfElse (e, eif, eelse) ->

@@ -11,18 +11,15 @@
     // TODO: Handle functions with an object as return value (case of instance a(X):b(Y))
     // For that, we can consider those functions an instance of the corresponding module,
     // with an additionals first parameters for every var/fun/action/etc (that corresponds the parameters of the initial function)
-    // TODO: non-deterministic stuff (like 'var a = *')
     // TODO: isolate, inductive, export, extract, interpret...
     // TODO: Infer types for macro args (currently, type annotations is required)
 
     // TODO: Add a final step that uses model checking to make the invariant the strongest possible by trying to weaken constraints
 
     // Important:
+    // TODO: WPR: after a action execution (VarAssignAction), conjectures involved are suppoed to be satisfied
     // TODO: Add possibility of non-determinism (add a nd/deterministic minimal ast converter)
     // TODO: For interpreted actions ('+'), use a non-deterministic implementation
-    // TODO: Add the non-deterministic assignment ('*') and use it for:
-    // - the default 'else' case of 'some else' expressions (see parserAST)
-    // - the default value for 'if some' stateements when translating to Z3AST (seee WPR)
     // TODO: Do not execute/analyse/wpr the implementation of non-main content (only their specification)
 
     // Refactor:
@@ -66,6 +63,7 @@
     (* No side effects *)
     type Value =
         | ValueConst of ConstValue
+        | ValueStar of Type
         | ValueVar of string
         | ValueFun of string * List<Value>
         | ValueMacro of string * List<Value>
@@ -83,6 +81,7 @@
     (* With side effects *)
     type Expression =
         | ExprConst of ConstValue
+        | ExprStar of Type
         | ExprVar of string
         | ExprFun of string * List<Expression>
         | ExprMacro of string * List<Value>
@@ -195,6 +194,7 @@
     let rec map_vars_in_value v dico =
         match v with
         | ValueConst c -> ValueConst c
+        | ValueStar t -> ValueStar t
         | ValueVar str ->
             if Map.containsKey str dico
             then Map.find str dico
@@ -230,6 +230,7 @@
     let rec expr_to_value expr =
         match expr with
         | ExprConst c -> ValueConst c
+        | ExprStar t -> ValueStar t
         | ExprVar v -> ValueVar v
         | ExprFun (str,args) -> ValueFun (str, List.map expr_to_value args)
         | ExprMacro (str, args) -> ValueMacro (str, args)
@@ -325,6 +326,7 @@
     let rec type_of_value<'a,'b> (m:ModuleDecl<'a,'b>) value dico =
         match value with
         | ValueConst cv -> type_of_const_value cv
+        | ValueStar t -> t
         | ValueVar v ->
             match Map.tryFind v dico with
             | None -> (find_variable m v).Type
@@ -340,6 +342,7 @@
     let type_of_expr<'a,'b> (m:ModuleDecl<'a,'b>) expr dico =
         match expr with
         | ExprConst cv -> type_of_const_value cv
+        | ExprStar t -> t
         | ExprVar v ->
             match Map.tryFind v dico with
             | None -> (find_variable m v).Type

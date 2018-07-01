@@ -26,6 +26,7 @@
     and evaluate_value (m:ModuleDecl) infos (env:Model.Environment) v =
         match v with
         | ValueConst cv -> cv
+        | ValueStar t -> AST.type_default_value t
         | ValueVar str -> Map.find str env.v
         | ValueFun (str, lst) ->
             let lst = List.map (evaluate_value m infos env) lst

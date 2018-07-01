@@ -28,6 +28,7 @@ type const_value =
 
 type parsed_expression =
     | Const of const_value
+    | Star
     | QVar of var_decl
     | VarFunMacroAction of string * parsed_expression list
     | Equal of parsed_expression * parsed_expression

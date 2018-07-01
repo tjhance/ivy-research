@@ -117,6 +117,7 @@
     let rec marks_for_value mdecl infos env uvar v : ConstValue * (Marks * Marks * AdditionalData) =
         match v with
         | ValueConst c -> (c, empty_config)
+        | ValueStar t -> (AST.type_default_value t, empty_config)
         | ValueVar str ->
             let eval = evaluate_value mdecl infos env (ValueVar str)
             if Set.contains str uvar

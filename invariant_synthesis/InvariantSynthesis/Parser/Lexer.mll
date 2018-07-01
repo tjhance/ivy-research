@@ -58,6 +58,7 @@ rule read ignore_nls =
   | "~="     { DIFFERENT }
   | "->"     { RIGHT_ARROW }
   | ":="     { ASSIGN }
+  | '*'      { STAR }
   | '{'      { LEFT_BRACE }
   | '}'      { RIGHT_BRACE }
   | '.'      { POINT }

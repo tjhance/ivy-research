@@ -55,6 +55,7 @@
             add_parenthesis_if_needed str 7 prec
         // ---------------------------
         | ValueConst cv -> const_value_to_string cv
+        | ValueStar _ -> "*"
         | ValueVar str ->
                 try
                     match (Map.find str decls.v).Representation.DisplayName with

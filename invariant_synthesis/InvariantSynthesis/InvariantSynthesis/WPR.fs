@@ -136,6 +136,11 @@
         let rec aux v =
             match v with
             | ValueConst c -> (Z3Hole, Z3Const c)
+            | ValueStar t ->
+                let name = unique_name (AST.local_name "NDS")
+                let d = AST.default_var_decl name t
+                let ctx = Z3Forall (d, Z3Hole)
+                (ctx, Z3Var name)
             | ValueVar str -> (Z3Hole, Z3Var str)
             | ValueFun (str, vs) ->
                 let (ctxs, vs) = List.unzip (List.map aux vs)
@@ -184,10 +189,7 @@
                 let v = Z3Forall (new_d, v)
                 (ctx, v)
             | ValueInterpreted (str, _) ->
-                let name = unique_name "IV"
-                let d = AST.default_var_decl name (MinimalAST.find_interpreted_action m str).Output
-                let ctx = Z3Forall (d, Z3Hole)
-                (ctx, Z3Var name)
+                aux (ValueStar (MinimalAST.find_interpreted_action m str).Output)
         aux v
 
     exception ValueNotAllowed
@@ -258,7 +260,7 @@
                 let renaming_d = Map.add d.Name new_d.Name renaming
                 
                 let sif = aux renaming_d sif
-                let sif_d_assign = ValueSomeElse (qvar, vcond_qvar, ValueConst (AST.type_default_value d.Type))
+                let sif_d_assign = ValueSomeElse (qvar, vcond_qvar, ValueStar d.Type)
                 let sif = [NewBlock ([new_d], (VarAssign (new_d.Name, minimal_val2z3_val sif_d_assign))::sif)]
                 let sif = (Assume (minimal_val2z3_val (ValueNot (ValueForall (qvar, ValueNot vcond_qvar)))))::sif
                 let sif = packIfNecessary sif

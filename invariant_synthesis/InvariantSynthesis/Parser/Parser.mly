@@ -14,6 +14,7 @@
 %token ASSIGN CALL IF VAR ASSERT ASSUME REQUIRE ENSURE
 
 %token BOOL TRUE FALSE
+%token STAR
 %token <int> INT
 %token <string> QVAR_ID
 %token <string> ID
@@ -204,6 +205,8 @@ expression:
     { Const (ConstBool true) }
   | FALSE
     { Const (ConstBool false) }
+  | STAR
+    { Star }
   | i = INT
     { Const (ConstInt ("", i)) }
   | LEFT_PARENTHESIS; obj = expression; RIGHT_PARENTHESIS

@@ -12,6 +12,7 @@
 
     type Value =
         | ValueConst of ConstValue
+        | ValueStar of Type
         | ValueVar of string
         | ValueFun of string * List<Value>
         | ValueEqual of Value * Value
@@ -62,6 +63,7 @@
     let rec map_vars_in_value v dico =
         match v with
         | ValueConst c -> ValueConst c
+        | ValueStar t -> ValueStar t
         | ValueVar str ->
             if Map.containsKey str dico
             then Map.find str dico
@@ -87,7 +89,7 @@
 
     let rec free_vars_of_value v =
         match v with
-        | ValueConst _ -> Set.empty
+        | ValueConst _ | ValueStar _ -> Set.empty
         | ValueVar str -> Set.singleton str
         | ValueFun (_, vs) -> Set.unionMany (List.map free_vars_of_value vs)
         | ValueEqual (v1, v2) | ValueOr (v1, v2) -> Set.union (free_vars_of_value v1) (free_vars_of_value v2)
@@ -105,6 +107,7 @@
     let rec value2ast v =
         match v with
         | ValueConst cv -> AST.ValueConst cv
+        | ValueStar t -> AST.ValueStar t
         | ValueVar str -> AST.ValueVar str
         | ValueFun (str, vs) -> AST.ValueFun (str, List.map value2ast vs)
         | ValueEqual (v1, v2) -> AST.ValueEqual (value2ast v1, value2ast v2)
@@ -124,6 +127,7 @@
         let rec aux v =
             match v with
             | AST.ValueConst cv -> ValueConst cv
+            | AST.ValueStar t -> ValueStar t
             | AST.ValueVar str -> ValueVar str
             | AST.ValueFun (str, vs) -> ValueFun (str, List.map aux vs)
             | AST.ValueMacro (str, vs) ->
@@ -168,6 +172,7 @@
         let rec aux dico_types e =
             match e with
             | AST.ExprConst cv -> ([], [], ValueConst cv)
+            | AST.ExprStar t -> ([], [], ValueStar t)
             | AST.ExprVar str ->
                 let (d, st, name) = new_var_assign (ValueVar str) dico_types
                 ([d], [st], ValueVar name)
