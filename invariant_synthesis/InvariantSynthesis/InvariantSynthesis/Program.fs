@@ -151,8 +151,6 @@ let auto_counterexample (md:ModuleDecl) decls verbose =
 let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) _ (env:Model.Environment) formula
     action (m:Synthesis.Marks) prev_allowed =
 
-    // TODO: fix it (example2.set_elt)
-
     // 1. Marked constraints
     let add_var_constraint cs str =
         let cv = Map.find str env.v
@@ -193,7 +191,10 @@ let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) 
     | None -> None
     | Some m ->
         // This time, action args are quantified
+        printfn "%s" (m.ToString()) //TMP
+        // TODO: fix it (example2.set_elt)
         let (infos, env, _) = Z3Utils.z3model_to_ast_model md z3ctx [] z3lvars z3concrete_map m
+        printfn "%A" (Map.filter (fun (str,_) _ -> str = "example2.dom") env.f) //TMP
         Some (infos, env)
 
 // ----- MAIN -----
@@ -290,7 +291,7 @@ let main argv =
                     if Some b_al <> b
                     then
                         let (m_al,_,ad_al) =
-                            Synthesis.marks_before_statement mmd infos_allowed true tr_allowed (m_al,um_al,ad_al)
+                            Synthesis.marks_before_statement mmd infos_allowed (b <> None) tr_allowed (m_al,um_al,ad_al)
                         if ad_al.md
                         then printfn "Warning: Some marks still are model-dependent! Generated invariant could be weaker than expected."
                         let m_al' = Synthesis.marks_union m_al m'
