@@ -12,7 +12,7 @@
     // For that, we can consider those functions an instance of the corresponding module,
     // with an additionals first parameters for every var/fun/action/etc (that corresponds the parameters of the initial function)
     // TODO: non-deterministic stuff (like 'var a = *')
-    // TODO: isolate, inductive, export, extract, interpret, property...
+    // TODO: isolate, inductive, export, extract, interpret...
     // TODO: Infer types for macro args (currently, type annotations is required)
 
     // TODO: Add a final step that uses model checking to make the invariant the strongest possible by trying to weaken constraints
