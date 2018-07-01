@@ -82,6 +82,7 @@ object example2 =
 		}
 		else
 		{
+			y := 0;
 			assert false;
 		};
 	}

@@ -15,7 +15,6 @@
     // TODO: isolate, inductive, export, extract, interpret, property...
     // TODO: Infer types for macro args (currently, type annotations is required)
 
-    // TODO: Use an automated method: computing weakest precondition (wp) and finding a finite model for (wp AND NOT new_strong_invariant).
     // TODO: Add a final step that uses model checking to make the invariant the strongest possible by trying to weaken constraints
 
     // Important:

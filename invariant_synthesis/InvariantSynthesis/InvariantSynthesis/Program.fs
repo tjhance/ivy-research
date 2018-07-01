@@ -135,7 +135,9 @@ let auto_counterexample (md:ModuleDecl) decls verbose =
         
         counterexample :=
             match Z3Utils.check z3ctx z3e with
-            | None -> None
+            | None ->
+                printfn "No counterexample found!"
+                None
             | Some m ->
                 let action_args = (MinimalAST.find_action mmd action).Args
                 let (infos, env, args) = Z3Utils.z3model_to_ast_model md z3ctx action_args z3lvars z3concrete_map m
