@@ -15,6 +15,7 @@
     <Compile Include="Helper.fs" />
     <Compile Include="AST.fs" />
     <Compile Include="MinimalAST.fs" />
+    <Compile Include="Determinization.fs" />
     <Compile Include="Model.fs" />
     <Compile Include="InterpretedExpr.fs" />
     <Compile Include="Interpreter.fs" />

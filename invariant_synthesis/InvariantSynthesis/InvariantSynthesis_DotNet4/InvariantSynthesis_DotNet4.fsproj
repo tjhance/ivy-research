@@ -73,6 +73,9 @@
     <Compile Include="..\InvariantSynthesis\MinimalAST.fs">
       <Link>MinimalAST.fs</Link>
     </Compile>
+    <Compile Include="..\InvariantSynthesis\Determinization.fs">
+      <Link>Determinization.fs</Link>
+    </Compile>
     <Compile Include="..\InvariantSynthesis\Model.fs">
       <Link>Model.fs</Link>
     </Compile>
