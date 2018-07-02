@@ -251,7 +251,9 @@
         | (AST.Expr _)::lst, v::vals -> (Val v)::(hvals_of_hexprs lst vals)
         | _ -> failwith "Invalid HoleExpression!"
 
-    let statement2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) dico_types (s:AST.Statement) is_main_action =
+    type SpecificationsPolicy = Normal | Inverse | Ignore
+
+    let statement2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) dico_types (s:AST.Statement) spec_policy =
         let packIfNecessary decls sts =
             if List.length sts = 1 && List.isEmpty decls
             then List.head sts
@@ -300,36 +302,70 @@
             | AST.Assert v -> ([], [Assert (value2minimal m v)])
             | AST.Assume v -> ([], [Assume (value2minimal m v)])
             | AST.Require v ->
-                if is_main_action then ([], [Assume (value2minimal m v)]) else ([], [Assert (value2minimal m v)])
+                match spec_policy with
+                | Normal -> ([], [Assume (value2minimal m v)])
+                | Inverse -> ([], [Assert (value2minimal m v)])
+                | Ignore -> ([], [])
             | AST.Ensure v ->
-                if is_main_action then ([], [Assert (value2minimal m v)]) else ([], [Assume (value2minimal m v)])
+                match spec_policy with
+                | Normal -> ([], [Assert (value2minimal m v)])
+                | Inverse -> ([], [Assume (value2minimal m v)])
+                | Ignore -> ([], [])
         let (decls, sts) = aux dico_types s
         packIfNecessary decls sts
 
     let module2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) main_action =
         reinit_tmp_vars ()
 
-        let convert_action acc (a:AST.ActionDecl) =
-            if AST.action_is_variant a.Name
-            then acc
-            else
-                // TODO: depending on main_action, take the implementation or not
-                let dico_types = List.fold (fun acc (d:VarDecl) -> Map.add d.Name d.Type acc) Map.empty (a.Output::a.Args)
-                let st = a.Content
-                let st =
-                    try
-                        let before = AST.find_action m a.Name "before"
-                        AST.NewBlock([],[before.Content;st])
-                    with :? System.Collections.Generic.KeyNotFoundException -> st
-                let st =
-                    try
-                        let after = AST.find_action m a.Name "after"
-                        AST.NewBlock([],[st;after.Content])
-                    with :? System.Collections.Generic.KeyNotFoundException -> st
-                let st = statement2minimal m dico_types st (a.Name = main_action)
-                { ActionDecl.Name = a.Name; ActionDecl.Args = a.Args ; ActionDecl.Output = a.Output ; ActionDecl.Content = st }::acc
+        let all_actions =
+            List.fold (fun acc (a:AST.ActionDecl) -> let (name,_) = AST.decompose_action_name a.Name in Set.add name acc) Set.empty m.Actions
 
-        let actions = List.fold convert_action [] m.Actions
+        let convert_action acc name =
+            let (args, output) =
+                let action =
+                    try AST.find_action m name ""
+                    with :? System.Collections.Generic.KeyNotFoundException ->
+                        try AST.find_action m name "before"
+                        with :? System.Collections.Generic.KeyNotFoundException ->
+                            try AST.find_action m name "after"
+                            with :? System.Collections.Generic.KeyNotFoundException ->
+                                failwith "Action not found..."
+                (action.Args, action.Output)
+
+            let before =
+                try
+                    let before = AST.find_action m name "before"
+                    [before.Content]
+                with :? System.Collections.Generic.KeyNotFoundException -> []
+            let after =
+                try
+                    let after = AST.find_action m name "after"
+                    [after.Content]
+                with :? System.Collections.Generic.KeyNotFoundException -> []
+
+            let concrete_impl =
+                try
+                    let impl = AST.find_action m name ""
+                    [impl.Content]
+                with :? System.Collections.Generic.KeyNotFoundException -> []
+
+            let (st,spec_policy) =
+                if name = main_action
+                then
+                    let st = AST.NewBlock([],before@concrete_impl@after)
+                    let spec_policy = Normal
+                    (st,spec_policy)
+                else
+                    // TODO: Abstract case
+                    let st = AST.NewBlock([],before@concrete_impl@after)
+                    let spec_policy = Ignore
+                    (st, spec_policy)
+
+            let dico_types = List.fold (fun acc (d:VarDecl) -> Map.add d.Name d.Type acc) Map.empty (output::args)
+            let st = statement2minimal m dico_types st spec_policy
+            { ActionDecl.Name = name; ActionDecl.Args = args ; ActionDecl.Output = output ; ActionDecl.Content = st }::acc
+
+        let actions = Set.fold convert_action [] all_actions
         let invariants = List.map (value2minimal m) m.Invariants
         let axioms = List.map (value2minimal m) m.Axioms
 

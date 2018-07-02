@@ -18,8 +18,8 @@
 
     // Important:
     // TODO: Add possibility of non-determinism (add a nd/deterministic minimal ast converter)
-    // TODO: Add a system to choose which actions should be abstracted (specification only, implementation hidden)
-    // TODO: Do not execute/analyse/wpr the implementation of non-main content (only their specification)
+    // TODO: Add a system to choose which modules should be used concretely and which modules should be abstracted
+    // TODO: Do not execute/analyse/wpr the implementation of abstract content (only their specification)
     // In particular: non-deterministic assignments should be added for each var/fun declared in the module
     // Conjectures declared in the module should be asserted at the begining and assumed at the end
 
@@ -156,8 +156,11 @@
         then name
         else sprintf "%s%c%s" name action_variant_char variant
 
-    let action_is_variant str =
-        String.exists (fun c -> c = action_variant_char) str
+    let decompose_action_name (name:string) =
+        let i = name.LastIndexOf(action_variant_char)
+        if i >= 0
+        then (name.Substring(0,i), name.Substring(i+1))
+        else (name, "")
 
     let local_var_prefix = "$" // We assign a prefix to non-global vars in order to avoid bugs due to vars scope
 
