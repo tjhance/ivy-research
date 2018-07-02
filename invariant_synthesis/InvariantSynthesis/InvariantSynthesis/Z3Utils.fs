@@ -125,9 +125,6 @@
                 let qvars = Map.add d.Name cst qvars
                 let e = aux qvars v
                 ctx.Context.MkExists ([|cst|], e) :> Expr
-            | Z3Declare (d, v, b) ->
-                let b = replace_var d.Name v b
-                aux qvars b
             | Z3Hole -> failwith "Can't convert a context to a Z3 formula!"
         aux Map.empty v
 

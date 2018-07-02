@@ -249,7 +249,7 @@ let main argv =
             (Some b, cfg)
         else (None,Synthesis.empty_config)
 
-    if b <> Some (ConstBool false) || b <> None
+    if b <> Some (ConstBool false) && b <> None
     then
         printfn "Invalid counterexample!"
         ignore (Console.ReadLine ())

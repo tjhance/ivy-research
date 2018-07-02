@@ -16,7 +16,6 @@
         | Z3IfElse of Z3Value * Z3Value * Z3Value
         | Z3Forall of VarDecl * Z3Value
         | Z3Exists of VarDecl * Z3Value
-        | Z3Declare of VarDecl * Z3Value * Z3Value
         | Z3Hole // Used for contexts
 
     type ValueContext = Z3Value * Z3Value
@@ -47,7 +46,6 @@
             | Z3IfElse (c,i,e) -> Z3IfElse (aux c, aux i, aux e)
             | Z3Forall (d, v) -> Z3Forall (d, aux v)
             | Z3Exists (d, v) -> Z3Exists (d, aux v)
-            | Z3Declare (d, vdecl, v) -> Z3Declare (d, aux vdecl, aux v)
             | Z3Hole -> repl
         aux v
     
@@ -64,10 +62,6 @@
         | Z3Forall (d, v) | Z3Exists (d, v) -> 
             let fv = free_vars_of_value v
             Set.remove d.Name fv
-        | Z3Declare (d, v1, v2) ->
-            let fv = free_vars_of_value v2
-            let fv = Set.remove d.Name fv
-            Set.union fv (free_vars_of_value v1)
         | Z3Hole -> Set.empty
 
     let rec const_int_in_value v =
@@ -82,8 +76,6 @@
         | Z3IfElse (f, v1, v2) ->
             Set.unionMany [const_int_in_value f ; const_int_in_value v1 ; const_int_in_value v2]
         | Z3Forall (_, v) | Z3Exists (_, v) -> const_int_in_value v
-        | Z3Declare (_, v1, v2) ->
-            Set.union (const_int_in_value v1) (const_int_in_value v2)
         | Z3Hole -> Set.empty
 
     let rec funs_in_value v =
@@ -97,7 +89,6 @@
         | Z3IfElse (f, v1, v2) ->
             Set.unionMany [funs_in_value f ; funs_in_value v1 ; funs_in_value v2]
         | Z3Forall (_, v) | Z3Exists (_, v) -> funs_in_value v
-        | Z3Declare (_, v1, v2) -> Set.union (funs_in_value v1) (funs_in_value v2)
         | Z3Hole -> Set.empty
 
     // Conversion tools
@@ -163,16 +154,16 @@
                 let new_d = AST.default_var_decl (unique_name d.Name) d.Type
                 let renaming = Map.add d.Name new_d.Name Map.empty
                 let v1 = rename_value renaming v1
-                // TODO: use Z3IfElse instead of two holes? remove Z3Declare from ast?
+
                 let (ctx1, v1) = aux v1
                 fail_if_ctx_depends_on ctx1 (Set.singleton new_d.Name)
                 let (ctx2, v2) = aux v2
-                let ctx2 = replace_holes_with (Z3Declare (new_d, v2, Z3Hole)) ctx2
-                let none_case = Z3Imply (Z3Not (Z3Exists (new_d, v1)), ctx2)
-                let some_case = Z3Forall (new_d, Z3Imply (v1, Z3Hole))
-                let ctx = Z3And (some_case, none_case)
+
+                let condition = Z3Forall (new_d, Z3Imply (Z3Or (v1, Z3Not (Z3Exists (new_d, v1))), Z3Hole))
+                let ctx = replace_holes_with condition ctx2
                 let ctx = replace_holes_with ctx ctx1
-                (ctx, Z3Var new_d.Name)
+                let v = Z3IfElse (v1, Z3Var new_d.Name, v2)
+                (ctx, v)
             | ValueIfElse (c,i,e) ->
                 let (ctx1, c) = aux c
                 let (ctx2, i) = aux i
@@ -323,9 +314,6 @@
             | Z3Exists (d,v) ->
                  let dico = Map.remove d.Name dico
                  Z3Exists (d, aux dico v)
-            | Z3Declare (d,v1,v2) ->
-                let dico' = Map.remove d.Name dico
-                Z3Declare (d, aux dico v1, aux dico' v2)
             | Z3Hole -> Z3Hole
         aux dico v
 
@@ -358,7 +346,6 @@
                 Z3IfElse (aux f, aux v1, aux v2)
             | Z3Forall (d,v) -> Z3Forall (d, aux v)
             | Z3Exists (d,v) -> Z3Exists (d, aux v)
-            | Z3Declare (d,v1,v2) -> Z3Declare (d, aux v1, aux v2)
             | Z3Hole -> Z3Hole
         aux v
 
