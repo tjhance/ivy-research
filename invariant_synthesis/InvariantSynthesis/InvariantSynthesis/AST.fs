@@ -17,7 +17,6 @@
     // TODO: Add a final step that uses model checking to make the invariant the strongest possible by trying to weaken constraints
 
     // Important:
-    // TODO: Add possibility of non-determinism (add a nd/deterministic minimal ast converter)
     // TODO: Add a system to choose which modules should be used concretely and which modules should be abstracted
     // TODO: Do not execute/analyse/wpr the implementation of abstract content (only their specification)
     // In particular: non-deterministic assignments should be added for each var/fun declared in the module

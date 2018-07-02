@@ -102,6 +102,7 @@ let auto_counterexample (md:ModuleDecl) decls verbose =
     printfn "Enter the name of the action:"
     let action = Console.ReadLine()
     let mmd = MinimalAST.module2minimal md action
+    let mmd = Determinization.determinize_action mmd action // TODO: Fix case of queue.ivy (q.pop, conjecture 2)
 
     let counterexample = ref None
     let first_loop = ref true

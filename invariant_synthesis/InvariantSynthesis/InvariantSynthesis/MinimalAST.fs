@@ -46,6 +46,35 @@
         { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; Vars: List<VarDecl>; InterpretedActions: List<InterpretedActionDecl<'a,'b>>;
             Actions: List<ActionDecl>; Invariants: List<Value>; Implications: List<ImplicationRule> ; Axioms: List<Value> }
 
+    // Fonctions on HoleValue
+
+    let rec reconstruct_hvals hvs vs uvs =
+        match hvs with
+        | [] -> []
+        | (Hole _)::hes -> (List.head uvs)::(reconstruct_hvals hes vs (List.tail uvs))
+        | (Val _)::hes -> (List.head vs)::(reconstruct_hvals hes (List.tail vs) uvs)
+
+    let separate_hvals hvs =
+        // Fixed values
+        let vs = List.filter (fun hv -> match hv with Hole _ -> false | Val _ -> true) hvs
+        let vs = List.map (fun hv -> match hv with Hole _ -> failwith "" | Val v -> v) vs
+        // Universally quantified vars
+        let uvs = List.filter (fun hv -> match hv with Hole _ -> true | Val _ -> false) hvs
+        let uvs = List.map (fun hv -> match hv with Hole d -> d | Val _ -> failwith "") uvs
+        (vs, uvs)
+
+    let rec keep_only_vals hvs res =
+        match hvs with
+        | [] -> []
+        | (Hole _)::hvs -> keep_only_vals hvs (List.tail res)
+        | (Val _)::hvs -> (List.head res)::(keep_only_vals hvs (List.tail res))
+
+    let rec keep_only_holes hvs res =
+        match hvs with
+        | [] -> []
+        | (Hole _)::hvs -> (List.head res)::(keep_only_holes hvs (List.tail res))
+        | (Val _)::hvs -> keep_only_holes hvs (List.tail res)
+
     // Utility functions
 
     let find_function (m:ModuleDecl<'a,'b>) str =

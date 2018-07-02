@@ -264,10 +264,9 @@
     // Used in the fun assign case
     let compute_neighbors_with_perm cfg marked str vs hvs none_uvs permut =
 
-        let transform cvs_opt =
-            Interpreter.reconstruct_hvals hvs cvs_opt none_uvs
-        let inv_trans1 = Interpreter.keep_only_vals hvs
-        let inv_trans2 = Interpreter.keep_only_vals hvs
+        let transform cvs_opt = reconstruct_hvals hvs cvs_opt none_uvs
+        let inv_trans1 = keep_only_vals hvs
+        let inv_trans2 = keep_only_vals hvs
 
         let f = Helper.permutation_to_fun permut
         let inv_f = Helper.permutation_to_fun (Helper.inv_permutation permut)
@@ -367,11 +366,11 @@
 
                     We add necessary inequalities.
                     *)
-                    let (vs, uvs) = Interpreter.separate_hvals hvs
+                    let (vs, uvs) = separate_hvals hvs
                     let cvs = List.map (Interpreter.evaluate_value mdecl infos env) vs
                     let some_cvs = List.map (fun a -> Some a) cvs
                     let none_uvs = List.map (fun _ -> None) uvs
-                    let constraints = Interpreter.reconstruct_hvals hvs some_cvs none_uvs
+                    let constraints = reconstruct_hvals hvs some_cvs none_uvs
                     let (m_marks,um_marks) = fun_marks_matching cfg str constraints
                     let all_marks = Set.union m_marks um_marks
 
@@ -393,9 +392,9 @@
                             config_union acc cfg
                         Set.fold aux cfg uvs_insts
 
-                    let m_marks = Set.map (fun (_,cvs) -> Interpreter.keep_only_holes hvs cvs) m_marks
+                    let m_marks = Set.map (fun (_,cvs) -> keep_only_holes hvs cvs) m_marks
                     let cfg = add_marks_for_all env v uvs false m_marks cfg
-                    let um_marks = Set.map (fun (_,cvs) -> Interpreter.keep_only_holes hvs cvs) um_marks
+                    let um_marks = Set.map (fun (_,cvs) -> keep_only_holes hvs cvs) um_marks
                     let cfg = add_marks_for_all env v uvs true um_marks cfg
 
                     // Adding marks for the important args (vs)

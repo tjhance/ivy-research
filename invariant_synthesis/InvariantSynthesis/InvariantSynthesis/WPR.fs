@@ -214,14 +214,14 @@
                 let vs = List.map (rename_value renaming) vs
                 [VarAssignAction (rename_var renaming str, action, List.map minimal_val2z3_val vs)]
             | MinimalAST.FunAssign (str, hvs, v) ->
-                let (vs, ds) = Interpreter.separate_hvals hvs
+                let (vs, ds) = MinimalAST.separate_hvals hvs
                 let vs = List.map (rename_value renaming) vs
                 let added_names = List.init (List.length vs) (fun _ -> unique_name (AST.local_name "FAV"))
                 
                 let new_ds = List.map (fun (d:VarDecl) -> AST.default_var_decl (unique_name d.Name) d.Type) ds
                 let renaming = List.fold2 (fun acc (od:VarDecl) (nd:VarDecl) -> Map.add od.Name nd.Name acc) renaming ds new_ds
                 let names = List.map (fun (d:VarDecl) -> d.Name) new_ds
-                let names = Interpreter.reconstruct_hvals hvs added_names names
+                let names = MinimalAST.reconstruct_hvals hvs added_names names
                 let decls = List.map2 (fun n t -> AST.default_var_decl n t) names (find_function m str).Input
                 
                 let v = rename_value renaming v
