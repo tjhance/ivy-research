@@ -163,7 +163,7 @@
                 let new_d = AST.default_var_decl (unique_name d.Name) d.Type
                 let renaming = Map.add d.Name new_d.Name Map.empty
                 let v1 = rename_value renaming v1
-
+                // TODO: use Z3IfElse instead of two holes? remove Z3Declare from ast?
                 let (ctx1, v1) = aux v1
                 fail_if_ctx_depends_on ctx1 (Set.singleton new_d.Name)
                 let (ctx2, v2) = aux v2

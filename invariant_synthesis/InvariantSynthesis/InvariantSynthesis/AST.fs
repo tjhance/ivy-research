@@ -30,6 +30,8 @@
     // Optimisations:
     // TODO: Synthesis: compute all possibilities for marks_for_value, and choose the better at the end
     // using an evaluation function taking into account the current marks and the remaining statements in atomic block
+    // (if no mark is added to the current configuration, this choice should be choosen without analysing remaining statements)
+    // TODO: Once the previous point is done, simplify the FunAssign expression in Minimal AST (keep only holes)
 
     type Type =
         | Void
