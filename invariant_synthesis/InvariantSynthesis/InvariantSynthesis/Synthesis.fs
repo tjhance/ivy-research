@@ -83,7 +83,7 @@
         then true
         else false
 
-    let add_diff_constraint _ m cv1 cv2 =
+    let add_diff_constraint m cv1 cv2 =
         let d' = Set.add (cv1, cv2) m.d
         let d' = Set.add (cv2, cv1) d'
         { m with d=d' }
@@ -101,10 +101,10 @@
     let remove_ufmi_entry (ad:AdditionalData) str cvs =
         { ad with ufmi = Map.remove (str, cvs) ad.ufmi }
 
-    let is_var_marked _ (m, um, _) var =
+    let is_var_marked (m, um, _) var =
         (Set.contains var m.v) || (Set.contains var um.v)
     
-    let remove_var_marks _ (m, um, ad) var : Marks * Marks * AdditionalData =
+    let remove_var_marks (m, um, ad) var : Marks * Marks * AdditionalData =
         ({m with v = Set.remove var m.v}, {um with v = Set.remove var um.v}, ad)
 
     exception InvalidOperation
@@ -145,8 +145,8 @@
             let (m,um,ad) = config_union cfg1 cfg2
             if AST.value_equal cv1 cv2 then (AST.ConstBool true, (m, um, ad))
             else if ad.md
-            then (AST.ConstBool false, (m, add_diff_constraint infos um cv1 cv2, ad))
-            else (AST.ConstBool false, (add_diff_constraint infos m cv1 cv2, um, ad))
+            then (AST.ConstBool false, (m, add_diff_constraint um cv1 cv2, ad))
+            else (AST.ConstBool false, (add_diff_constraint m cv1 cv2, um, ad))
         | ValueOr (v1, v2) ->
             let (cv1, cfg1) = marks_for_value mdecl infos env uvar v1
             let (cv2, cfg2) = marks_for_value mdecl infos env uvar v2
@@ -207,7 +207,7 @@
     and marks_for_value_with mdecl infos (env:Model.Environment) uvar v names values =
         let v' = List.fold2 (fun acc n v -> Map.add n v acc) env.v names values
         let (v, cfg) = marks_for_value mdecl infos {env with v=v'} uvar v
-        (v, List.fold (remove_var_marks infos) cfg names)
+        (v, List.fold remove_var_marks cfg names)
 
     ////////////////////////////////////////////////////////////////////////////
 
@@ -300,7 +300,7 @@
 
     let add_ineq_between infos m cvs1 cvs2 =
         let aux m cv =
-            Set.fold (fun m cv' -> add_diff_constraint infos m cv cv') m cvs1
+            Set.fold (fun m cv' -> add_diff_constraint m cv cv') m cvs1
         Set.fold aux m cvs2
 
     ////////////////////////////////////////////////////////////////////////////
@@ -320,8 +320,8 @@
                     let cfg' = marks_before_statements mdecl infos ignore_asserts trs cfg'
                     aux group_trs (config_leave_block infos cfg' decls cfg)
                 | TrVarAssign ((env,_,_), str, v) ->
-                    let marked = is_var_marked infos cfg str
-                    let cfg = remove_var_marks infos cfg str
+                    let marked = is_var_marked cfg str
+                    let cfg = remove_var_marks cfg str
                     if marked
                     then
                         let (_,cfg') = marks_for_value mdecl infos env Set.empty v
@@ -330,7 +330,7 @@
                 | TrVarAssignAction ((env,_,b), str, input, output, args, tr) ->
                     let (marked, cfg) =
                         if b then
-                            (is_var_marked infos cfg str, remove_var_marks infos cfg str)
+                            (is_var_marked cfg str, remove_var_marks cfg str)
                         else (false, cfg)
 
                     let cfg' = config_enter_block infos cfg (output::input)
@@ -341,7 +341,7 @@
                         else (m, um, ad)
 
                     let cfg' = marks_before_statement mdecl infos ignore_asserts tr cfg'
-                    let args_marks = List.map (is_var_marked infos cfg') (List.map (fun (decl:VarDecl) -> decl.Name) input)
+                    let args_marks = List.map (is_var_marked cfg') (List.map (fun (decl:VarDecl) -> decl.Name) input)
                     let cfg = config_leave_block infos cfg' (output::input) cfg
             
                     let args = List.zip args args_marks
@@ -424,7 +424,7 @@
                         let cfg' = config_enter_block infos cfg [decl]
                         let cfg' = marks_before_statement mdecl infos ignore_asserts tr cfg'
                         let (_, cfg'') =
-                            if is_var_marked infos cfg' decl.Name
+                            if is_var_marked cfg' decl.Name
                             then marks_for_value mdecl infos (initial_env tr) Set.empty v
                             (* NOTE: In the case above, we may also ensure that every other value doesn't satisfy the predicate.
                                However, it is a different problem than garanteeing the invariant value,

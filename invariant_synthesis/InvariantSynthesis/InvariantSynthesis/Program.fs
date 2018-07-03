@@ -77,7 +77,7 @@ let manual_counterexample (md:ModuleDecl) decls verbose =
     else
         (mmd, name, args, infos, env, cs, MinimalAST.ValueConst (ConstBool true), tr)
     
-let manual_allowed_path (md:ModuleDecl) decls env cs m um' =
+let manual_allowed_path (md:ModuleDecl) decls env cs args m um' =
     printfn "Please modify some constraints on the environment to change the final formula value."
     printfn ""
     printfn "Constraints you can't change:"
@@ -93,7 +93,7 @@ let manual_allowed_path (md:ModuleDecl) decls env cs m um' =
     printfn "Building new environment..."
     let (infos_allowed, env_allowed) = Model.constraints_to_env md (cs@cs')
     printfn "Computing..."
-    Some (infos_allowed, env_allowed)
+    Some (args, infos_allowed, env_allowed) // We keep the same args as before
 
 // ----- AUTO MODE -----
 
@@ -102,7 +102,7 @@ let auto_counterexample (md:ModuleDecl) decls verbose =
     printfn "Enter the name of the action:"
     let action = Console.ReadLine()
     let mmd = MinimalAST.module2minimal md action
-    let mmd = Determinization.determinize_action mmd action // TODO: Fix case of queue.ivy (q.pop, conjecture 2)
+    let mmd = Determinization.determinize_action mmd action
 
     let counterexample = ref None
     let first_loop = ref true
@@ -152,7 +152,7 @@ let auto_counterexample (md:ModuleDecl) decls verbose =
         (mmd, action, args, infos, env, [], formula, tr)
 
 let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) _ (env:Model.Environment) formula
-    action (m:Synthesis.Marks) prev_allowed =
+    action args (m:Synthesis.Marks,um,ad) prev_allowed = // TODO: fix bug (queue.ivy, q.pop, conjecture 2)
 
     // 1. Marked constraints
     let add_var_constraint cs str =
@@ -167,16 +167,24 @@ let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) 
     let add_diff_constraint cs (cv1, cv2) =
         ValueAnd (cs, ValueNot (ValueEqual (ValueConst cv1, ValueConst cv2)))
     let cs = Set.fold add_diff_constraint cs m.d
+
+    // 2. Marked args
+    let args_decl = (MinimalAST.find_action mmd action).Args
+    let add_arg_constraint cs (d:MinimalAST.VarDecl) cv =
+        if Synthesis.is_var_marked (m,um,ad) d.Name
+        then ValueAnd (cs, ValueEqual (ValueVar d.Name, ValueConst cv))
+        else cs
+    let cs = List.fold2 add_arg_constraint cs args_decl args
     let cs = MinimalAST.value2minimal md cs
     let cs = WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd cs) false
 
-    // 2. NOT Previous semi-generalized allowed examples
+    // 3. NOT Previous semi-generalized allowed examples
     let f = Formula.formula_from_marks env m prev_allowed true
     let f = ValueNot f
     let f = MinimalAST.value2minimal md f
     let f = WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd f) false
 
-    // 3. Possibly valid run: WPR & conjectures & axioms
+    // 4. Possibly valid run: WPR & conjectures & axioms
     let z3formula = WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd formula) false
     let wpr = WPR.wpr_for_action mmd z3formula action true
     let conjectures = WPR.conjunction_of (WPR.conjectures_to_z3values mmd mmd.Invariants)
@@ -189,19 +197,13 @@ let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) 
     let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars mmd action z3ctx f
     let z3e = Z3Utils.build_value z3ctx z3lvars f
 
-    // TODO: Pick some good action arguments for the analysis...
-    // Idea1: Impose previously marked arguments.
-    // Idea2: Impose to this model to have a combination of args such that the action is fully executed.
-    // (all assumptions are satisfied)
-    // These args will be those choosen for the analysis.
-
     // Solve!
     match Z3Utils.check z3ctx z3e with
     | None -> None
     | Some m ->
-        // This time, action args are quantified
-        let (infos, env, _) = Z3Utils.z3model_to_ast_model mmd z3ctx [] z3lvars z3concrete_map m
-        Some (infos, env)
+        let (infos, env, args) = Z3Utils.z3model_to_ast_model mmd z3ctx args_decl z3lvars z3concrete_map m
+        let args = List.map (fun (d:VarDecl) -> Map.find d.Name args) args_decl
+        Some (args, infos, env)
 
 // ----- MAIN -----
 
@@ -290,11 +292,11 @@ let main argv =
 
             let allowed_path_opt =
                 if manual
-                then manual_allowed_path md decls env cs m um'
-                else auto_allowed_path md mmd decls env formula name m (!allowed_paths)
+                then manual_allowed_path md decls env cs args m um'
+                else auto_allowed_path md mmd decls env formula name args (m,um,ad) (!allowed_paths)
 
             match allowed_path_opt with
-            | Some (infos_allowed, env_allowed) ->
+            | Some (args_allowed, infos_allowed, env_allowed) ->
                 let tr_allowed = TInterpreter.trace_action mmd infos_allowed env_allowed name (List.map (fun cv -> MinimalAST.ValueConst cv) args) AST.impossible_var_factor
 
                 let (b_al,_,(m_al,um_al,ad_al)) =
