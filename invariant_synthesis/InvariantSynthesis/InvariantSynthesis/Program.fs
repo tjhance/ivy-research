@@ -152,7 +152,7 @@ let auto_counterexample (md:ModuleDecl) decls verbose =
         (mmd, action, args, infos, env, [], formula, tr)
 
 let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) _ (env:Model.Environment) formula
-    action args (m:Synthesis.Marks,um,ad) prev_allowed = // TODO: fix bug (queue.ivy, q.pop, conjecture 2)
+    action args (m:Synthesis.Marks) args_marks prev_allowed =
 
     // 1. Marked constraints
     let add_var_constraint cs str =
@@ -170,11 +170,13 @@ let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) 
 
     // 2. Marked args
     let args_decl = (MinimalAST.find_action mmd action).Args
-    let add_arg_constraint cs (d:MinimalAST.VarDecl) cv =
-        if Synthesis.is_var_marked (m,um,ad) d.Name
-        then ValueAnd (cs, ValueEqual (ValueVar d.Name, ValueConst cv))
+    let add_arg_constraint cs (d:MinimalAST.VarDecl, marked) cv =
+        if marked
+        then 
+            printfn "%A : %A" d.Name cv//TMP
+            ValueAnd (cs, ValueEqual (ValueVar d.Name, ValueConst cv))
         else cs
-    let cs = List.fold2 add_arg_constraint cs args_decl args
+    let cs = List.fold2 add_arg_constraint cs (List.zip args_decl args_marks) args
     let cs = MinimalAST.value2minimal md cs
     let cs = WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd cs) false
 
@@ -201,8 +203,10 @@ let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) 
     match Z3Utils.check z3ctx z3e with
     | None -> None
     | Some m ->
+        printfn "%A" args//TMP
         let (infos, env, args) = Z3Utils.z3model_to_ast_model mmd z3ctx args_decl z3lvars z3concrete_map m
         let args = List.map (fun (d:VarDecl) -> Map.find d.Name args) args_decl
+        printfn "%A" args//TMP
         Some (args, infos, env)
 
 // ----- MAIN -----
@@ -266,6 +270,8 @@ let main argv =
         analyse_example_ending mmd infos tr formula
     if b then failwith "Invalid counterexample!"
 
+    let args_marks = List.map (fun _ -> false) args // TODO
+
     printfn "Going back through the action..."
     let (m,um,ad) = Synthesis.marks_before_statement mmd infos true tr (m,um,ad)
     if verbose
@@ -293,11 +299,11 @@ let main argv =
             let allowed_path_opt =
                 if manual
                 then manual_allowed_path md decls env cs args m um'
-                else auto_allowed_path md mmd decls env formula name args (m,um,ad) (!allowed_paths)
+                else auto_allowed_path md mmd decls env formula name args m args_marks (!allowed_paths)
 
             match allowed_path_opt with
             | Some (args_allowed, infos_allowed, env_allowed) ->
-                let tr_allowed = TInterpreter.trace_action mmd infos_allowed env_allowed name (List.map (fun cv -> MinimalAST.ValueConst cv) args) AST.impossible_var_factor
+                let tr_allowed = TInterpreter.trace_action mmd infos_allowed env_allowed name (List.map (fun cv -> MinimalAST.ValueConst cv) args_allowed) AST.impossible_var_factor
 
                 let (b_al,_,(m_al,um_al,ad_al)) =
                     analyse_example_ending mmd infos_allowed tr_allowed formula
