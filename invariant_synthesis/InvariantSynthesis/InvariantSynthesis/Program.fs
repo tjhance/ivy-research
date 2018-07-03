@@ -154,8 +154,8 @@ let auto_counterexample (md:ModuleDecl) decls verbose =
         (mmd, action, args, infos, env, [], formula, tr)
 
 let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) _ (env:Model.Environment) formula
-    action args (m:Synthesis.Marks) args_marks prev_allowed =
-    // TODO: For args that are not fixed, try to init them such that no assume is broken...
+    action args (m:Synthesis.Marks) args_marks prev_allowed only_terminating_run =
+
     // 1. Marked constraints
     let add_var_constraint cs str =
         let cv = Map.find str env.v
@@ -193,8 +193,17 @@ let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) 
     let axioms = WPR.conjunction_of (WPR.conjectures_to_z3values mmd mmd.Axioms)
     let valid_run = WPR.Z3And (axioms, WPR.Z3And(conjectures, wpr))
 
+    // 5. If we only want a terminating run...
+    let trc =
+        if only_terminating_run
+        then
+            // TODO
+            WPR.Z3Const (AST.ConstBool true)
+        else
+            WPR.Z3Const (AST.ConstBool true)
+
     // All together
-    let f = WPR.Z3And (cs, WPR.Z3And(f,valid_run))
+    let f = WPR.Z3And (WPR.Z3And(cs, trc), WPR.Z3And(f,valid_run))
     let z3ctx = Z3Utils.build_context mmd
     let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars mmd action z3ctx f
     let z3e = Z3Utils.build_value z3ctx z3lvars f
@@ -300,7 +309,7 @@ let main argv =
             let allowed_path_opt =
                 if manual
                 then manual_allowed_path md decls env cs args m um'
-                else auto_allowed_path md mmd decls env formula name args m args_marks (!allowed_paths)
+                else auto_allowed_path md mmd decls env formula name args m args_marks (!allowed_paths) false
 
             match allowed_path_opt with
             | Some (args_allowed, infos_allowed, env_allowed) ->
@@ -309,13 +318,10 @@ let main argv =
                 let (b_al,_,(m_al,um_al,ad_al)) =
                     analyse_example_ending mmd infos_allowed tr_allowed formula
 
-                printfn "%A %A" tr_allowed m_al//TMP
-
                 if b_al
                 then
                     let (m_al,_,ad_al) =
                         Synthesis.marks_before_statement mmd infos_allowed finished_exec true tr_allowed (m_al,um_al,ad_al)
-                    printfn "%A" m_al//TMP
                     if ad_al.md
                     then printfn "Warning: Some marks still are model-dependent! Generated invariant could be weaker than expected."
                     let m_al' = Synthesis.marks_union m_al m'
