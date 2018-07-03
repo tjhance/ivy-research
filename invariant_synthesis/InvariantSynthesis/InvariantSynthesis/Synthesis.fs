@@ -305,7 +305,7 @@
 
     ////////////////////////////////////////////////////////////////////////////
 
-    let rec marks_before_statement mdecl infos ignore_asserts tr cfg =
+    let rec marks_before_statement mdecl infos ignore_asserts ignore_assumes tr cfg =
         let rec aux group_trs cfg =
             if List.isEmpty group_trs then cfg
             else
@@ -317,7 +317,7 @@
                     aux group_trs cfg
                 | TrNewBlock (_, decls, trs) ->
                     let cfg' = config_enter_block infos cfg decls
-                    let cfg' = marks_before_statements mdecl infos ignore_asserts trs cfg'
+                    let cfg' = marks_before_statements mdecl infos ignore_asserts ignore_assumes trs cfg'
                     aux group_trs (config_leave_block infos cfg' decls cfg)
                 | TrVarAssign ((env,_,_), str, v) ->
                     let marked = is_var_marked cfg str
@@ -340,7 +340,7 @@
                             ({ m with v = Set.add output.Name m.v }, um, ad)
                         else (m, um, ad)
 
-                    let cfg' = marks_before_statement mdecl infos ignore_asserts tr cfg'
+                    let cfg' = marks_before_statement mdecl infos ignore_asserts ignore_assumes tr cfg'
                     let args_marks = List.map (is_var_marked cfg') (List.map (fun (decl:VarDecl) -> decl.Name) input)
                     let cfg = config_leave_block infos cfg' (output::input) cfg
             
@@ -415,14 +415,14 @@
                     let results = List.map treat_possibility vals_possibilities
                     Helper.seq_min is_better_config results
                 | TrIfElse ((env,_,_), v, tr) ->
-                    let cfg = marks_before_statement mdecl infos ignore_asserts tr cfg
+                    let cfg = marks_before_statement mdecl infos ignore_asserts ignore_assumes tr cfg
                     let (_,cfg') = marks_for_value mdecl infos env Set.empty v
                     aux group_trs (config_union cfg cfg')
                 | TrIfSomeElse ((env,_,_), cv, decl, v, tr) ->
                     match cv with
                     | Some _ ->
                         let cfg' = config_enter_block infos cfg [decl]
-                        let cfg' = marks_before_statement mdecl infos ignore_asserts tr cfg'
+                        let cfg' = marks_before_statement mdecl infos ignore_asserts ignore_assumes tr cfg'
                         let (_, cfg'') =
                             if is_var_marked cfg' decl.Name
                             then marks_for_value mdecl infos (initial_env tr) Set.empty v
@@ -435,24 +435,28 @@
                         let cfg' = config_union cfg' cfg''
                         aux group_trs (config_leave_block infos cfg' [decl] cfg)
                     | None ->
-                        let cfg = marks_before_statement mdecl infos ignore_asserts tr cfg
+                        let cfg = marks_before_statement mdecl infos ignore_asserts ignore_assumes tr cfg
                         let (_,cfg') = marks_for_value mdecl infos env Set.empty (ValueForall (decl, ValueNot v))
                         aux group_trs (config_union cfg cfg')
                 | TrAssert ((env,_,b),v) ->
-                    // If ignore_asserts is true, we ignore satisfied assertions (we assume they are always true)
+                    // If ignore_asserts is true, we ignore satisfied assertions
                     if ignore_asserts && b then
                         aux group_trs cfg
                     else
                         let (_, cfg') = marks_for_value mdecl infos env Set.empty v
                         aux group_trs (config_union cfg cfg')
-                | TrAssume ((env,_,_),v) ->
-                    let (_, cfg') = marks_for_value mdecl infos env Set.empty v
-                    aux group_trs (config_union cfg cfg')
+                | TrAssume ((env,_,b),v) ->
+                    // If ignore_assumes is true, we ignore satisfied assumptions
+                    if ignore_assumes && b then
+                        aux group_trs cfg
+                    else
+                        let (_, cfg') = marks_for_value mdecl infos env Set.empty v
+                        aux group_trs (config_union cfg cfg')
         aux [tr] cfg
 
     // Statements are analysed in reverse order
-    and marks_before_statements mdecl infos ignore_asserts trs cfg =
+    and marks_before_statements mdecl infos ignore_asserts ignore_assumes trs cfg =
         let aux cfg tr =
-            marks_before_statement mdecl infos ignore_asserts tr cfg
+            marks_before_statement mdecl infos ignore_asserts ignore_assumes tr cfg
         List.fold aux cfg (List.rev trs)
 

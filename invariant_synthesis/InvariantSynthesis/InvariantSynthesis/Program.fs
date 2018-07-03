@@ -103,6 +103,7 @@ let auto_counterexample (md:ModuleDecl) decls verbose =
     let action = Console.ReadLine()
     let mmd = MinimalAST.module2minimal md action
     let mmd = Determinization.determinize_action mmd action
+    let action_args = (MinimalAST.find_action mmd action).Args
 
     let counterexample = ref None
     let first_loop = ref true
@@ -140,20 +141,21 @@ let auto_counterexample (md:ModuleDecl) decls verbose =
                 printfn "No counterexample found!"
                 None
             | Some m ->
-                let action_args = (MinimalAST.find_action mmd action).Args
                 let (infos, env, args) = Z3Utils.z3model_to_ast_model mmd z3ctx action_args z3lvars z3concrete_map m
                 let args = List.map (fun (d:VarDecl) -> Map.find d.Name args) action_args
+                let env = // We add arguments to the env so we can retrieve marks on them
+                    { env with v = List.fold2 (fun acc (d:VarDecl) cv -> Map.add d.Name cv acc) env.v action_args args }
                 Some (formula, args, infos, env)
 
     match !counterexample with
     | None -> failwith "No counterexample found!"
     | Some (formula, args, infos, env) ->
-        let tr = TInterpreter.trace_action mmd infos env action (List.map (fun cv -> MinimalAST.ValueConst cv) args) AST.impossible_var_factor
+        let tr = TInterpreter.trace_action mmd infos env action (List.map (fun (d:VarDecl) -> MinimalAST.ValueVar d.Name) action_args) AST.impossible_var_factor
         (mmd, action, args, infos, env, [], formula, tr)
 
 let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) _ (env:Model.Environment) formula
     action args (m:Synthesis.Marks) args_marks prev_allowed =
-
+    // TODO: For args that are not fixed, try to init them such that no assume is broken...
     // 1. Marked constraints
     let add_var_constraint cs str =
         let cv = Map.find str env.v
@@ -172,9 +174,7 @@ let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) 
     let args_decl = (MinimalAST.find_action mmd action).Args
     let add_arg_constraint cs (d:MinimalAST.VarDecl, marked) cv =
         if marked
-        then 
-            printfn "%A : %A" d.Name cv//TMP
-            ValueAnd (cs, ValueEqual (ValueVar d.Name, ValueConst cv))
+        then ValueAnd (cs, ValueEqual (ValueVar d.Name, ValueConst cv))
         else cs
     let cs = List.fold2 add_arg_constraint cs (List.zip args_decl args_marks) args
     let cs = MinimalAST.value2minimal md cs
@@ -203,10 +203,8 @@ let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) 
     match Z3Utils.check z3ctx z3e with
     | None -> None
     | Some m ->
-        printfn "%A" args//TMP
         let (infos, env, args) = Z3Utils.z3model_to_ast_model mmd z3ctx args_decl z3lvars z3concrete_map m
         let args = List.map (fun (d:VarDecl) -> Map.find d.Name args) args_decl
-        printfn "%A" args//TMP
         Some (args, infos, env)
 
 // ----- MAIN -----
@@ -270,15 +268,18 @@ let main argv =
         analyse_example_ending mmd infos tr formula
     if b then failwith "Invalid counterexample!"
 
-    let args_marks = List.map (fun _ -> false) args // TODO
-
     printfn "Going back through the action..."
-    let (m,um,ad) = Synthesis.marks_before_statement mmd infos true tr (m,um,ad)
+    let (m,um,ad) = Synthesis.marks_before_statement mmd infos true false tr (m,um,ad)
     if verbose
     then
         printfn "%A" m
         printfn "%A" um
         printfn "%A" ad
+
+    // We retrieve the argmarks (if available) and remove them
+    let args_decl = (MinimalAST.find_action mmd name).Args
+    let args_marks = List.map (fun (d:MinimalAST.VarDecl) -> Synthesis.is_var_marked (m,um,ad) d.Name) args_decl
+    let (m,um,ad) = List.fold (fun acc (d:MinimalAST.VarDecl) -> Synthesis.remove_var_marks acc d.Name)(m,um,ad) args_decl
 
     let m' = Formula.simplify_marks infos md.Implications decls env m
     let um' = Formula.simplify_marks infos md.Implications decls env um
@@ -308,10 +309,13 @@ let main argv =
                 let (b_al,_,(m_al,um_al,ad_al)) =
                     analyse_example_ending mmd infos_allowed tr_allowed formula
 
+                printfn "%A %A" tr_allowed m_al//TMP
+
                 if b_al
                 then
                     let (m_al,_,ad_al) =
-                        Synthesis.marks_before_statement mmd infos_allowed finished_exec tr_allowed (m_al,um_al,ad_al)
+                        Synthesis.marks_before_statement mmd infos_allowed finished_exec true tr_allowed (m_al,um_al,ad_al)
+                    printfn "%A" m_al//TMP
                     if ad_al.md
                     then printfn "Warning: Some marks still are model-dependent! Generated invariant could be weaker than expected."
                     let m_al' = Synthesis.marks_union m_al m'
