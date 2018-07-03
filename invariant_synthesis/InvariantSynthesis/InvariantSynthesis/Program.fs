@@ -197,8 +197,9 @@ let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) 
     let trc =
         if only_terminating_run
         then
-            // TODO
-            WPR.Z3Const (AST.ConstBool true)
+            // We know that the run will be valid for every argument value,
+            // so we can just search arguments such that the run does not satisfy the weakest precondition of 'false'
+            WPR.Z3Not (WPR.wpr_for_action mmd (WPR.Z3Const (AST.ConstBool false)) action false)
         else
             WPR.Z3Const (AST.ConstBool true)
 
@@ -304,12 +305,13 @@ let main argv =
         printfn "(Some model-dependent marks have been ignored)"
         printfn "Would you like to add an allowed path to the invariant? (y/n)"
         let answer = ref (Console.ReadLine())
+        let only_terminating_exec = ref true
         while !answer = "y" do
 
             let allowed_path_opt =
                 if manual
                 then manual_allowed_path md decls env cs args m um'
-                else auto_allowed_path md mmd decls env formula name args m args_marks (!allowed_paths) false
+                else auto_allowed_path md mmd decls env formula name args m args_marks (!allowed_paths) (!only_terminating_exec)
 
             match allowed_path_opt with
             | Some (args_allowed, infos_allowed, env_allowed) ->
@@ -329,7 +331,12 @@ let main argv =
                     let m_al' = Synthesis.marks_diff m_al' m'
                     allowed_paths := (m_al',env_allowed)::(!allowed_paths)
                 else printfn "ERROR: Illegal execution!"
-            | None -> printfn "No more allowed path found!"
+            | None ->
+                printfn "No more allowed path found!"
+                if !only_terminating_exec = true
+                then
+                    printfn "Extending the search domain to non-terminating runs..."
+                    only_terminating_exec := false
             
             printfn "Would you like to add an allowed path to the invariant? (y/n)"
             answer := Console.ReadLine()
