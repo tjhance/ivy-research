@@ -57,7 +57,7 @@
         | Assume v ->
              if Interpreter.evaluate_value m infos env v = AST.ConstBool true
              then TrAssume ((env, env, true), v)
-             else raise (Interpreter.EnvironmentError "Incorrect environment: Assumption failed...")
+             else TrAssume ((env, env, false), v)
 
     and trace_statements (m:ModuleDecl) infos (env:Model.Environment) ss =
         let rec aux env ss =

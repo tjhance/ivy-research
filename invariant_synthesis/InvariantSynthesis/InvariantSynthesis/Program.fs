@@ -141,7 +141,7 @@ let auto_counterexample (md:ModuleDecl) decls verbose =
                 None
             | Some m ->
                 let action_args = (MinimalAST.find_action mmd action).Args
-                let (infos, env, args) = Z3Utils.z3model_to_ast_model md z3ctx action_args z3lvars z3concrete_map m
+                let (infos, env, args) = Z3Utils.z3model_to_ast_model mmd z3ctx action_args z3lvars z3concrete_map m
                 let args = List.map (fun (d:VarDecl) -> Map.find d.Name args) action_args
                 Some (formula, args, infos, env)
 
@@ -189,15 +189,32 @@ let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) 
     let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars mmd action z3ctx f
     let z3e = Z3Utils.build_value z3ctx z3lvars f
 
+    // TODO: Pick some good action arguments for the analysis...
+    // Idea1: Impose previously marked arguments.
+    // Idea2: Impose to this model to have a combination of args such that the action is fully executed.
+    // (all assumptions are satisfied)
+    // These args will be those choosen for the analysis.
+
     // Solve!
     match Z3Utils.check z3ctx z3e with
     | None -> None
     | Some m ->
         // This time, action args are quantified
-        let (infos, env, _) = Z3Utils.z3model_to_ast_model md z3ctx [] z3lvars z3concrete_map m
+        let (infos, env, _) = Z3Utils.z3model_to_ast_model mmd z3ctx [] z3lvars z3concrete_map m
         Some (infos, env)
 
 // ----- MAIN -----
+
+let analyse_example_ending mmd infos tr formula =
+    let env' = Trace.final_env tr
+    if Trace.is_fully_executed tr
+    then
+        let (b,cfg) = Synthesis.marks_for_value mmd infos env' Set.empty formula
+        if b <> ConstBool true && b <> ConstBool false
+        then failwith "Invalid execution!"
+        (b = ConstBool true, true, cfg)
+    else
+        (Trace.assume_failed tr, false, Synthesis.empty_config)
 
 [<EntryPoint>]
 let main argv =
@@ -242,19 +259,10 @@ let main argv =
         if manual
         then manual_counterexample md decls verbose
         else auto_counterexample md decls verbose
-    let env' = Trace.final_env tr
-    let (b,(m,um,ad)) =
-        if Trace.is_fully_executed tr
-        then
-            let (b,cfg) = Synthesis.marks_for_value mmd infos env' Set.empty formula
-            (Some b, cfg)
-        else (None,Synthesis.empty_config)
 
-    if b <> Some (ConstBool false) && b <> None
-    then
-        printfn "Invalid counterexample!"
-        ignore (Console.ReadLine ())
-        exit 0
+    let (b,finished_exec,(m,um,ad)) =
+        analyse_example_ending mmd infos tr formula
+    if b then failwith "Invalid counterexample!"
 
     printfn "Going back through the action..."
     let (m,um,ad) = Synthesis.marks_before_statement mmd infos true tr (m,um,ad)
@@ -288,24 +296,21 @@ let main argv =
             match allowed_path_opt with
             | Some (infos_allowed, env_allowed) ->
                 let tr_allowed = TInterpreter.trace_action mmd infos_allowed env_allowed name (List.map (fun cv -> MinimalAST.ValueConst cv) args) AST.impossible_var_factor
-                let env_allowed' = Trace.final_env tr_allowed
 
-                if Trace.is_fully_executed tr_allowed
+                let (b_al,_,(m_al,um_al,ad_al)) =
+                    analyse_example_ending mmd infos_allowed tr_allowed formula
+
+                if b_al
                 then
-                    let (b_al,(m_al,um_al,ad_al)) =
-                        Synthesis.marks_for_value mmd infos_allowed env_allowed' Set.empty formula
-                    if Some b_al <> b
-                    then
-                        let (m_al,_,ad_al) =
-                            Synthesis.marks_before_statement mmd infos_allowed (b <> None) tr_allowed (m_al,um_al,ad_al)
-                        if ad_al.md
-                        then printfn "Warning: Some marks still are model-dependent! Generated invariant could be weaker than expected."
-                        let m_al' = Synthesis.marks_union m_al m'
-                        let m_al' = Formula.simplify_marks infos_allowed md.Implications decls env_allowed m_al'
-                        let m_al' = Synthesis.marks_diff m_al' m'
-                        allowed_paths := (m_al',env_allowed)::(!allowed_paths)
-                    else printfn "ERROR: Execution has the same ending situation than before!"
-                else printfn "ERROR: Allowed execution fail!"
+                    let (m_al,_,ad_al) =
+                        Synthesis.marks_before_statement mmd infos_allowed finished_exec tr_allowed (m_al,um_al,ad_al)
+                    if ad_al.md
+                    then printfn "Warning: Some marks still are model-dependent! Generated invariant could be weaker than expected."
+                    let m_al' = Synthesis.marks_union m_al m'
+                    let m_al' = Formula.simplify_marks infos_allowed md.Implications decls env_allowed m_al'
+                    let m_al' = Synthesis.marks_diff m_al' m'
+                    allowed_paths := (m_al',env_allowed)::(!allowed_paths)
+                else printfn "ERROR: Illegal execution!"
             | None -> printfn "No more allowed path found!"
             
             printfn "Would you like to add an allowed path to the invariant? (y/n)"

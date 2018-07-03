@@ -35,6 +35,16 @@
     let are_fully_executed sts =
         List.forall is_fully_executed sts
 
+    let rec assume_failed st =
+        match st with
+        | TrAtomicGroup (_,sts)
+        | TrNewBlock (_,_,sts) -> List.exists (fun st -> assume_failed st) sts
+        | TrVarAssign _ | TrFunAssign _ -> false
+        | TrIfSomeElse (_,_,_,_,st) | TrIfElse (_,_,st) | TrVarAssignAction (_,_,_,_,_,st) ->
+            assume_failed st
+        | TrAssume ((_,_,false),_) -> true
+        | TrAssert _ | TrAssume _ -> false
+
     let final_env st =
         let (_,env,_) = runtime_data st
         env

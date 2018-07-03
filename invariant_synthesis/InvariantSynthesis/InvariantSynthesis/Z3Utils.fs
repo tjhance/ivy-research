@@ -156,7 +156,7 @@
             let res = Seq.map (fun lst -> Seq.map (fun e -> e::lst) univ) res
             Seq.concat res
 
-    let z3model_to_ast_model<'a,'b> (m:AST.ModuleDecl<'a,'b>) (ctx:ModuleContext) args lvars 
+    let z3model_to_ast_model<'a,'b> (m:ModuleDecl<'a,'b>) (ctx:ModuleContext) args lvars 
         z3concrete_map (model:Model)
         : (Model.TypeInfos * Model.Environment * Map<string, AST.ConstValue>) =
 
@@ -177,7 +177,7 @@
             else const_cv_map
         let const_cv_map = List.fold treat_concrete Map.empty z3concrete_map
 
-        let treat_type const_cv_map (t:AST.TypeDecl) =
+        let treat_type const_cv_map (t:TypeDecl) =
             let sort = Map.find t.Name ctx.Sorts
             if is_declared_sort sort then
                 let univ = model.SortUniverse (sort)
@@ -196,7 +196,7 @@
         let const_cv_map = List.fold treat_type const_cv_map m.Types
 
         // Type infos
-        let type_infos = List.fold (fun acc (t:AST.TypeDecl) -> Map.add t.Name 0 acc) Map.empty m.Types
+        let type_infos = List.fold (fun acc (t:TypeDecl) -> Map.add t.Name 0 acc) Map.empty m.Types
         let update_type_infos acc (_,(t,i)) =
             let new_i = max i (Map.find t acc)
             Map.add t new_i acc
@@ -223,7 +223,7 @@
         let var_env = List.fold (treat_var ctx.Vars) Map.empty m.Vars
         let lvars_env = List.fold (treat_var lvars) Map.empty args
 
-        let treat_fun acc (d:AST.FunDecl) =
+        let treat_fun acc (d:FunDecl) =
             // Default vals
             let all_entries = Model.all_values_ext type_infos d.Input
             let default_val = AST.type_default_value d.Output

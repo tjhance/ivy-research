@@ -65,6 +65,7 @@
         List.map (evaluate_value m infos env) vs
 
     exception AssertionFailed of Model.Environment * Value
+    exception AssumptionFailed of Model.Environment * Value
 
     let enter_new_block _ (env:Model.Environment) lvars lvalues : Model.Environment =
         let add_decl acc (decl:VarDecl) v =
@@ -124,9 +125,9 @@
         | Assert v ->
             if evaluate_value m infos env v = AST.ConstBool true
             then env else raise (AssertionFailed (env, v))
-        | Assume v -> // Here the environment is fixed, so assumptions are treated like assertions
+        | Assume v ->
             if evaluate_value m infos env v = AST.ConstBool true
-            then env else raise (EnvironmentError "Incorrect environment: Assumption failed...")
+            then env else raise (AssumptionFailed (env, v))
 
     and execute_statements (m:ModuleDecl) infos (env:Model.Environment) ss =
         List.fold (execute_statement m infos) env ss
