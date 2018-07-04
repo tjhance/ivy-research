@@ -112,29 +112,69 @@ March-July 2018
 
     \section{Context}
 
-    \section{Decidable Logics}
+    As distributed programs become more and more widespread, their verification is a major challenge.
+
+    The general purpose of my internship is to make the certification of those programs easier.
+    Certifying a program consists in writing some specifications (in our case, some safety properties), and then proving than the program satisfy them.
+    Several languages and tools already exist for that:
+
+    \begin{itemize}
+        \item Proof-assistants (Coq, Agda, etc.):
+        The user has to manually write the proof (altough he can benefit from some help).
+        It is a long and complicated process, but once the proof is complete, the proof assistant will always accept it
+        if it is correct.
+        \item SMT-solver based tools (dafny, F*, etc.):
+        Specifications are automatically checked using a SMT-solver. This process is undecidable in the general case,
+        so there are 3 possible outputs:
+        \begin{itemize}
+            \item Yes, the program matches the specifications
+            \item No, the program doesn't match the specifications (sometimes a counterexample can be provided)
+            \item I don't know whether the program matches the specifications or not.
+        \end{itemize}
+        When this last case occurs, the user has to reformulate the specifications differently or to explicitely write some intermediate properties (like inductive invariants)
+        in order to help the SMT-solver.
+    \end{itemize}
+
+    IVy is a language that allows the user to certify its program using a SMT-solver based approach.
+    However, unlike most of its concurrents, IVy restricts the language and the logic used for specifications
+    in order to be able to check the program in a decidable way.
+
+    This approach has many advantages:
+    \begin{itemize}
+        \item Once the program is written and specified in an accepted logic, it can be checked more easily:
+        the checker can always decide whether the program is correct or not, and give a counterexample if it is not.
+        \item Our code, specifications and proof indications are not dependent on some heuristics/specificities of the SMT-solver used,
+        and so we don't need any specific knowledge.
+        \item If a program has been checked using a certain version IVy, it can also be checked with
+        any future version (because it does not depend on any heuristic).
+    \end{itemize}
+    
+    The main disadvantage is that the user is forced to specify its program in a decidable fragment of first order logic:
+    it can force him to rethink the architecture of its code, to fragment its code by creating intermediate abstract modules,
+    to add some `ghost' variables, etc.
+
+    \section{The language}
+
+    % Uniterpreted types! (unlike F*, because dependent types imply undecidability most of time)
+
+    \section{Decidable logics}
 
         \subsection{EPR}
 
         \subsection{FAU}
     
-    \section{The language}
-
     \section{Deciding IVy}
 
-    \section{Automation \& Interactive tools}
+    \section{Interactive tools}
 
-\chapter{Research directions}
+    \section{Challenges}
 
-    \section{Make code EPR}
-
-        \subsection{Fragmentation}
-
-        \subsection{Adding relations}
-
-    \section{Adding typing}
-
-    \section{Invariant Synthesis}
+%\chapter{Research directions}
+%    \section{Make code EPR}
+%        \subsection{Fragmentation}
+%        \subsection{Adding relations}
+%    \section{Adding typing}
+%    \section{Invariant Synthesis}
 
 \chapter{Invariant Synthesis}
 
@@ -146,11 +186,15 @@ March-July 2018
 
 \chapter{My contributions}
 
-    \section{Code analysis}
+    \section{Filtering constraints using code analysis}
 
-    \section{Model-dependent marks}
+    \section{Model-dependent constraints}
 
-    \section{Advantages compared to other methods}
+    \section{Weakening the conjecture}
+
+    \section{Guarantees}
+
+    \section{Comparison to other methods}
 
 \chapter{Conclusion}
 
