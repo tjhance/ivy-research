@@ -49,8 +49,7 @@
         | PatternVar of string
 
     type Pattern =
-        | VarPattern of PatternValue * string
-        | RelPattern of PatternValue * string * List<PatternValue>
+        | FunPattern of PatternValue * string * List<PatternValue>
         | ValueDiffPattern of Type * PatternValue * PatternValue
 
     type ImplicationRule = Set<Pattern> * Set<Pattern>
@@ -125,7 +124,7 @@
 
     [<NoEquality;NoComparison>]
     type ModuleDecl<'a,'b> =
-        { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; Vars: List<VarDecl>; InterpretedActions: List<InterpretedActionDecl<'a,'b>>;
+        { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; InterpretedActions: List<InterpretedActionDecl<'a,'b>>;
             Actions: List<ActionDecl>; Macros: List<MacroDecl>; Invariants: List<Value>; Implications: List<ImplicationRule> ; Axioms: List<Value> }
 
 
@@ -134,7 +133,6 @@
             Name=name;
             Types=[];
             Funs=[];
-            Vars=[];
             Actions=[];
             Macros=[];
             Invariants=[];
@@ -163,7 +161,7 @@
         then (name.Substring(0,i), name.Substring(i+1))
         else (name, "")
 
-    let local_var_prefix = "$" // We assign a prefix to non-global vars in order to avoid bugs due to vars scope
+    let local_var_prefix = "" // Note: local var prefix is not needed anymore since global vars are considered as functions
 
     let impossible_var_factor = "$$"
 
@@ -182,9 +180,6 @@
 
     let find_function (m:ModuleDecl<'a,'b>) str =
         List.find (fun (decl:FunDecl) -> decl.Name = str) m.Funs
-    
-    let find_variable (m:ModuleDecl<'a,'b>) str =
-        List.find (fun (decl:VarDecl) -> decl.Name = str) m.Vars
 
     let find_action (m:ModuleDecl<'a,'b>) str variant =
         let str = variant_action_name str variant
@@ -272,23 +267,16 @@
             if t1 <> t2 then failwith "ValueDiffPattern has incoherent types!"
             else
                 ValueDiffPattern (t1, pv1, pv2)
-        | ValueEqual (ValueVar str, v) ->
-            let pv = value_to_pattern_value v
-            VarPattern (pv, str)
         | ValueEqual (ValueFun (str,vs), v) ->
             let pv = value_to_pattern_value v
             let pvs = List.map value_to_pattern_value vs
-            RelPattern (pv, str, pvs)
-        | ValueVar str ->
-            VarPattern (PatternConst true, str)
-        | ValueNot (ValueVar str) ->
-            VarPattern (PatternConst false, str)
+            FunPattern (pv, str, pvs)
         | ValueFun (str,vs) ->
             let pvs = List.map value_to_pattern_value vs
-            RelPattern (PatternConst true, str, pvs)
+            FunPattern (PatternConst true, str, pvs)
         | ValueNot (ValueFun (str,vs)) ->
             let pvs = List.map value_to_pattern_value vs
-            RelPattern (PatternConst false, str, pvs)
+            FunPattern (PatternConst false, str, pvs)
         | _ -> failwith "Invalid pattern."
 
     let rec value_to_set_of_patterns dico v =
@@ -332,10 +320,7 @@
         match value with
         | ValueConst cv -> type_of_const_value cv
         | ValueStar t -> t
-        | ValueVar v ->
-            match Map.tryFind v dico with
-            | None -> (find_variable m v).Type
-            | Some t -> t
+        | ValueVar v -> Map.find v dico
         | ValueFun (f,_) -> (find_function m f).Output
         | ValueMacro (str,_) -> (find_macro m str).Output
         | ValueEqual _ | ValueOr _ | ValueAnd _ | ValueNot _ | ValueImply _
@@ -348,10 +333,7 @@
         match expr with
         | ExprConst cv -> type_of_const_value cv
         | ExprStar t -> t
-        | ExprVar v ->
-            match Map.tryFind v dico with
-            | None -> (find_variable m v).Type
-            | Some t -> t
+        | ExprVar v -> Map.find v dico
         | ExprFun (f,_) -> (find_function m f).Output
         | ExprMacro (str,_) -> (find_macro m str).Output
         | ExprAction (str, _) -> (find_action m str "").Output.Type

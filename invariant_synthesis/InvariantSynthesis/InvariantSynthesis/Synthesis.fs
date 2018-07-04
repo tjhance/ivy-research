@@ -298,7 +298,7 @@
         let (_,cs,ns,uns) = List.fold aux (0, List.init n (fun _ -> None), empty_lst, empty_lst) vs
         (List.map (fun c -> c <> None) cs, ns, uns)
 
-    let add_ineq_between infos m cvs1 cvs2 =
+    let add_ineq_between m cvs1 cvs2 =
         let aux m cv =
             Set.fold (fun m cv' -> add_diff_constraint m cv cv') m cvs1
         Set.fold aux m cvs2
@@ -408,8 +408,8 @@
                         let cfg = config_union_many (cfg::args_cfg)
                         // Disequality marks
                         let (m, um, ad) = cfg
-                        let m = Seq.fold2 (fun m cv ns -> add_ineq_between infos m (Set.singleton cv) ns) m cvs neighbors
-                        let um = Seq.fold2 (fun um cv ns -> add_ineq_between infos um (Set.singleton cv) ns) um cvs uneighbors
+                        let m = Seq.fold2 (fun m cv ns -> add_ineq_between m (Set.singleton cv) ns) m cvs neighbors
+                        let um = Seq.fold2 (fun um cv ns -> add_ineq_between um (Set.singleton cv) ns) um cvs uneighbors
                         aux group_trs (m,um,ad)
 
                     let results = List.map treat_possibility vals_possibilities

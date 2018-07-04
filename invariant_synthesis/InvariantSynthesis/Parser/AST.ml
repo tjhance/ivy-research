@@ -48,8 +48,7 @@ type parsed_statement =
     | NewBlock of parsed_statement list
     | NewVar of var_decl * parsed_expression opt
     | Expression of parsed_expression
-    | VarAssign of string * parsed_expression
-    | GeneralFunAssign of string * parsed_expression list * parsed_expression
+    | VarFunAssign of string * parsed_expression list * parsed_expression
     | IfElse of parsed_expression * parsed_statement * parsed_statement
     | IfSomeElse of var_decl * parsed_expression * parsed_statement * parsed_statement
     | Assert of parsed_expression

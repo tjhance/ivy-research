@@ -351,15 +351,14 @@
 
     let weakest_precondition<'a,'b> (m:ModuleDecl<'a,'b>) axioms f st =
 
-        let filter_axioms is_fun str =
+        let filter_axioms str =
             let is_necessary axiom =
-                let free = if is_fun then funs_in_value axiom else free_vars_of_value axiom
-                Set.contains str free
+                Set.contains str (funs_in_value axiom)
             List.filter is_necessary axioms
 
-        let add_necessary_axioms is_fun str f = // Mutations are assumed to not break axioms (when non-deterministic)
+        let add_necessary_axioms str f = // Mutations are assumed to not break axioms (when non-deterministic)
             // That's why we need to assume axioms when non-deterministic values are assigned to global vars/funs
-            let axioms = filter_axioms is_fun str
+            let axioms = filter_axioms str
             if List.isEmpty axioms
             then f
             else Z3Imply(conjunction_of axioms, f)
@@ -374,12 +373,12 @@
                 assert Set.isEmpty (Set.intersect fv names) // Used local vars should have been assigned!
                 f
             | VarAssign (str, (ctx, v)) ->
-                let f = add_necessary_axioms false str f
+                // Note: No need to assume axioms here because these vars are local (so no axiom is involving them)
                 let f = replace_var str v f
                 replace_holes_with f ctx
             | VarAssignAction (str, action, vs) ->
                 let action = minimal_action2wpr_action m action true
-                let f = add_necessary_axioms false str f
+                // Note: No need to assume axioms here because these vars are local (so no axiom is involving them)
                 let f = replace_var str (Z3Var action.Output.Name) f
                 let f = aux f action.Content
                 assert not (Set.contains action.Output.Name (free_vars_of_value f)) // Return var should have been assigned
@@ -391,7 +390,7 @@
 
                 List.fold2 assign_arg f (List.rev action.Args) (List.rev vs)
             | FunAssign (str, ds, (ctx,v)) ->
-                let f = add_necessary_axioms true str f
+                let f = add_necessary_axioms str f
                 let f = replace_fun ds str v f
                 replace_holes_with f ctx
             | Parallel (st1, st2) ->

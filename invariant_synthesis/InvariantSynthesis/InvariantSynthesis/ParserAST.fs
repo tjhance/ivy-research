@@ -42,8 +42,7 @@ open Prime
         | NewBlock of parsed_statement list
         | NewVar of var_decl * parsed_expression option
         | Expression of parsed_expression
-        | VarAssign of string * parsed_expression
-        | GeneralFunAssign of string * parsed_expression list * parsed_expression
+        | VarFunAssign of string * parsed_expression list * parsed_expression
         | IfElse of parsed_expression * parsed_statement * parsed_statement
         | IfSomeElse of var_decl * parsed_expression * parsed_statement * parsed_statement
         | Assert of parsed_expression
@@ -149,9 +148,8 @@ open Prime
                 let (dico, d) = rewrite_arg dico d
                 (NewVar (d, expr_opt))::(rewrite_stats dico sts)
             | (Expression e)::sts -> (Expression (rewrite_expr dico e))::(rewrite_stats dico sts)
-            | (VarAssign (str, expr))::sts -> (VarAssign (rewrite dico str, rewrite_expr dico expr))::(rewrite_stats dico sts)
-            | (GeneralFunAssign (str, exprs, expr))::sts ->
-                (GeneralFunAssign (rewrite dico str, List.map (rewrite_expr dico) exprs , rewrite_expr dico expr))::(rewrite_stats dico sts)
+            | (VarFunAssign (str, exprs, expr))::sts ->
+                (VarFunAssign (rewrite dico str, List.map (rewrite_expr dico) exprs , rewrite_expr dico expr))::(rewrite_stats dico sts)
             | (IfElse (expr, st1, st2))::sts -> (IfElse (rewrite_expr dico expr, rewrite_stat dico st1, rewrite_stat dico st2))::(rewrite_stats dico sts)
             | (IfSomeElse (d, expr, st1, st2))::sts ->
                 let (dico', d) = rewrite_arg dico d
@@ -379,12 +377,11 @@ open Prime
                     if not (types_match ret_val (Some (Map.find str st_local_vars))) then raise (NoMatch (sprintf "Local var %s has wrong return type!" str))
                     (local_vars_types, AST.ExprVar str)
                 else
-                    let candidates_v = Set.map (fun (d:AST.VarDecl) -> (d.Name, [], d.Type, "v")) (Set.ofList m.Vars)
                     let candidates_f = Set.map (fun (d:AST.FunDecl) -> (d.Name, d.Input, d.Output, "f")) (Set.ofList m.Funs)
                     let candidates_m = Set.map (fun (d:AST.MacroDecl) -> (d.Name, List.map (fun (d:AST.VarDecl) -> d.Type) d.Args, d.Output, "m")) (Set.ofList m.Macros)
                     let candidates_a = Set.map (fun (d:AST.ActionDecl) -> (d.Name, List.map (fun (d:AST.VarDecl) -> d.Type) d.Args, d.Output.Type, "a")) (Set.ofList m.Actions)
                     let candidates_i = Set.ofList (List.map (fun (d:InterpretedActionDecl) -> (d.Name, d.Args, d.Output, "i")) m.InterpretedActions)
-                    let candidates = Set.unionMany [candidates_v;candidates_f;candidates_m;candidates_a;candidates_i]
+                    let candidates = Set.unionMany [candidates_f;candidates_m;candidates_a;candidates_i]
                     let candidates = Set.filter (fun (name,_,_,_) -> has_reference_name name str) candidates
                     let candidates = Set.filter (fun (_,_,ret,_) -> types_match ret_val (Some ret)) candidates
                     let results = Set.fold (fun acc (str,args,_,descr) -> match proceed_if_possible local_vars_types args es with None -> acc | Some r -> (descr,str,r)::acc) [] candidates
@@ -393,7 +390,6 @@ open Prime
                     then
                         let (descr,str,(local_vars_types, res_es)) = List.head results
                         match descr with
-                        | "v" -> (local_vars_types, AST.ExprVar str)
                         | "f" -> (local_vars_types, AST.ExprFun (str,res_es))
                         | "m" -> (local_vars_types, AST.ExprMacro (str,List.map AST.expr_to_value res_es))
                         | "a" -> (local_vars_types, AST.ExprAction (str, res_es))
@@ -523,57 +519,54 @@ open Prime
                 let e = close_formula m local_vars dico Set.empty e
                 (AST.Expression e)::(aux sts local_vars)
 
-            | (VarAssign (str,e))::sts ->
-                let (str,t) = // Resolve reference. Priority to local vars.
-                    if Map.containsKey (local_name str) local_vars
-                    then (local_name str, Map.find (local_name str) local_vars)
-                    else
-                        let candidates = List.map (fun (d:AST.VarDecl) -> d.Name) m.Vars
-                        let str = resolve_reference (Set.ofList candidates) base_name str
-                        (str, (AST.find_variable m str).Type)
-                let (dico, e) = p2a_expr m base_name local_vars Map.empty (Some t) e
-                let e = close_formula m local_vars dico Set.empty e
-                (AST.VarAssign (str, e))::(aux sts local_vars)
+            | (VarFunAssign (str,es,e))::sts ->
 
-            | (GeneralFunAssign (str,es,e))::sts ->
-                let candidates = List.filter (fun (f:AST.FunDecl) -> List.length f.Input = List.length es) m.Funs
-                let candidates = List.map (fun (f:AST.FunDecl) -> f.Name) candidates
-                let str = resolve_reference (Set.ofList candidates) base_name str
-                let fun_def = AST.find_function m str
-
-                let qvar_of e t =
-                    match e with
-                    | QVar (str, t') ->
-                        let t = match conciliate_types (Some t) (try_p2a_type m base_name t') with None -> failwith "Internal error." | Some t -> t
-                        Some (local_name str, t)
-                    | _ -> None
-                let free_vars = Helper.option_lst_to_lst (List.map2 qvar_of es fun_def.Input)
-                if List.length free_vars > 0
+                if List.length es = 0 && Map.containsKey (local_name str) local_vars // Priority to local vars.
                 then
-                    // v
-                    let dico = List.fold (fun acc (str,t) -> Map.add str t acc) Map.empty free_vars
-                    let args_name = List.map (fun (str,_) -> str) free_vars
-                    let (dico, e) = p2a_expr m base_name local_vars dico (Some fun_def.Output) e
-                    let e = close_formula m local_vars dico (Set.ofList args_name) e
-                    let v = AST.expr_to_value e
-                    // hes
-                    let treat_he e t =
-                        match e with
-                        | QVar (str,_) ->
-                            let str = local_name str
-                            AST.Hole (AST.default_var_decl str t)
-                        | e ->
-                            let (dico, e) = p2a_expr m base_name local_vars Map.empty (Some t) e
-                            let e = close_formula m local_vars dico Set.empty e
-                            AST.Expr e
-                    let hes = List.map2 treat_he es fun_def.Input
-                    (AST.ForallFunAssign (str, hes, v))::(aux sts local_vars)
-                else
-                    let es = List.map2 (fun e t -> p2a_expr m base_name local_vars Map.empty (Some t) e) es fun_def.Input
-                    let es = List.map (fun (dico, e) -> close_formula m local_vars dico Set.empty e) es
-                    let (dico, e) = p2a_expr m base_name local_vars Map.empty (Some fun_def.Output) e
+                    let str = local_name str
+                    let t = Map.find str local_vars
+                    let (dico, e) = p2a_expr m base_name local_vars Map.empty (Some t) e
                     let e = close_formula m local_vars dico Set.empty e
-                    (AST.FunAssign (str, es, e))::(aux sts local_vars)
+                    (AST.VarAssign (str, e))::(aux sts local_vars)
+                else
+                    let candidates = List.filter (fun (f:AST.FunDecl) -> List.length f.Input = List.length es) m.Funs
+                    let candidates = List.map (fun (f:AST.FunDecl) -> f.Name) candidates
+                    let str = resolve_reference (Set.ofList candidates) base_name str
+                    let fun_def = AST.find_function m str
+
+                    let qvar_of e t =
+                        match e with
+                        | QVar (str, t') ->
+                            let t = match conciliate_types (Some t) (try_p2a_type m base_name t') with None -> failwith "Internal error." | Some t -> t
+                            Some (local_name str, t)
+                        | _ -> None
+                    let free_vars = Helper.option_lst_to_lst (List.map2 qvar_of es fun_def.Input)
+                    if List.length free_vars > 0
+                    then
+                        // v
+                        let dico = List.fold (fun acc (str,t) -> Map.add str t acc) Map.empty free_vars
+                        let args_name = List.map (fun (str,_) -> str) free_vars
+                        let (dico, e) = p2a_expr m base_name local_vars dico (Some fun_def.Output) e
+                        let e = close_formula m local_vars dico (Set.ofList args_name) e
+                        let v = AST.expr_to_value e
+                        // hes
+                        let treat_he e t =
+                            match e with
+                            | QVar (str,_) ->
+                                let str = local_name str
+                                AST.Hole (AST.default_var_decl str t)
+                            | e ->
+                                let (dico, e) = p2a_expr m base_name local_vars Map.empty (Some t) e
+                                let e = close_formula m local_vars dico Set.empty e
+                                AST.Expr e
+                        let hes = List.map2 treat_he es fun_def.Input
+                        (AST.ForallFunAssign (str, hes, v))::(aux sts local_vars)
+                    else
+                        let es = List.map2 (fun e t -> p2a_expr m base_name local_vars Map.empty (Some t) e) es fun_def.Input
+                        let es = List.map (fun (dico, e) -> close_formula m local_vars dico Set.empty e) es
+                        let (dico, e) = p2a_expr m base_name local_vars Map.empty (Some fun_def.Output) e
+                        let e = close_formula m local_vars dico Set.empty e
+                        (AST.FunAssign (str, es, e))::(aux sts local_vars)
 
             | (IfElse (e, sif, selse))::sts ->
                 let (dico, e) = p2a_expr m base_name local_vars Map.empty (Some AST.Bool) e
@@ -735,8 +728,8 @@ open Prime
                 | Variable (name,t) ->
                     let name = compose_name base_name name
                     let t = p2a_type m base_name t
-                    let d = AST.default_var_decl name t
-                    ({ m with AST.Vars=(d::m.Vars) }, tmp_elements)
+                    let d = { AST.FunDecl.Name=name ; AST.Input=[]; AST.Output=t; AST.Representation=AST.default_representation }
+                    ({ m with AST.Funs=(d::m.Funs) }, tmp_elements)
                 | Macro (name, args, expr, infix) ->
                     if is_predefined_function_or_macro name
                     then (m, tmp_elements)
@@ -795,14 +788,13 @@ open Prime
                 | ObjectFromModule (name, module_name, args) ->
                     let name = compose_name base_name name
                     let candidates_t = Set.ofList (List.map (fun (t:AST.TypeDecl) -> t.Name) m.Types)
-                    let candidates_v = Set.ofList (List.map (fun (v:AST.VarDecl) -> v.Name) m.Vars)
                     let candidates_f = Set.ofList (List.map (fun (f:AST.FunDecl) -> f.Name) m.Funs)
                     let candidates_ma = Set.ofList (List.map (fun (m:AST.MacroDecl) -> m.Name) m.Macros)
                     let candidates_a = Set.ofList (List.map (fun (a:AST.ActionDecl) -> a.Name) m.Actions)
                     let candidates_mo = Set.ofList (List.map (fun ((str,_),_) -> str) (Map.toList tmp_elements.Modules))
                     let candidates_i = Set.ofList (List.map (fun (i:InterpretedActionDecl) -> i.Name) m.InterpretedActions)
                     let resolve_arg_if_possible arg =
-                        let candidates = Set.unionMany [candidates_t;candidates_v;candidates_f;candidates_ma;candidates_a;candidates_mo;candidates_i]
+                        let candidates = Set.unionMany [candidates_t;candidates_f;candidates_ma;candidates_a;candidates_mo;candidates_i]
                         match Set.toList (resolve_reference_all candidates arg) with
                         | [arg] -> arg
                         | _ -> arg

@@ -21,7 +21,7 @@
 
     let list_to_args_str lst =
         match lst with
-        | [] -> "()"
+        | [] -> ""
         | h::lst -> sprintf "(%s)" (List.fold (sprintf "%s, %s") h lst)
 
     let add_parenthesis_if_needed str prec env_prec =

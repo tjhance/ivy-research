@@ -3,51 +3,51 @@
     open AST
 
     let binary_relation_implication rel1 value1 rel2 value2 =
-        let l = [RelPattern (PatternConst value1, rel1, [PatternVar "X"; PatternVar "Y"])] |> Set.ofList
-        let r = [RelPattern (PatternConst value2, rel2, [PatternVar "X"; PatternVar "Y"])] |> Set.ofList
+        let l = [FunPattern (PatternConst value1, rel1, [PatternVar "X"; PatternVar "Y"])] |> Set.ofList
+        let r = [FunPattern (PatternConst value2, rel2, [PatternVar "X"; PatternVar "Y"])] |> Set.ofList
         let i1 = (l,r)
-        let l = [RelPattern (PatternConst (not value2), rel2, [PatternVar "X"; PatternVar "Y"])] |> Set.ofList
-        let r = [RelPattern (PatternConst (not value1), rel1, [PatternVar "X"; PatternVar "Y"])] |> Set.ofList
+        let l = [FunPattern (PatternConst (not value2), rel2, [PatternVar "X"; PatternVar "Y"])] |> Set.ofList
+        let r = [FunPattern (PatternConst (not value1), rel1, [PatternVar "X"; PatternVar "Y"])] |> Set.ofList
         let i2 = (l,r)
         [i1;i2]
 
     let reflexive relname relvalue typename =
         let l = Set.empty
-        let r = [RelPattern (PatternConst relvalue, relname, [PatternVar "X"; PatternVar "X"])] |> Set.ofList
+        let r = [FunPattern (PatternConst relvalue, relname, [PatternVar "X"; PatternVar "X"])] |> Set.ofList
         let i1 = (l,r)
-        let l = [RelPattern (PatternConst (not relvalue), relname, [PatternVar "X"; PatternVar "Y"])] |> Set.ofList
+        let l = [FunPattern (PatternConst (not relvalue), relname, [PatternVar "X"; PatternVar "Y"])] |> Set.ofList
         let r = [ValueDiffPattern (Uninterpreted typename, PatternVar "X", PatternVar "Y")] |> Set.ofList
         let i2 = (l,r)
         [i1;i2]
     
     let transitive relname relvalue =
-        let l = [RelPattern (PatternConst relvalue, relname, [PatternVar "X"; PatternVar "Y"]) ;
-            RelPattern (PatternConst relvalue, relname, [PatternVar "Y"; PatternVar "Z"])] |> Set.ofList
-        let r = [RelPattern (PatternConst relvalue, relname, [PatternVar "X"; PatternVar "Z"])] |> Set.ofList
+        let l = [FunPattern (PatternConst relvalue, relname, [PatternVar "X"; PatternVar "Y"]) ;
+            FunPattern (PatternConst relvalue, relname, [PatternVar "Y"; PatternVar "Z"])] |> Set.ofList
+        let r = [FunPattern (PatternConst relvalue, relname, [PatternVar "X"; PatternVar "Z"])] |> Set.ofList
         let i1 = (l,r)
-        let l = [RelPattern (PatternConst (not relvalue), relname, [PatternVar "X"; PatternVar "Z"]) ;
-            RelPattern (PatternConst relvalue, relname, [PatternVar "X"; PatternVar "Y"])] |> Set.ofList
-        let r = [RelPattern (PatternConst (not relvalue), relname, [PatternVar "Y"; PatternVar "Z"])] |> Set.ofList
+        let l = [FunPattern (PatternConst (not relvalue), relname, [PatternVar "X"; PatternVar "Z"]) ;
+            FunPattern (PatternConst relvalue, relname, [PatternVar "X"; PatternVar "Y"])] |> Set.ofList
+        let r = [FunPattern (PatternConst (not relvalue), relname, [PatternVar "Y"; PatternVar "Z"])] |> Set.ofList
         let i2 = (l,r)
-        let l = [RelPattern (PatternConst (not relvalue), relname, [PatternVar "X"; PatternVar "Z"]) ;
-            RelPattern (PatternConst relvalue, relname, [PatternVar "Y"; PatternVar "Z"])] |> Set.ofList
-        let r = [RelPattern (PatternConst (not relvalue), relname, [PatternVar "X"; PatternVar "Y"])] |> Set.ofList
+        let l = [FunPattern (PatternConst (not relvalue), relname, [PatternVar "X"; PatternVar "Z"]) ;
+            FunPattern (PatternConst relvalue, relname, [PatternVar "Y"; PatternVar "Z"])] |> Set.ofList
+        let r = [FunPattern (PatternConst (not relvalue), relname, [PatternVar "X"; PatternVar "Y"])] |> Set.ofList
         let i3 = (l,r)
         [i1;i2;i3]
 
     let symetric relname =
-        let l = [RelPattern (PatternConst true, relname, [PatternVar "X"; PatternVar "Y"])] |> Set.ofList
-        let r = [RelPattern (PatternConst true, relname, [PatternVar "Y"; PatternVar "X"])] |> Set.ofList
+        let l = [FunPattern (PatternConst true, relname, [PatternVar "X"; PatternVar "Y"])] |> Set.ofList
+        let r = [FunPattern (PatternConst true, relname, [PatternVar "Y"; PatternVar "X"])] |> Set.ofList
         let i1 = (l,r)
-        let l = [RelPattern (PatternConst false, relname, [PatternVar "X"; PatternVar "Y"])] |> Set.ofList
-        let r = [RelPattern (PatternConst false, relname, [PatternVar "Y"; PatternVar "X"])] |> Set.ofList
+        let l = [FunPattern (PatternConst false, relname, [PatternVar "X"; PatternVar "Y"])] |> Set.ofList
+        let r = [FunPattern (PatternConst false, relname, [PatternVar "Y"; PatternVar "X"])] |> Set.ofList
         let i2 = (l,r)
         [i1;i2]
 
     let antisymetric relname relvalue typename =
-        let l = [RelPattern (PatternConst relvalue, relname, [PatternVar "X"; PatternVar "Y"]) ;
+        let l = [FunPattern (PatternConst relvalue, relname, [PatternVar "X"; PatternVar "Y"]) ;
             ValueDiffPattern (Uninterpreted typename, PatternVar "X", PatternVar "Y")] |> Set.ofList
-        let r = [RelPattern (PatternConst (not relvalue), relname, [PatternVar "Y"; PatternVar "X"])] |> Set.ofList
+        let r = [FunPattern (PatternConst (not relvalue), relname, [PatternVar "Y"; PatternVar "X"])] |> Set.ofList
         let i1 = (l,r)
         [i1]
 
@@ -76,8 +76,7 @@
                     Set.add (AST.default_var_decl name t) acc
                 | PatternConst _ -> acc
             match p with
-            | VarPattern _ -> Set.empty
-            | RelPattern (_, str, vs) ->
+            | FunPattern (_, str, vs) ->
                 let types = (Map.find str decls.f).Input
                 List.fold2 aux Set.empty types vs
             | ValueDiffPattern (t,n1,n2) ->
@@ -98,17 +97,9 @@
                     else raise DoesntMatch
                 else Map.add str cv dico
 
-        let all_dicos_matching_pattern (diffs,mv,mf) p prev_dico =
+        let all_dicos_matching_pattern (diffs,mf) p prev_dico =
             match p with
-            | VarPattern (pv,str) ->
-                if Set.contains str mv
-                then 
-                    try
-                        let dico = update_dico prev_dico pv (Map.find str env.v)
-                        Set.singleton dico
-                    with :? DoesntMatch -> Set.empty
-                else Set.empty
-            | RelPattern (pv, str, pvs) ->
+            | FunPattern (pv, str, pvs) ->
                 let aux acc (relname,relvalues) =
                     if relname <> str then acc
                     else
@@ -147,34 +138,33 @@
                 List.fold2 (fun acc (v:VarDecl) cv -> Map.add v.Name cv acc) dico free_vars cvs
             Seq.map (aux prev_dico free_vars) all_values
 
-        let add_constraint dico (diffs,mv,mf) r =
+        let add_constraint dico (diffs,mf) r =
             let resolve pv =
                 match pv with
                 | PatternConst b -> ConstBool b
                 | PatternVar str -> Map.find str dico
             match r with
-            | VarPattern (_,str) -> (diffs,Set.add str mv,mf)
-            | RelPattern (_,str,pvs) ->
+            | FunPattern (_,str,pvs) ->
                 let cvs = List.map resolve pvs
-                (diffs,mv,Set.add (str,cvs) mf)
+                (diffs,Set.add (str,cvs) mf)
             | ValueDiffPattern (_, pv1, pv2) ->
                 let cv1 = resolve pv1
                 let cv2 = resolve pv2
-                (add_diff_constraint diffs cv1 cv2,mv,mf)
+                (add_diff_constraint diffs cv1 cv2,mf)
 
         let add_constraints dico cfg rs =
             Set.fold (add_constraint dico) cfg rs
 
-        let step (diffs, mv, mf) impls
+        let step (diffs, mf) impls
             (already_applied:System.Collections.Generic.Dictionary<Set<Pattern> * Map<string, ConstValue>, unit>) =
             // Apply implication rules one time
-            let aux (diffs,mv,mf) (ls,rs) =
+            let aux (diffs,mf) (ls,rs) =
                 let rec all_dicos ls =
                     match ls with
                     | [] -> Seq.singleton Map.empty
                     | l::ls ->
                         let dicos = all_dicos ls
-                        Seq.concat (Seq.map (all_dicos_matching_pattern (diffs,mv,mf) l) dicos)
+                        Seq.concat (Seq.map (all_dicos_matching_pattern (diffs,mf) l) dicos)
                 let free_vars = free_vars_of_patterns (Set.union ls rs)
                 let dicos = all_dicos (Set.toList ls)
                 let admfv_if_necessary dico =
@@ -186,12 +176,12 @@
                             all_dicos_matching_free_var free_vars dico
                         )
                 let dicos = Seq.concat (Seq.map admfv_if_necessary dicos)
-                Seq.fold (fun acc dico -> add_constraints dico acc rs) (diffs,mv,mf) dicos
+                Seq.fold (fun acc dico -> add_constraints dico acc rs) (diffs,mf) dicos
 
-            let (diffs,mv,mf) = List.fold aux (diffs,mv,mf) impls
-            (diffs, mv, mf)
+            let (diffs,mf) = List.fold aux (diffs,mf) impls
+            (diffs, mf)
 
-        let closure diffs mv mf end_condition =
+        let closure diffs mf end_condition =
             // Separate rules
             let impls_base = List.filter (fun (ls, _) -> Set.isEmpty ls) impls
             let impls = List.filter (fun (ls, _) -> not (Set.isEmpty ls)) impls
@@ -199,34 +189,22 @@
             // Apply base rules
             let already_applied =
                 System.Collections.Generic.Dictionary<Set<Pattern> * Map<string, ConstValue>, unit>()
-            let (diffs, mv, mf) = step (diffs, mv, mf) impls_base already_applied
+            let (diffs, mf) = step (diffs, mf) impls_base already_applied
 
             // Apply other rules until fixpoint
-            let step_fp (diffs, mv, mf) =
+            let step_fp (diffs, mf) =
                 let already_applied =
                     System.Collections.Generic.Dictionary<Set<Pattern> * Map<string, ConstValue>, unit>()
-                let rec aux (diffs, mv, mf) =
-                    let next = step (diffs, mv, mf) impls already_applied
+                let rec aux (diffs, mf) =
+                    let next = step (diffs, mf) impls already_applied
                     if end_condition next then raise EndCondition
-                    else if next = (diffs, mv, mf) then next else aux next
-                aux (diffs, mv, mf)
-            let (diffs, mv, mf) = step_fp (diffs, mv, mf)
-            (diffs, mv, mf)
+                    else if next = (diffs, mf) then next else aux next
+                aux (diffs, mf)
+            let (diffs, mf) = step_fp (diffs, mf)
+            (diffs, mf)
 
         let mf = m.f
-        let mv = m.v
         let diffs = m.d
-        // Remove useless vars
-        let remove_rel_if_useless acc var =
-            (*if (Map.find var decls.v).Type <> Bool // Uncomment if all rules target boolean vars
-            then acc
-            else*)
-                let acc' = Set.remove var acc
-                try
-                    ignore (closure diffs acc' mf (fun (_,cl,_) -> Set.contains var cl))
-                    acc
-                with :? EndCondition -> acc'
-        let mv = Set.fold remove_rel_if_useless mv mv
 
         // Remove useless relations
         let remove_rel_if_useless acc rel =
@@ -236,7 +214,7 @@
             else*)
                 let acc' = Set.remove rel acc
                 try
-                    ignore (closure diffs mv acc' (fun (_,_,cl) -> Set.contains rel cl))
+                    ignore (closure diffs acc' (fun (_,cl) -> Set.contains rel cl))
                     acc
                 with :? EndCondition -> acc'
         let mf = Set.fold remove_rel_if_useless mf mf
@@ -245,13 +223,13 @@
         let remove_diff_if_useless acc (v1,v2) =
             let acc' = remove_diff_constraint acc v1 v2
             try
-                ignore (closure acc' mv mf (fun (cl,_,_) -> value_diff cl v1 v2))
+                ignore (closure acc' mf (fun (cl,_) -> value_diff cl v1 v2))
                 acc
             with :? EndCondition -> acc'
         let diffs = Set.fold remove_diff_if_useless diffs diffs
         
         // Result
-        { Synthesis.v = mv ; Synthesis.f = mf ; Synthesis.d = diffs }
+        { Synthesis.v = Set.empty ; Synthesis.f = mf ; Synthesis.d = diffs }
 
     type ValueAssociation =
         | VAConst of ConstValue

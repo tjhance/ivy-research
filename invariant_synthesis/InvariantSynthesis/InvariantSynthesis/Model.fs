@@ -35,9 +35,6 @@
     type Declarations = { f : FunDecls; v : VarDecls; m : MacroDecls; i : InterpretedDecls; }
 
     let declarations_of_module (md:ModuleDecl) =
-        let aux acc (d:VarDecl) =
-            Map.add d.Name d acc
-        let vars = List.fold aux Map.empty md.Vars
         let aux acc (d:FunDecl) =
             Map.add d.Name d acc
         let funs = List.fold aux Map.empty md.Funs
@@ -47,7 +44,7 @@
         let aux acc (d:InterpretedActionDecl) =
             Map.add d.Name d acc
         let interp = List.fold aux Map.empty md.InterpretedActions
-        { f = funs; v = vars; m = macros ; i = interp }
+        { f = funs; v = Map.empty; m = macros ; i = interp }
 
     let add_var_declaration (d:VarDecl) (ds:Declarations) =
         { ds with v=Map.add d.Name d ds.v }
@@ -87,10 +84,6 @@
 
         // Environment
         // Init
-        let var_env =
-            List.fold
-                (fun acc (vdecl:VarDecl) -> Map.add vdecl.Name (AST.type_default_value vdecl.Type) acc)
-                Map.empty m.Vars
         let fun_env =
             List.fold
                 (fun acc (fdecl:FunDecl) ->
@@ -99,13 +92,13 @@
                         acc (all_values_ext type_infos fdecl.Input)
                 ) Map.empty m.Funs
         // Apply constraints
-        let (var_env, fun_env) =
+        let fun_env =
             List.fold
-                (fun (v,f) c ->
+                (fun f c ->
                     match c with
-                    | Function (str, input, output) -> (v, Map.add (str, input) output f)
-                    | Variable (str, output) -> (Map.add str output v, f)
-                    | Bound _ -> (v,f)
-                ) (var_env, fun_env) cs
+                    | Function (str, input, output) -> Map.add (str, input) output f
+                    | Variable (str, output) -> Map.add (str, []) output f
+                    | Bound _ -> f
+                ) fun_env cs
 
-        (type_infos, { f = fun_env ; v = var_env })
+        (type_infos, { f = fun_env ; v = Map.empty })

@@ -13,14 +13,14 @@
     [<NoComparison>]
     type ModuleContext =
         {
-            Context: Context ; Sorts: Map<string, UninterpretedSort> ;
-            Vars: Map<string, FuncDecl> ; Funs: Map<string, FuncDecl>
+            Context: Context ;
+            Sorts: Map<string, UninterpretedSort> ;
+            Funs: Map<string, FuncDecl>
         }
 
     let build_context<'a,'b> (m:ModuleDecl<'a,'b>) =
         let ctx = new Context()
         let sorts = ref Map.empty 
-        let vars = ref Map.empty
         let funs = ref Map.empty
 
         for d in m.Types do
@@ -28,12 +28,11 @@
         for d in m.Funs do
             let domain = List.map (sort_of_type ctx (!sorts)) d.Input
             let range = sort_of_type ctx (!sorts) d.Output
-            funs := Map.add d.Name (ctx.MkFuncDecl(d.Name,Array.ofList domain,range)) (!funs)
-        for d in m.Vars do
-            let range = sort_of_type ctx (!sorts) d.Type
-            vars := Map.add d.Name (ctx.MkConstDecl(d.Name, range)) (!vars)
+            if List.length domain = 0
+            then funs := Map.add d.Name (ctx.MkConstDecl(d.Name, range)) (!funs)
+            else funs := Map.add d.Name (ctx.MkFuncDecl(d.Name,Array.ofList domain,range)) (!funs)
 
-        { Context = ctx ; Sorts = !sorts ; Vars = !vars ; Funs = !funs }
+        { Context = ctx ; Sorts = !sorts ; Funs = !funs }
 
     let name_of_constint (t,i) =
         sprintf "%s%c%i" t AST.name_separator i
@@ -53,9 +52,7 @@
             else (lvars,z3concrete_map)
 
         let add_fv acc name =
-            if Map.containsKey name ctx.Vars
-            then acc
-            else if Map.containsKey name acc
+            if Map.containsKey name acc
             then acc
             else
                 let decl = List.find (fun (v:VarDecl) -> v.Name = name) args
@@ -82,9 +79,7 @@
             match v with
             | Z3Const cv -> expr_of_cv ctx.Context lvars cv
             | Z3Var str ->
-                if Map.containsKey str ctx.Vars
-                then ctx.Context.MkConst (Map.find str ctx.Vars)
-                else if Map.containsKey str lvars
+                if Map.containsKey str lvars
                 then ctx.Context.MkConst (Map.find str lvars)
                 else Map.find str qvars
             | Z3Fun (str, vs) ->
@@ -158,7 +153,7 @@
 
     let z3model_to_ast_model<'a,'b> (m:ModuleDecl<'a,'b>) (ctx:ModuleContext) args lvars 
         z3concrete_map (model:Model)
-        : (Model.TypeInfos * Model.Environment * Map<string, AST.ConstValue>) =
+        : (Model.TypeInfos * Model.Environment) =
 
         let all_decls = model.Decls
         let is_declared (fd:FuncDecl) =
@@ -206,10 +201,10 @@
         let cv_of_expr (e:Expr) =
             cv_of_expr_str const_cv_map (e.FuncDecl.Name.ToString())
 
-        let treat_var (fd_map:Map<string,FuncDecl>) acc (decl:VarDecl) =
-            if Map.containsKey decl.Name fd_map // For action args, the symbol sometimes does not exists (if useless)
+        let treat_var acc (decl:VarDecl) =
+            if Map.containsKey decl.Name lvars // For action args, the symbol sometimes does not exists (if useless)
             then
-                let fd = Map.find decl.Name fd_map
+                let fd = Map.find decl.Name lvars
                 if is_declared fd
                 then
                     let expr = model.ConstInterp (fd)
@@ -220,8 +215,7 @@
             else
                 Map.add decl.Name (AST.type_default_value decl.Type) acc
 
-        let var_env = List.fold (treat_var ctx.Vars) Map.empty m.Vars
-        let lvars_env = List.fold (treat_var lvars) Map.empty args
+        let vars_env = List.fold treat_var Map.empty args
 
         let treat_fun acc (d:FunDecl) =
             // Default vals
@@ -232,30 +226,35 @@
             let fd = Map.find d.Name ctx.Funs
             if is_declared fd
             then
-                let fi = model.FuncInterp (fd)
-                // Else case
-                let expr = fi.Else
-                let treat_else_case_for acc exprs =
-                    let exprs = Array.ofList exprs
-                    (*let exprs = Array.sub exprs 0 (Array.length expr.Args)
-                    let expr = model.Eval(expr.Substitute(expr.Args, exprs),false)*)
-                    // Note: Right way to do???
-                    let expr = model.Eval(expr.SubstituteVars(exprs),false)
+                if List.length d.Input = 0 then
+                    let expr = model.ConstInterp (fd)
                     let cv = cv_of_expr expr
-                    let cvs = List.ofArray (Array.map cv_of_expr exprs)
-                    Map.add (d.Name, cvs) cv acc
-                let acc = Seq.fold treat_else_case_for acc (universe_for_sorts ctx model (List.ofArray fd.Domain))
-                // Entries
-                let entries = fi.Entries
-                let aux acc (entry:FuncInterp.Entry) =
-                    let input_expr = entry.Args
-                    let input = Array.toList (Array.map cv_of_expr input_expr)
-                    let expr = entry.Value
-                    let cv = cv_of_expr expr
-                    Map.add (d.Name, input) cv acc
-                Array.fold aux acc entries
+                    Map.add (d.Name, []) cv acc
+                else
+                    let fi = model.FuncInterp (fd)
+                    // Else case
+                    let expr = fi.Else
+                    let treat_else_case_for acc exprs =
+                        let exprs = Array.ofList exprs
+                        (*let exprs = Array.sub exprs 0 (Array.length expr.Args)
+                        let expr = model.Eval(expr.Substitute(expr.Args, exprs),false)*)
+                        // Note: Right way to do???
+                        let expr = model.Eval(expr.SubstituteVars(exprs),false)
+                        let cv = cv_of_expr expr
+                        let cvs = List.ofArray (Array.map cv_of_expr exprs)
+                        Map.add (d.Name, cvs) cv acc
+                    let acc = Seq.fold treat_else_case_for acc (universe_for_sorts ctx model (List.ofArray fd.Domain))
+                    // Entries
+                    let entries = fi.Entries
+                    let aux acc (entry:FuncInterp.Entry) =
+                        let input_expr = entry.Args
+                        let input = Array.toList (Array.map cv_of_expr input_expr)
+                        let expr = entry.Value
+                        let cv = cv_of_expr expr
+                        Map.add (d.Name, input) cv acc
+                    Array.fold aux acc entries
             else acc
 
         let fun_env = List.fold treat_fun Map.empty m.Funs
 
-        (type_infos, { Model.Environment.f = fun_env ; Model.Environment.v = var_env }, lvars_env)
+        (type_infos, { Model.Environment.f = fun_env ; Model.Environment.v = vars_env })

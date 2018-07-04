@@ -12,18 +12,15 @@
 
         let types : List<TypeDecl> = [{Name="incrementable.t"} ; {Name="data"}]
 
-        let vars : List<VarDecl> =
-            [
-                {Name="q.next_e" ; Type=Uninterpreted("incrementable.t") ;
-                Representation=default_representation} ;
-                {Name="q.first_e" ; Type=Uninterpreted("incrementable.t") ;
-                Representation=default_representation} ;
-                {Name="q.first" ; Type=Uninterpreted("data");
-                Representation=default_representation} ;
-            ]
-
         let funs : List<FunDecl> =
             [
+                {Name="q.next_e" ; Output=Uninterpreted("incrementable.t") ; Input = [] ;
+                Representation=default_representation} ;
+                {Name="q.first_e" ; Output=Uninterpreted("incrementable.t") ; Input = [] ;
+                Representation=default_representation} ;
+                {Name="q.first" ; Output=Uninterpreted("data"); Input = [] ;
+                Representation=default_representation} ;
+
                 {Name="incrementable.t.<" ; Output=Bool ;
                 Input=[Uninterpreted("incrementable.t");Uninterpreted("incrementable.t")];
                 Representation={DisplayName=Some "<"; Flags=Set.singleton Infix} } ;
@@ -128,7 +125,7 @@
 
         let queue_module : ModuleDecl =
             {
-                Name=name; Types=types; Funs=funs; Vars=vars;
+                Name=name; Types=types; Funs=funs;
                 Actions=actions; Macros=[]; Implications=impl;
                 Invariants=invariants; InterpretedActions=[];
                 Axioms = []

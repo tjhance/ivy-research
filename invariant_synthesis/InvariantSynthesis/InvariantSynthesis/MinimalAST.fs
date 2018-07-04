@@ -43,10 +43,10 @@
     type InterpretedActionDecl<'a,'b> = AST.InterpretedActionDecl<'a,'b>
     [<NoEquality;NoComparison>]
     type ModuleDecl<'a,'b> =
-        { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; Vars: List<VarDecl>; InterpretedActions: List<InterpretedActionDecl<'a,'b>>;
+        { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; InterpretedActions: List<InterpretedActionDecl<'a,'b>>;
             Actions: List<ActionDecl>; Invariants: List<Value>; Implications: List<ImplicationRule> ; Axioms: List<Value> }
 
-    // Fonctions on HoleValue
+    // Functions on HoleValue
 
     let rec reconstruct_hvals hvs vs uvs =
         match hvs with
@@ -79,9 +79,6 @@
 
     let find_function (m:ModuleDecl<'a,'b>) str =
         List.find (fun (decl:FunDecl) -> decl.Name = str) m.Funs
-    
-    let find_variable (m:ModuleDecl<'a,'b>) str =
-        List.find (fun (decl:VarDecl) -> decl.Name = str) m.Vars
 
     let rec find_action (m:ModuleDecl<'a,'b>) str =
         List.find (fun (decl:ActionDecl) -> decl.Name = str) m.Actions
@@ -398,5 +395,5 @@
         let invariants = List.map (value2minimal m) m.Invariants
         let axioms = List.map (value2minimal m) m.Axioms
 
-        { Name = m.Name; Types = m.Types; Funs = m.Funs; Vars = m.Vars; InterpretedActions = m.InterpretedActions;
+        { Name = m.Name; Types = m.Types; Funs = m.Funs; InterpretedActions = m.InterpretedActions;
             Actions = actions ; Invariants = invariants; Implications = m.Implications; Axioms = axioms }
