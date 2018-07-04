@@ -155,7 +155,27 @@ March-July 2018
 
     \section{The language}
 
-    % Uniterpreted types! (unlike F*, because dependent types imply undecidability most of time)
+    IVy is inspired by a restricted modeling language called RML (Relational Modeling Language).
+
+    A RML program is composed of:
+    \begin{itemize}
+        \item A list of uninterpreted types that we call `sorts'. A sort has a finite number of elements (`values'), but this number is unbounded.
+        \item A list of variables, relations and functions over these types (a variable can be considered like a function of arity 0, and a relation can be considered as a function
+        which returns a boolean). These elements are mutable and their valuation constitute the `state' of the program.
+        \item A list of axioms over these variables, functions and relations (we use a fragment of the first order logic that we will detail later).
+        \item A list of transitions (see the figure below).
+        \item A special `init' transition can be used to constraint the initial states of the system.
+    \end{itemize}
+
+    [Insert figure EPR cmd]
+
+    One important thing to note is that RML only allows finite uninterpreted sorts and booleans (and possibly other enumerated types).
+    In particular, we can't define arithmetic operations.
+    However, we will see later that it is possible to extend it with linear integer arithmetic or some other theories.
+
+    Also, unlike many other languages like F*, IVy does not allow refinement types nor dependent types (for decidability reasons).
+    As a consequence, we can't encode any property in the types.
+    Instead, the specification of the program will be expressed using assertions and invariants.
 
     \section{Decidable logics}
 
