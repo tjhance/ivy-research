@@ -5,6 +5,8 @@
 \usepackage[dvips]{graphicx}
 \usepackage{xcolor}
 \usepackage{times}
+\usepackage{amsmath}
+\usepackage{amsthm}
 
 \usepackage[
 breaklinks=true,colorlinks=true,
@@ -51,6 +53,9 @@ bindingoffset=10mm, top=25mm,bottom=25mm}
 \maxsecnumdepth{subsection} % chapters, sections, and subsections are numbered
 \maxtocdepth{subsection} % chapters, sections, and subsections are in the Table of Contents
 
+\newtheorem*{theorem}{Theorem}
+\newtheorem*{definition}{Definition}
+\newtheorem*{property}{Property}
 
 %%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%
 
@@ -119,11 +124,11 @@ March-July 2018
     Several languages and tools already exist for that:
 
     \begin{itemize}
-        \item Proof-assistants (Coq, Agda, etc.):
-        The user has to manually write the proof (altough he can benefit from some help).
+        \item Proof-assistants (Coq, Agda, Why3, etc.):
+        The user has to manually write the proof in a interactive way (he can benefit from some help).
         It is a long and complicated process, but once the proof is complete, the proof assistant will always accept it
         if it is correct.
-        \item SMT-solver based tools (dafny, F*, etc.):
+        \item SMT-solver based tools (dafny, F*, Why3, etc.):
         Specifications are automatically checked using a SMT-solver. This process is undecidable in the general case,
         so there are 3 possible outputs:
         \begin{itemize}
@@ -135,7 +140,7 @@ March-July 2018
         in order to help the SMT-solver.
     \end{itemize}
 
-    IVy is a language that allows the user to certify its program using a SMT-solver based approach.
+    IVy is a language that allows the user to certify its program using a SMT-solver based approach. [REF]
     However, unlike most of its concurrents, IVy restricts the language and the logic used for specifications
     in order to be able to check the program in a decidable way.
 
@@ -145,7 +150,7 @@ March-July 2018
         the checker can always decide whether the program is correct or not, and give a counterexample if it is not.
         \item Our code, specifications and proof indications are not dependent on some heuristics/specificities of the SMT-solver used,
         and so we don't need any specific knowledge.
-        \item If a program has been checked using a certain version IVy, it can also be checked with
+        \item If a program has been checked using a certain version of IVy, it can also be checked with
         any future version (because it does not depend on any heuristic).
     \end{itemize}
     
@@ -159,7 +164,7 @@ March-July 2018
 
     A RML program is composed of:
     \begin{itemize}
-        \item A list of uninterpreted types that we call `sorts'. A sort has a finite number of elements (`values'), but this number is unbounded.
+        \item A list of uninterpreted types that we call `sorts'. A sort has an unbounded number of elements (`values').
         \item A list of variables, relations and functions over these types (a variable can be considered like a function of arity 0, and a relation can be considered as a function
         which returns a boolean). These elements are mutable and their valuation constitute the `state' of the program.
         \item A list of axioms over these variables, functions and relations (we use a fragment of the first order logic that we will detail later).
@@ -169,19 +174,122 @@ March-July 2018
 
     [Insert figure EPR cmd]
 
-    One important thing to note is that RML only allows finite uninterpreted sorts and booleans (and possibly other enumerated types).
+    One important thing to note is that RML only allows uninterpreted sorts and booleans (and possibly other enumerated types).
     In particular, we can't define arithmetic operations.
     However, we will see later that it is possible to extend it with linear integer arithmetic or some other theories.
 
-    Also, unlike many other languages like F*, IVy does not allow refinement types nor dependent types (for decidability reasons).
+    Also, unlike many other languages like F*, IVy does not allow refinement types or dependent types (for decidability reasons).
     As a consequence, we can't encode any property in the types.
-    Instead, the specification of the program will be expressed using assertions and invariants.
+    Instead, the specifications of the program will be expressed using assertions and invariants.
 
     \section{Decidable logics}
 
-        \subsection{EPR}
+    In this section, we will describe the Bernays-Schönfinkel class of formulas. It is a decidable fragment of the first order logic that is used by IVy.
+    We will refer to it as EPR (for Effectively Propositional) because this logic can be effectively translated into propositional logic (see the subsection `Deciding EPR').
 
-        \subsection{FAU}
+        \subsection{The Bernays-Schönfinkel class (EPR)}
+
+        The Bernays-Schönfinkel class is the set of first-order formulas such that:
+        \begin{itemize}
+            \item Under the prenex normal form, they have an \(\exists^*\forall^*\) quantifier prefix
+            (a formula in prenex normal form is composed of a string of quantifiers called the prefix, followed by a quantifier-free part).
+            \item They do not use any function symbol (only a finite number of constants and relations).
+        \end{itemize}
+
+        For instance, the following formulas define a total relation order and are in the Bernays-Schönfinkel class:
+        \begin{align*}
+            \forall x. \ R(x,x) &\quad\text{(reflexivity of R)}\\
+            \forall x,y,z. \ R(x,y) \land R(y,z) \rightarrow R(x,z) &\quad\text{(transitivity of R)}\\
+            \forall x,y. \ R(x,y) \land R(y,x) \rightarrow x=y &\quad\text{(antisymetry of R)}\\
+            \forall x,y. \ R(x,y) \lor R(y,x) &\quad\text{(totality of R)}
+        \end{align*}
+
+        \subsection{Deciding the satisfiability}
+
+        We want to decide whether an EPR formula is satisfiable or not. Let's consider for instance the following formula:
+        \begin{align*}
+            F: \exists x. \forall y. \ R(y,y) \land \neg R(x,y)
+        \end{align*}
+
+        This formula is not satisfiable, because for any value of \(x\), the formula \(R(y,y) \land \neg R(x,y)\) is false when we take \(y=x\).
+        However, there is infinitely many possible interpretations for the relation \(R\) (because the set of possible values for \(x\) and \(y\) is not bounded).
+        So how to decide the satisfiabilty of such formulas?
+
+        First, we can get rid of the existential quantifier by introducing a new constant \(A\):
+        \begin{align*}
+            \forall y. \ R(y,y) \land \neg R(A,y)
+        \end{align*}
+
+        This is called the skolem normal form of \(F\).
+        Note that in the general case, we can eliminate any existential quantifier in a formula in prenex normal form by introducing a new function
+        that depends on all universally quantified variables in its scope. This process is called `skolemization' and preserve the satisfiability of the formula.
+
+        \begin{property}[Skolemization]
+            Let \(F\) be a formula and \(F'\) be the formula obtained after solemization if \(F\). Then \(F\) is satisfiable iff \(F'\) is satisfiable.
+        \end{property}
+
+        Now, we want to restrict the domain of the possible interpretations in order to be able to decide the satisfiability of our formula.
+
+        \begin{definition}[Herbrand domain]
+            The Herbrand domain of a formula is the set of every term that can be written with the constants and functions symbols present in the formula
+            (if there is no constant symbol in the formula, we introduce a new one).
+        \end{definition}
+
+        Our formula has a unique constant \(A\) and no function symbol (only a relation symbol), so its Herbrand domain is the following:
+        \( \{A\} \). More generally, we have the following property:
+        
+        \begin{property}
+        The Herbrand domain of an EPR formula is finite.
+        \end{property}
+
+        Thus, we can decide whether or not our formula is satisfiable by an interpretation over it's Herbrand domain.
+        For that, we just have to test every interpretation of \(R\) over the domain \( \{A\} \):
+
+        \begin{itemize}
+            \item With \(R(A,A)=\text{false}\): \(\forall y. \ R(y,y) \land \neg R(A,y)\) is false (with \( y \in \{A\} \))
+            \item With \(R(A,A)=\text{true}\): \(\forall y. \ R(y,y) \land \neg R(A,y)\) is false (with \( y \in \{A\} \))
+        \end{itemize}
+
+        So our formula is not satisfiable by any interpretation over it's Herbrand domain.
+
+        Finally, by applying the following theorem, we can conclude that our formula is not satisfiable by any interpretation (over any domain):
+        \begin{theorem}[Herbrand]
+            An universally quantified first-order formula \(F\) is satisfiable iff it is satisfied by an interpretation over it's Herbrand domain.
+        \end{theorem}
+
+        This process can be used to decide the satisfiability of any EPR formula. Moreover, when a formula is satisfiable,
+        it gives us an interpretation over the Herbrand domain that satisfy the formula (= a model).
+        The Herbrand domain being finite, we have the following property:
+
+        \begin{property}[Finite model property]
+            Every satisfiable EPR formula has a finite model.
+        \end{property}
+
+        \subsection{EPR with types}
+
+        In IVy, relations, functions and constants (that are preferably called `variables' since they are mutable) are typed.
+        For instance, a function takes arguments of some specific sorts and also return a value in a specific sort (sorts are unbounded set of values).
+
+        We can easily add these typing constraints to the logical symbols we used in the previous subsection.
+        Moreover, it allows us to extend the domain of EPR formulas by keeping a finite Herbrand domain.
+
+        Indeed, we can allow function symbols and \(\forall^*\exists^*\) quantifier alternation as long as,
+        when skolemized, the formula still has a finite Herbrand domain.
+        In particular, function symbols are allowed as long as they are stratified (that is, as long as there exists
+        an order over the sorts such that, for every function \( f: t_1 \to t_2 \), we have \( t_1 < t_2 \)).
+
+        However, the EPR fragment can still be too restrictive: for instance, we can't introduce linear arithmetic using only EPR axioms.
+        Indeed, the standard way to define integers is to introduce a successor function symbol, which is not allowed because it is not stratified.
+        More generally, we can't characterize any infinite set with only EPR axioms: it would contradict the finite model property.
+
+        \subsection{Extensions of EPR}
+
+        Some strict extensions of EPR are still decidable.
+        In particular, SMT-solvers like Z3 [ref] are able to decide the Finite Almost Uninterpreted (FAU) fragment of first order logic,
+        which add to EPR some usual interpreted symbols of Linear Arithmetic (integer constants, `+', `\( \leq \)') under some additional constraints.
+        You can refer to [REF] for more details about it. 
+        
+        In this report, we will not use such extension of EPR, because it breaks the finite model property.
     
     \section{Deciding IVy}
 
