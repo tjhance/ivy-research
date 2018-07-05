@@ -26,9 +26,6 @@
     // TODO: Create a function that retrieve the name of a var decl, and use it everywhere.
     // TODO: Factorize parameters passed to marks_for_value (etc.) by redefining this function. 
 
-    // Optimisations:
-    // TODO: Simplify the FunAssign synthesis by getting rid of non-hole parameters (many possibilities)
-
     type Type =
         | Void
         | Bool

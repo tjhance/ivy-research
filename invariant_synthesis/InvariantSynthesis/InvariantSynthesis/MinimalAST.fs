@@ -341,7 +341,7 @@
         packIfNecessary decls sts
 
     let module2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) main_action =
-        reinit_tmp_vars () // Not: be carefull with it
+        reinit_tmp_vars () // Note: be carefull with it
 
         let all_actions =
             List.fold (fun acc (a:AST.ActionDecl) -> let (name,_) = AST.decompose_action_name a.Name in Set.add name acc) Set.empty m.Actions
