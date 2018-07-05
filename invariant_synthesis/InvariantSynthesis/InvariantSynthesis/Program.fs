@@ -215,7 +215,8 @@ let analyse_example_ending mmd infos tr formula =
     let env' = Trace.final_env tr
     if Trace.is_fully_executed tr
     then
-        let (b,cfg) = Synthesis.marks_for_value mmd infos env' Set.empty formula
+        let (b,cfgs) = Synthesis.marks_for_value mmd infos env' Set.empty formula
+        let cfg = Synthesis.best_cfg cfgs
         if b <> ConstBool true && b <> ConstBool false
         then failwith "Invalid execution!"
         (b = ConstBool true, true, cfg)

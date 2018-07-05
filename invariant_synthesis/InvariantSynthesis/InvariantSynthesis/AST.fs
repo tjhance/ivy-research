@@ -27,10 +27,7 @@
     // TODO: Factorize parameters passed to marks_for_value (etc.) by redefining this function. 
 
     // Optimisations:
-    // TODO: Synthesis: compute all possibilities for marks_for_value (by eliminating those strictly containing an other possibility),
-    // and choose the better after by taking into account the current marks and the remaining statements in atomic block
-    // (if no mark is added to the current configuration, this choice should be choosen without analysing remaining statements)
-    // TODO: Once the previous point is done, simplify the FunAssign expression in Minimal AST (keep only holes)
+    // TODO: Simplify the FunAssign synthesis by getting rid of non-hole parameters (many possibilities)
 
     type Type =
         | Void

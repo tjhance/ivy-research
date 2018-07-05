@@ -28,6 +28,14 @@
 
     // List
 
+    let rec all_choices_combination lst =
+        match lst with
+        | [] -> Seq.singleton []
+        | h::lst ->
+            let res = all_choices_combination lst
+            let res = Seq.map (fun lst -> Seq.map (fun v -> v::lst) h) res
+            Seq.concat res
+
     let list_set i e lst =
         List.mapi (fun i' e' -> if i = i' then e else e') lst
 

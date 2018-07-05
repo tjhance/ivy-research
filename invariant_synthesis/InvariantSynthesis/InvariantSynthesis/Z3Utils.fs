@@ -142,14 +142,9 @@
         | "false" -> AST.ConstBool false
         | str -> AST.ConstInt (Map.find str const_cv_map)
 
-    let rec universe_for_sorts (ctx:ModuleContext) (model:Model) (sorts:List<Sort>) =
-        match sorts with
-        | [] -> Seq.singleton []
-        | s::sorts ->
-            let res = universe_for_sorts ctx model sorts
-            let univ = model.SortUniverse (s)
-            let res = Seq.map (fun lst -> Seq.map (fun e -> e::lst) univ) res
-            Seq.concat res
+    let universe_for_sorts (model:Model) (sorts:List<Sort>) =
+        let univs = List.map (fun s -> model.SortUniverse s) sorts
+        Helper.all_choices_combination univs
 
     let z3model_to_ast_model<'a,'b> (m:ModuleDecl<'a,'b>) (ctx:ModuleContext) args lvars 
         z3concrete_map (model:Model)
@@ -243,7 +238,7 @@
                         let cv = cv_of_expr expr
                         let cvs = List.ofArray (Array.map cv_of_expr exprs)
                         Map.add (d.Name, cvs) cv acc
-                    let acc = Seq.fold treat_else_case_for acc (universe_for_sorts ctx model (List.ofArray fd.Domain))
+                    let acc = Seq.fold treat_else_case_for acc (universe_for_sorts model (List.ofArray fd.Domain))
                     // Entries
                     let entries = fi.Entries
                     let aux acc (entry:FuncInterp.Entry) =

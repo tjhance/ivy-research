@@ -57,14 +57,9 @@
             let max = Map.find s infos
             seq { for x in 0..max -> ConstInt (s, x) }
 
-    let rec all_values_ext infos lst =
-        match lst with
-        | [] -> Seq.singleton []
-        | t::lst ->
-            let res = all_values_ext infos lst
-            let pos = all_values infos t
-            let res = Seq.map (fun lst -> Seq.map (fun v -> v::lst) pos) res
-            Seq.concat res
+    let all_values_ext infos lst =
+        let lst = List.map (all_values infos) lst
+        Helper.all_choices_combination lst
 
     // Note: If some constraints are contradictory, the last one has the last word
     let constraints_to_env (m:ModuleDecl) cs : (TypeInfos * Environment) =

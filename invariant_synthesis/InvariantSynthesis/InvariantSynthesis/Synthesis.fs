@@ -107,107 +107,152 @@
     let remove_var_marks (m, um, ad) var : Marks * Marks * AdditionalData =
         ({m with v = Set.remove var m.v}, {um with v = Set.remove var um.v}, ad)
 
+    let config_is_included (m1,um1,ad1) (m2,um2,ad2) =
+        let ad_is_included (ad1:AdditionalData) (ad2:AdditionalData) =
+            if ad1.md && not ad2.md
+            then false
+            else
+                let is_included (str, cvs) is =
+                    match Map.tryFind (str, cvs) ad2.ufmi with
+                    | None -> Set.isEmpty is
+                    | Some is' -> Set.isSubset is is' 
+                Map.forall is_included ad1.ufmi
+        let marks_are_included m1 m2 =
+            Set.isSubset m1.f m2.f && Set.isSubset m1.v m2.v
+        ad_is_included ad1 ad2 && marks_are_included m1 m2 && marks_are_included um1 um2
+
+    let remove_worst_configs cfgs =
+        let is_strictly_included cfg1 cfg2 =
+            cfg1 <> cfg2 && config_is_included cfg1 cfg2
+        let remove_worse acc cfg =
+            Set.filter (fun cfg' -> not (is_strictly_included cfg cfg')) acc
+        Set.fold remove_worse cfgs cfgs
+
     exception InvalidOperation
     let bool_of_cv cv =
         match cv with
         | AST.ConstBool b -> b
-        | _ -> failwith "Boolean value expected."
+        | _ -> raise TypeError
 
     // uvar: variables that can browse an arbitrary large range (depending on the model)
-    let rec marks_for_value mdecl infos env uvar v : ConstValue * (Marks * Marks * AdditionalData) =
-        match v with
-        | ValueConst c -> (c, empty_config)
-        | ValueStar t -> (AST.type_default_value t, empty_config)
-        | ValueVar str ->
-            let eval = evaluate_value mdecl infos env (ValueVar str)
-            if Set.contains str uvar
-            then (eval, (empty_marks, { empty_marks with v=Set.singleton str }, { empty_ad with md=true }))
-            else (eval, ({ empty_marks with v=Set.singleton str }, empty_marks, empty_ad))
-        | ValueFun (str, values) ->
-            let res = List.map (marks_for_value mdecl infos env uvar) values
-            let (cvs, cfgs) = List.unzip res
-            let (m,um,ad) = config_union_many cfgs
-            let vs = List.map (fun cv -> ValueConst cv) cvs
-            let eval = evaluate_value mdecl infos env (ValueFun (str, vs))
-            if ad.md
-            then
-                let add_entry_if_needed (i, acc) (_,_,ad:AdditionalData) =
+    let rec marks_for_value mdecl infos env uvar v : ConstValue * Set<Marks * Marks * AdditionalData> =
+        let (v, cfgs) =
+            match v with
+            | ValueConst c -> (c, Set.singleton empty_config)
+            | ValueStar t -> (AST.type_default_value t, Set.singleton empty_config)
+            | ValueVar str ->
+                let eval = evaluate_value mdecl infos env (ValueVar str)
+                if Set.contains str uvar
+                then (eval, Set.singleton (empty_marks, { empty_marks with v=Set.singleton str }, { empty_ad with md=true }))
+                else (eval, Set.singleton ({ empty_marks with v=Set.singleton str }, empty_marks, empty_ad))
+            | ValueFun (str, values) ->
+                let res = List.map (marks_for_value mdecl infos env uvar) values
+                let (cvs, cfgs) = List.unzip res
+                let vs = List.map (fun cv -> ValueConst cv) cvs
+                let eval = evaluate_value mdecl infos env (ValueFun (str, vs))
+                let cfgs = Helper.all_choices_combination cfgs
+                let treat_cfgs cfgs =
+                    let (m,um,ad) = config_union_many cfgs
                     if ad.md
-                    then (i+1, add_ufmi_entry acc str cvs i)
-                    else (i+1, acc)
-                let (_,ad) = List.fold add_entry_if_needed (0, ad) cfgs
-                (eval, (m, { um with f = Set.add (str, cvs) um.f }, ad))
-            else
-                (eval, ({ m with f = Set.add (str, cvs) m.f }, um, ad))
-        | ValueEqual (v1, v2) ->
-            let (cv1, cfg1) = marks_for_value mdecl infos env uvar v1
-            let (cv2, cfg2) = marks_for_value mdecl infos env uvar v2
-            let (m,um,ad) = config_union cfg1 cfg2
-            if AST.value_equal cv1 cv2 then (AST.ConstBool true, (m, um, ad))
-            else if ad.md
-            then (AST.ConstBool false, (m, add_diff_constraint um cv1 cv2, ad))
-            else (AST.ConstBool false, (add_diff_constraint m cv1 cv2, um, ad))
-        | ValueOr (v1, v2) ->
-            let (cv1, cfg1) = marks_for_value mdecl infos env uvar v1
-            let (cv2, cfg2) = marks_for_value mdecl infos env uvar v2
-            match cv1, cv2 with
-            | AST.ConstBool false, AST.ConstBool false -> (AST.ConstBool false, config_union cfg1 cfg2)
-            | AST.ConstBool true, AST.ConstBool false -> (AST.ConstBool true, cfg1)
-            | AST.ConstBool false, AST.ConstBool true -> (AST.ConstBool true, cfg2)
-            | AST.ConstBool true, AST.ConstBool true when is_better_config cfg2 cfg1 -> (AST.ConstBool true, cfg2)
-            | AST.ConstBool true, AST.ConstBool true -> (AST.ConstBool true, cfg1)
-            | _, _ -> raise TypeError
-        | ValueNot v ->
-            let (cv,cfg) = marks_for_value mdecl infos env uvar v
-            (value_not cv, cfg)
-        | ValueSomeElse (d,f,v) ->
-            match if_some_value mdecl infos env d f with
-            | Some cv ->
-                (* NOTE: See note for IfSomeElse statement. *)
-                let is_uvar = is_model_dependent_type d.Type && not (Set.isEmpty uvar) 
-                let uvar = if is_uvar then Set.add d.Name uvar else uvar
-                let (_,cfg) = marks_for_value_with mdecl infos env uvar f [d.Name] [cv]
-                (cv,cfg)
-            | None -> 
-                let (_,cfg1) = marks_for_value mdecl infos env uvar (ValueForall (d, ValueNot f))
-                let (cv,cfg2) = marks_for_value mdecl infos env uvar v
-                (cv, config_union cfg1 cfg2)
-        | ValueIfElse (f, v1, v2) ->
-            let (b, cfg) = marks_for_value mdecl infos env uvar f
-            let (res, cfg') =
-                match b with
-                | AST.ConstBool true -> marks_for_value mdecl infos env uvar v1
-                | AST.ConstBool false -> marks_for_value mdecl infos env uvar v2
-                | _ -> raise TypeError
-            (res, config_union cfg cfg')
-        | ValueForall (decl, v) ->
-            let is_uvar = 
-                is_model_dependent_type decl.Type && 
-                (not (Set.isEmpty uvar) || evaluate_value mdecl infos env (ValueForall (decl, v)) = AST.ConstBool true)
-            let uvar = if is_uvar then Set.add decl.Name uvar else uvar
-            let values = List.ofSeq (Model.all_values infos decl.Type)
-            let all_possibilities = List.map (fun cv -> marks_for_value_with mdecl infos env uvar v [decl.Name] [cv]) values
-            if Seq.forall (fun (b,_) -> b = AST.ConstBool true) all_possibilities
-            then
-                // We mix all contraints (some will probably be model-dependent)
-                (AST.ConstBool true, config_union_many (Seq.map (fun (_,cfg) -> cfg) all_possibilities))
-            else
-                // We pick one constraint that breaks the forall
-                let possibilities = Seq.filter (fun (b, _) -> b = AST.ConstBool false) all_possibilities
-                let possibilities = Seq.map (fun (_,cfg) -> cfg) possibilities
-                let cfg = Helper.seq_min is_better_config possibilities
-                (AST.ConstBool false, cfg)
-        | ValueInterpreted (str, vs) ->
-            let res = List.map (marks_for_value mdecl infos env uvar) vs
-            let (cvs, cfgs) = List.unzip res
-            let cfg = config_union_many cfgs
-            let eval = (find_interpreted_action mdecl str).Effect infos env cvs
-            (eval, cfg)
+                    then
+                        let add_entry_if_needed (i, acc) (_,_,ad:AdditionalData) =
+                            if ad.md
+                            then (i+1, add_ufmi_entry acc str cvs i)
+                            else (i+1, acc)
+                        let (_,ad) = List.fold add_entry_if_needed (0, ad) cfgs
+                        (m, { um with f = Set.add (str, cvs) um.f }, ad)
+                    else
+                        ({ m with f = Set.add (str, cvs) m.f }, um, ad)
+                (eval, Set.ofSeq (Seq.map treat_cfgs cfgs))
+            | ValueEqual (v1, v2) ->
+                let (cv1, cfgs1) = marks_for_value mdecl infos env uvar v1
+                let (cv2, cfgs2) = marks_for_value mdecl infos env uvar v2
+                let cfgs = Helper.all_choices_combination [cfgs1;cfgs2]
+                let eval = AST.value_equal cv1 cv2
+                let treat_cfg cfg =
+                    let (cfg1, cfg2) = Helper.lst_to_couple cfg
+                    let (m,um,ad) = config_union cfg1 cfg2
+                    if eval then (m, um, ad)
+                    else if ad.md
+                    then (m, add_diff_constraint um cv1 cv2, ad)
+                    else (add_diff_constraint m cv1 cv2, um, ad)
+                (AST.ConstBool eval, Set.ofSeq (Seq.map treat_cfg cfgs))
+            | ValueOr (v1, v2) ->
+                let (cv1, cfgs1) = marks_for_value mdecl infos env uvar v1
+                let (cv2, cfgs2) = marks_for_value mdecl infos env uvar v2
+                let cfgs = Helper.all_choices_combination [cfgs1;cfgs2]
+                let eval = (bool_of_cv cv1) || (bool_of_cv cv2)
+                let treat_cfg cfg =
+                    let (cfg1, cfg2) = Helper.lst_to_couple cfg
+                    match cv1, cv2 with
+                    | AST.ConstBool false, AST.ConstBool false -> [config_union cfg1 cfg2]
+                    | AST.ConstBool true, AST.ConstBool false -> [cfg1]
+                    | AST.ConstBool false, AST.ConstBool true -> [cfg2]
+                    | AST.ConstBool true, AST.ConstBool true -> [cfg1 ; cfg2]
+                    | _, _ -> raise TypeError
+                (AST.ConstBool eval, Set.ofSeq (Seq.concat (Seq.map treat_cfg cfgs)))
+            | ValueNot v ->
+                let (cv,cfgs) = marks_for_value mdecl infos env uvar v
+                (value_not cv, cfgs)
+            | ValueSomeElse (d,f,v) ->
+                match if_some_value mdecl infos env d f with
+                | Some cv ->
+                    (* NOTE: See note for IfSomeElse statement. *)
+                    let is_uvar = is_model_dependent_type d.Type && not (Set.isEmpty uvar) 
+                    let uvar = if is_uvar then Set.add d.Name uvar else uvar
+                    let (_,cfgs) = marks_for_value_with mdecl infos env uvar f [d.Name] [cv]
+                    (cv,cfgs)
+                | None -> 
+                    let (_,cfgs1) = marks_for_value mdecl infos env uvar (ValueForall (d, ValueNot f))
+                    let (cv,cfgs2) = marks_for_value mdecl infos env uvar v
+                    let cfgs = Helper.all_choices_combination [cfgs1;cfgs2]
+                    (cv, Set.ofSeq (Seq.map config_union_many cfgs))
+            | ValueIfElse (f, v1, v2) ->
+                let (b, cfgs) = marks_for_value mdecl infos env uvar f
+                let (res, cfgs') =
+                    match b with
+                    | AST.ConstBool true -> marks_for_value mdecl infos env uvar v1
+                    | AST.ConstBool false -> marks_for_value mdecl infos env uvar v2
+                    | _ -> raise TypeError
+                let cfgs = Helper.all_choices_combination [cfgs;cfgs']
+                (res, Set.ofSeq (Seq.map config_union_many cfgs))
+            | ValueForall (decl, v) ->
+                let is_uvar = 
+                    is_model_dependent_type decl.Type && 
+                    (not (Set.isEmpty uvar) || evaluate_value mdecl infos env (ValueForall (decl, v)) = AST.ConstBool true)
+                let uvar = if is_uvar then Set.add decl.Name uvar else uvar
+                let values = List.ofSeq (Model.all_values infos decl.Type)
+                let all_possibilities = List.map (fun cv -> marks_for_value_with mdecl infos env uvar v [decl.Name] [cv]) values
+                if Seq.forall (fun (b,_) -> b = AST.ConstBool true) all_possibilities
+                then
+                    // We mix all contraints (some will probably be model-dependent)
+                    let cfgs = Helper.all_choices_combination (List.map (fun (_,cfgs) -> cfgs) all_possibilities)
+                    (AST.ConstBool true, Set.ofSeq (Seq.map config_union_many cfgs))
+                else
+                    // We pick one constraint that breaks the forall
+                    let possibilities = Seq.filter (fun (b, _) -> b = AST.ConstBool false) all_possibilities
+                    let possibilities = Seq.concat (Seq.map (fun (_,cfgs) -> cfgs) possibilities)
+                    (AST.ConstBool false, Set.ofSeq possibilities)
+            | ValueInterpreted (str, vs) ->
+                let res = List.map (marks_for_value mdecl infos env uvar) vs
+                let (cvs, cfgs) = List.unzip res
+                let cfgs = Helper.all_choices_combination cfgs
+                let eval = (find_interpreted_action mdecl str).Effect infos env cvs
+                (eval, Set.ofSeq (Seq.map config_union_many cfgs))
+        (v, remove_worst_configs cfgs)
 
     and marks_for_value_with mdecl infos (env:Model.Environment) uvar v names values =
         let v' = List.fold2 (fun acc n v -> Map.add n v acc) env.v names values
-        let (v, cfg) = marks_for_value mdecl infos {env with v=v'} uvar v
-        (v, List.fold remove_var_marks cfg names)
+        let (v, cfgs) = marks_for_value mdecl infos {env with v=v'} uvar v
+        (v, Set.map (fun cfg -> List.fold remove_var_marks cfg names) cfgs)
+
+    let union_of_cfg_possibilities cfgs =
+        let cfgs = Helper.all_choices_combination cfgs
+        let cfgs = Set.ofSeq (Seq.map config_union_many cfgs)
+        remove_worst_configs cfgs
+
+    let best_cfg cfgs =
+        Helper.seq_min is_better_config cfgs
 
     ////////////////////////////////////////////////////////////////////////////
 
@@ -322,11 +367,14 @@
                 | TrVarAssign ((env,_,_), str, v) ->
                     let marked = is_var_marked cfg str
                     let cfg = remove_var_marks cfg str
-                    if marked
-                    then
-                        let (_,cfg') = marks_for_value mdecl infos env Set.empty v
-                        aux group_trs (config_union cfg cfg')
-                    else aux group_trs cfg
+                    let cfgs =
+                        if marked
+                        then
+                            let (_,cfgs) = marks_for_value mdecl infos env Set.empty v
+                            union_of_cfg_possibilities [Set.singleton cfg;cfgs]
+                        else Set.singleton cfg
+                    let cfgs = Set.map (fun cfg -> aux group_trs cfg) cfgs
+                    best_cfg cfgs
                 | TrVarAssignAction ((env,_,b), str, input, output, args, tr) ->
                     let (marked, cfg) =
                         if b then
@@ -346,8 +394,10 @@
             
                     let args = List.zip args args_marks
                     let (args, _) = List.unzip (List.filter (fun (_,marked) -> marked) args)
-                    let (_, args_cfg) = List.unzip (List.map (marks_for_value mdecl infos env Set.empty) args)
-                    aux group_trs (config_union_many (cfg::args_cfg))
+                    let (_, args_cfgs) = List.unzip (List.map (marks_for_value mdecl infos env Set.empty) args)
+                    let cfgs = union_of_cfg_possibilities ((Set.singleton cfg)::args_cfgs)
+                    let cfgs = Set.map (fun cfg -> aux group_trs cfg) cfgs
+                    best_cfg cfgs
                 | TrFunAssign ((env,_,_), str, hvs, v) ->
                     (*
                     fun (ei,Xi) = V(Xi)
@@ -386,44 +436,52 @@
                                 Set.map (fun (d:VarDecl) -> d.Name) md_uvs
                             else Set.empty
                         marks_for_value_with mdecl infos env uvars v (List.map (fun (d:VarDecl) -> d.Name) uvs) uvs_inst
-                    let add_marks_for_all (env:Model.Environment) v uvs model_dependent uvs_insts cfg =
+                    let add_marks_for_all (env:Model.Environment) v uvs model_dependent uvs_insts cfgs =
                         let aux acc uvs_inst =
-                            let (_,cfg) = compute_marks_for env v uvs model_dependent uvs_inst
-                            config_union acc cfg
-                        Set.fold aux cfg uvs_insts
+                            let (_,cfgs) = compute_marks_for env v uvs model_dependent uvs_inst
+                            union_of_cfg_possibilities [acc; cfgs]
+                        Set.fold aux cfgs uvs_insts
 
                     let m_marks = Set.map (fun (_,cvs) -> keep_only_holes hvs cvs) m_marks
-                    let cfg = add_marks_for_all env v uvs false m_marks cfg
+                    let cfgs = add_marks_for_all env v uvs false m_marks (Set.singleton cfg)
                     let um_marks = Set.map (fun (_,cvs) -> keep_only_holes hvs cvs) um_marks
-                    let cfg = add_marks_for_all env v uvs true um_marks cfg
+                    let cfgs = add_marks_for_all env v uvs true um_marks cfgs
 
-                    // Adding marks for the important args (vs)
-                    let permutations = List.ofSeq (Helper.all_permutations (List.length cvs))
-                    let vals_possibilities = List.map (compute_neighbors_with_perm cfg marked str cvs hvs none_uvs) permutations
+                    let treat_cfg cfg =
+                        // Adding marks for the important args (vs)
+                        let permutations = List.ofSeq (Helper.all_permutations (List.length cvs))
+                        let vals_possibilities = List.map (compute_neighbors_with_perm cfg marked str cvs hvs none_uvs) permutations
 
-                    let treat_possibility (vs_marks, neighbors, uneighbors) =
-                        let args = List.zip vs vs_marks
-                        let (args, _) = List.unzip (List.filter (fun (_,marked) -> marked) args)
-                        let (_, args_cfg) = List.unzip (List.map (marks_for_value mdecl infos env Set.empty) args)
-                        let cfg = config_union_many (cfg::args_cfg)
-                        // Disequality marks
-                        let (m, um, ad) = cfg
-                        let m = Seq.fold2 (fun m cv ns -> add_ineq_between m (Set.singleton cv) ns) m cvs neighbors
-                        let um = Seq.fold2 (fun um cv ns -> add_ineq_between um (Set.singleton cv) ns) um cvs uneighbors
-                        aux group_trs (m,um,ad)
+                        let treat_possibility (vs_marks, neighbors, uneighbors) =
+                            let args = List.zip vs vs_marks
+                            let (args, _) = List.unzip (List.filter (fun (_,marked) -> marked) args)
+                            let (_, args_cfgs) = List.unzip (List.map (marks_for_value mdecl infos env Set.empty) args)
+                            let cfgs = union_of_cfg_possibilities ((Set.singleton cfg)::args_cfgs)
+                            // Disequality marks
+                            let treat_cfg cfg =
+                                let (m, um, ad) = cfg
+                                let m = Seq.fold2 (fun m cv ns -> add_ineq_between m (Set.singleton cv) ns) m cvs neighbors
+                                let um = Seq.fold2 (fun um cv ns -> add_ineq_between um (Set.singleton cv) ns) um cvs uneighbors
+                                aux group_trs (m,um,ad)
+                            let cfgs = Set.map treat_cfg cfgs
+                            best_cfg cfgs
 
-                    let results = List.map treat_possibility vals_possibilities
-                    Helper.seq_min is_better_config results
+                        let results = List.map treat_possibility vals_possibilities
+                        best_cfg results
+                    let cfgs = Set.map treat_cfg cfgs
+                    best_cfg cfgs
                 | TrIfElse ((env,_,_), v, tr) ->
                     let cfg = marks_before_statement mdecl infos ignore_asserts ignore_assumes tr cfg
-                    let (_,cfg') = marks_for_value mdecl infos env Set.empty v
-                    aux group_trs (config_union cfg cfg')
+                    let (_,cfgs) = marks_for_value mdecl infos env Set.empty v
+                    let cfgs = union_of_cfg_possibilities [Set.singleton cfg;cfgs]
+                    let cfgs = Set.map (fun cfg -> aux group_trs cfg) cfgs
+                    best_cfg cfgs
                 | TrIfSomeElse ((env,_,_), cv, decl, v, tr) ->
                     match cv with
                     | Some _ ->
                         let cfg' = config_enter_block infos cfg [decl]
                         let cfg' = marks_before_statement mdecl infos ignore_asserts ignore_assumes tr cfg'
-                        let (_, cfg'') =
+                        let (_, cfgs) =
                             if is_var_marked cfg' decl.Name
                             then marks_for_value mdecl infos (initial_env tr) Set.empty v
                             (* NOTE: In the case above, we may also ensure that every other value doesn't satisfy the predicate.
@@ -432,26 +490,33 @@
                                Therefore, we suppose that the choice made is always the value we choose here (if it satisfies the condition).
                                An assertion can also be added by the user to ensure this uniqueness. *)
                             else marks_for_value mdecl infos env Set.empty (ValueNot (ValueForall (decl, ValueNot v)))
-                        let cfg' = config_union cfg' cfg''
-                        aux group_trs (config_leave_block infos cfg' [decl] cfg)
+                        let cfgs = union_of_cfg_possibilities [Set.singleton cfg';cfgs]
+                        let cfgs = Set.map (fun cfg' -> aux group_trs (config_leave_block infos cfg' [decl] cfg)) cfgs
+                        best_cfg cfgs
                     | None ->
                         let cfg = marks_before_statement mdecl infos ignore_asserts ignore_assumes tr cfg
-                        let (_,cfg') = marks_for_value mdecl infos env Set.empty (ValueForall (decl, ValueNot v))
-                        aux group_trs (config_union cfg cfg')
+                        let (_,cfgs) = marks_for_value mdecl infos env Set.empty (ValueForall (decl, ValueNot v))
+                        let cfgs = union_of_cfg_possibilities [Set.singleton cfg;cfgs]
+                        let cfgs = Set.map (fun cfg -> aux group_trs cfg) cfgs
+                        best_cfg cfgs
                 | TrAssert ((env,_,b),v) ->
                     // If ignore_asserts is true, we ignore satisfied assertions
                     if ignore_asserts && b then
                         aux group_trs cfg
                     else
-                        let (_, cfg') = marks_for_value mdecl infos env Set.empty v
-                        aux group_trs (config_union cfg cfg')
+                        let (_, cfgs) = marks_for_value mdecl infos env Set.empty v
+                        let cfgs = union_of_cfg_possibilities [Set.singleton cfg;cfgs]
+                        let cfgs = Set.map (fun cfg -> aux group_trs cfg) cfgs
+                        best_cfg cfgs
                 | TrAssume ((env,_,b),v) ->
                     // If ignore_assumes is true, we ignore satisfied assumptions
                     if ignore_assumes && b then
                         aux group_trs cfg
                     else
-                        let (_, cfg') = marks_for_value mdecl infos env Set.empty v
-                        aux group_trs (config_union cfg cfg')
+                        let (_, cfgs) = marks_for_value mdecl infos env Set.empty v
+                        let cfgs = union_of_cfg_possibilities [Set.singleton cfg;cfgs]
+                        let cfgs = Set.map (fun cfg -> aux group_trs cfg) cfgs
+                        best_cfg cfgs
         aux [tr] cfg
 
     // Statements are analysed in reverse order
