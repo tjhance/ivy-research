@@ -18,9 +18,9 @@
         | _ -> raise TypeError
 
     let rec if_some_value (m:ModuleDecl) infos (env:Model.Environment) (decl:VarDecl) v : option<ConstValue> =
-        let possible_values = Model.all_values infos (decl.Type)
+        let possible_values = Model.all_values infos (decl.Type) |> Seq.toList
         try
-            Some (Seq.find (fun cv -> eval_value_with m infos env v [decl.Name] [cv] = AST.ConstBool true) possible_values)
+            Some (List.find (fun cv -> eval_value_with m infos env v [decl.Name] [cv] = AST.ConstBool true) possible_values)
         with :? System.Collections.Generic.KeyNotFoundException -> None
 
     and evaluate_value (m:ModuleDecl) infos (env:Model.Environment) v =
@@ -51,8 +51,8 @@
             then evaluate_value m infos env v1
             else evaluate_value m infos env v2
         | ValueForall (d,v) ->
-            let possible_values = Model.all_values infos d.Type
-            AST.ConstBool (Seq.forall (fun cv -> eval_value_with m infos env v [d.Name] [cv] = AST.ConstBool true) possible_values)
+            let possible_values = Model.all_values infos d.Type |> Seq.toList
+            AST.ConstBool (List.forall (fun cv -> eval_value_with m infos env v [d.Name] [cv] = AST.ConstBool true) possible_values)
         | ValueInterpreted (str, vs) ->
             let lst = List.map (evaluate_value m infos env) vs
             (find_interpreted_action m str).Effect infos env lst
@@ -104,8 +104,8 @@
             let (vs, uvs) = separate_hvals hvs
             let cvs = evaluate_values m infos env vs
             let possibilities = List.map (fun (d:VarDecl) -> d.Type) uvs
-            let possibilities = Model.all_values_ext infos possibilities
-            let res = Seq.fold (compute_value_for env cvs uvs) Map.empty possibilities
+            let possibilities = Model.all_values_ext infos possibilities |> Seq.toList
+            let res = List.fold (compute_value_for env cvs uvs) Map.empty possibilities
             let f' = Map.fold (fun acc k v -> Map.add k v acc) env.f res
             { env with f=f' }
         | IfElse (v, sif, selse) ->

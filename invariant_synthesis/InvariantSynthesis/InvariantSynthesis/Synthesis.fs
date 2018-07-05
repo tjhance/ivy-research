@@ -150,7 +150,7 @@
                 let (cvs, cfgs) = List.unzip res
                 let vs = List.map (fun cv -> ValueConst cv) cvs
                 let eval = evaluate_value mdecl infos env (ValueFun (str, vs))
-                let cfgs = Helper.all_choices_combination cfgs
+                let cfgs = Helper.all_choices_combination cfgs |> Seq.toList
                 let treat_cfgs cfgs =
                     let (m,um,ad) = config_union_many cfgs
                     if ad.md
@@ -163,11 +163,11 @@
                         (m, { um with f = Set.add (str, cvs) um.f }, ad)
                     else
                         ({ m with f = Set.add (str, cvs) m.f }, um, ad)
-                (eval, Set.ofSeq (Seq.map treat_cfgs cfgs))
+                (eval, List.map treat_cfgs cfgs |> Set.ofList)
             | ValueEqual (v1, v2) ->
                 let (cv1, cfgs1) = marks_for_value mdecl infos env uvar v1
                 let (cv2, cfgs2) = marks_for_value mdecl infos env uvar v2
-                let cfgs = Helper.all_choices_combination [cfgs1;cfgs2]
+                let cfgs = Helper.all_choices_combination [cfgs1;cfgs2]  |> Seq.toList
                 let eval = AST.value_equal cv1 cv2
                 let treat_cfg cfg =
                     let (cfg1, cfg2) = Helper.lst_to_couple cfg
@@ -176,11 +176,11 @@
                     else if ad.md
                     then (m, add_diff_constraint um cv1 cv2, ad)
                     else (add_diff_constraint m cv1 cv2, um, ad)
-                (AST.ConstBool eval, Set.ofSeq (Seq.map treat_cfg cfgs))
+                (AST.ConstBool eval, List.map treat_cfg cfgs |> Set.ofList)
             | ValueOr (v1, v2) ->
                 let (cv1, cfgs1) = marks_for_value mdecl infos env uvar v1
                 let (cv2, cfgs2) = marks_for_value mdecl infos env uvar v2
-                let cfgs = Helper.all_choices_combination [cfgs1;cfgs2]
+                let cfgs = Helper.all_choices_combination [cfgs1;cfgs2] |> Seq.toList
                 let eval = (bool_of_cv cv1) || (bool_of_cv cv2)
                 let treat_cfg cfg =
                     let (cfg1, cfg2) = Helper.lst_to_couple cfg
@@ -190,7 +190,7 @@
                     | AST.ConstBool false, AST.ConstBool true -> [cfg2]
                     | AST.ConstBool true, AST.ConstBool true -> [cfg1 ; cfg2]
                     | _, _ -> raise TypeError
-                (AST.ConstBool eval, Set.ofSeq (Seq.concat (Seq.map treat_cfg cfgs)))
+                (AST.ConstBool eval, List.concat (List.map treat_cfg cfgs) |> Set.ofList)
             | ValueNot v ->
                 let (cv,cfgs) = marks_for_value mdecl infos env uvar v
                 (value_not cv, cfgs)
@@ -205,8 +205,8 @@
                 | None -> 
                     let (_,cfgs1) = marks_for_value mdecl infos env uvar (ValueForall (d, ValueNot f))
                     let (cv,cfgs2) = marks_for_value mdecl infos env uvar v
-                    let cfgs = Helper.all_choices_combination [cfgs1;cfgs2]
-                    (cv, Set.ofSeq (Seq.map config_union_many cfgs))
+                    let cfgs = Helper.all_choices_combination [cfgs1;cfgs2] |> Seq.toList
+                    (cv, List.map config_union_many cfgs |> Set.ofList)
             | ValueIfElse (f, v1, v2) ->
                 let (b, cfgs) = marks_for_value mdecl infos env uvar f
                 let (res, cfgs') =
@@ -214,8 +214,8 @@
                     | AST.ConstBool true -> marks_for_value mdecl infos env uvar v1
                     | AST.ConstBool false -> marks_for_value mdecl infos env uvar v2
                     | _ -> raise TypeError
-                let cfgs = Helper.all_choices_combination [cfgs;cfgs']
-                (res, Set.ofSeq (Seq.map config_union_many cfgs))
+                let cfgs = Helper.all_choices_combination [cfgs;cfgs'] |> Seq.toList
+                (res, List.map config_union_many cfgs |> Set.ofList)
             | ValueForall (decl, v) ->
                 let is_uvar = 
                     is_model_dependent_type decl.Type && 
@@ -226,19 +226,19 @@
                 if Seq.forall (fun (b,_) -> b = AST.ConstBool true) all_possibilities
                 then
                     // We mix all contraints (some will probably be model-dependent)
-                    let cfgs = Helper.all_choices_combination (List.map (fun (_,cfgs) -> cfgs) all_possibilities)
-                    (AST.ConstBool true, Set.ofSeq (Seq.map config_union_many cfgs))
+                    let cfgs = Helper.all_choices_combination (List.map (fun (_,cfgs) -> cfgs) all_possibilities) |> Seq.toList
+                    (AST.ConstBool true, List.map config_union_many cfgs |> Set.ofList)
                 else
                     // We pick one constraint that breaks the forall
-                    let possibilities = Seq.filter (fun (b, _) -> b = AST.ConstBool false) all_possibilities
-                    let possibilities = Seq.concat (Seq.map (fun (_,cfgs) -> cfgs) possibilities)
-                    (AST.ConstBool false, Set.ofSeq possibilities)
+                    let possibilities = List.filter (fun (b, _) -> b = AST.ConstBool false) all_possibilities
+                    let possibilities = Set.unionMany (List.map (fun (_,cfgs) -> cfgs) possibilities)
+                    (AST.ConstBool false, possibilities)
             | ValueInterpreted (str, vs) ->
                 let res = List.map (marks_for_value mdecl infos env uvar) vs
                 let (cvs, cfgs) = List.unzip res
-                let cfgs = Helper.all_choices_combination cfgs
+                let cfgs = Helper.all_choices_combination cfgs |> Seq.toList
                 let eval = (find_interpreted_action mdecl str).Effect infos env cvs
-                (eval, Set.ofSeq (Seq.map config_union_many cfgs))
+                (eval, List.map config_union_many cfgs |> Set.ofList)
         (v, remove_worst_configs cfgs)
 
     and marks_for_value_with mdecl infos (env:Model.Environment) uvar v names values =
@@ -247,8 +247,8 @@
         (v, Set.map (fun cfg -> List.fold remove_var_marks cfg names) cfgs)
 
     let union_of_cfg_possibilities cfgs =
-        let cfgs = Helper.all_choices_combination cfgs
-        let cfgs = Set.ofSeq (Seq.map config_union_many cfgs)
+        let cfgs = Helper.all_choices_combination cfgs |> Seq.toList
+        let cfgs = List.map config_union_many cfgs |> Set.ofList
         remove_worst_configs cfgs
 
     let best_cfg cfgs =
@@ -356,7 +356,7 @@
                         let v = List.fold2 add_condition v (List.permute p added_names) (List.permute p vs)
                         
                         // Adding marks for the marked instances of v
-                        let compute_marks_for model_dependent ad uvs =
+                        let compute_marks_for model_dependent uvs =
                             let uvars =
                                 if model_dependent
                                 then
@@ -366,19 +366,19 @@
                                     List.map (fun (_,d:VarDecl) -> d.Name) md_qvars |> Set.ofList
                                 else Set.empty
                             marks_for_value_with mdecl infos env uvars v (List.map (fun (d:VarDecl) -> d.Name) decls) uvs
-                        let add_marks_for_all model_dependent ad uvs cfgs =
+                        let add_marks_for_all model_dependent uvs cfgs =
                             let aux acc uvs =
-                                let (_,cfgs) = compute_marks_for model_dependent ad uvs
+                                let (_,cfgs) = compute_marks_for model_dependent uvs
                                 union_of_cfg_possibilities [acc; cfgs]
                             Set.fold aux cfgs uvs
 
-                        let cfgs = add_marks_for_all false ad m_marks (Set.singleton cfg)
-                        let cfgs = add_marks_for_all true ad um_marks cfgs
+                        let cfgs = add_marks_for_all false m_marks (Set.singleton cfg)
+                        let cfgs = add_marks_for_all true um_marks cfgs
                         let cfgs = Set.map (fun cfg -> aux group_trs cfg) cfgs
                         best_cfg cfgs
 
-                    let permutations = Helper.all_permutations (List.length vs)
-                    let cfgs = Seq.map proceed_with_permutation permutations
+                    let permutations = Helper.all_permutations (List.length vs) |> Seq.toList
+                    let cfgs = List.map proceed_with_permutation permutations
                     best_cfg cfgs
                 | TrIfElse ((env,_,_), v, tr) ->
                     let cfg = marks_before_statement mdecl infos ignore_asserts ignore_assumes tr cfg

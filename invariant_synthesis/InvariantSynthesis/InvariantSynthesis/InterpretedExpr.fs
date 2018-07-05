@@ -3,7 +3,7 @@
     open AST
 
     let order_type_elts infos (env:Model.Environment) t =
-        let elts = Seq.toList (Model.all_values infos (Uninterpreted t))
+        let elts = Model.all_values infos (Uninterpreted t) |> Seq.toList
         let rel_name = sprintf "%s%c<" t name_separator
         let cmp cv1 cv2 =
             if value_equal cv1 cv2 then 0

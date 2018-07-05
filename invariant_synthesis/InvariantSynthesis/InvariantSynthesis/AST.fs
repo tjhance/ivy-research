@@ -141,7 +141,6 @@
     // Var names functions
 
     let name_separator = '.'
-
     let action_variant_char = ':'
 
     let variant_action_name name variant =
@@ -156,8 +155,7 @@
         else (name, "")
 
     let local_var_prefix = "" // Note: local var prefix is not needed anymore since global vars are considered as functions
-
-    let impossible_var_factor = "$$"
+    let impossible_var_factor = "$"
 
     let void_return_decl = default_var_decl impossible_var_factor Void
 
