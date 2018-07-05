@@ -197,7 +197,10 @@
             | ValueSomeElse (d,f,v) ->
                 match if_some_value mdecl infos env d f with
                 | Some cv ->
-                    (* NOTE: See note for IfSomeElse statement. *)
+                    (* NOTE: In this case, we may also ensure that all other value don't satisfy the predicate.
+                    However, it would make the resulting invariant way more complex.
+                    If the user want to ensure that there is only one possible value, he can add an assertion for that.
+                    More generally, non-deterministic operations should be accompagnied with assertions and/or assumptions if necessary. *)
                     let is_uvar = is_model_dependent_type d.Type && not (Set.isEmpty uvar) 
                     let uvar = if is_uvar then Set.add d.Name uvar else uvar
                     let (_,cfgs) = marks_for_value_with mdecl infos env uvar f [d.Name] [cv]
@@ -394,11 +397,7 @@
                         let (_, cfgs) =
                             if is_var_marked cfg' decl.Name
                             then marks_for_value mdecl infos (initial_env tr) Set.empty v
-                            (* NOTE: In the case above, we may also ensure that every other value doesn't satisfy the predicate.
-                               However, it is a different problem than garanteeing the invariant value,
-                               since we are bound to an execution (maybe there is no uniqueness in this execution).
-                               Therefore, we suppose that the choice made is always the value we choose here (if it satisfies the condition).
-                               An assertion can also be added by the user to ensure this uniqueness. *)
+                            (* NOTE: See note for ValueSomeElse. *)
                             else marks_for_value mdecl infos env Set.empty (ValueNot (ValueForall (decl, ValueNot v)))
                         let cfgs = union_of_cfg_possibilities [Set.singleton cfg';cfgs]
                         let cfgs = Set.map (fun cfg' -> aux group_trs (config_leave_block cfg' [decl] cfg)) cfgs
