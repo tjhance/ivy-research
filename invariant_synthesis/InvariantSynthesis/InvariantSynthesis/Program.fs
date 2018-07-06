@@ -19,7 +19,7 @@ let parser_error_path = "parser.err"
 
 // ----- MANUAL MODE -----
 
-let manual_counterexample (md:ModuleDecl) decls verbose =
+let manual_counterexample (md:ModuleDecl) decls action verbose =
     printfn "Please enter constraints:"
     let str = read_until_line_jump ()
     printfn "Loading constraints..."
@@ -31,9 +31,7 @@ let manual_counterexample (md:ModuleDecl) decls verbose =
         printfn "%A" infos
         printfn "%A" env
 
-    printfn "Please enter the name of the (concrete) action to execute:"
-    let name = Console.ReadLine()
-    let args_decl = (find_action md name "").Args
+    let args_decl = (find_action md action "").Args
     let env =
         List.fold
             (
@@ -48,10 +46,10 @@ let manual_counterexample (md:ModuleDecl) decls verbose =
             )
             env args_decl
     
-    let mmd = MinimalAST.module2minimal md name
+    let mmd = MinimalAST.module2minimal md action
 
     printfn "Executing..."
-    let tr = TInterpreter.trace_action mmd infos env name (List.map (fun (d:VarDecl) -> MinimalAST.ValueVar d.Name) args_decl) AST.impossible_var_factor
+    let tr = TInterpreter.trace_action mmd infos env action (List.map (fun (d:VarDecl) -> MinimalAST.ValueVar d.Name) args_decl) AST.impossible_var_factor
     let env' = Trace.final_env tr
     if verbose
     then
@@ -60,25 +58,26 @@ let manual_counterexample (md:ModuleDecl) decls verbose =
     if Trace.is_fully_executed tr
     then
         printfn "Please enter the index of the invariant to analyze:"
-
+        let (main_module,_) = AST.decompose_name action
+        let invs = AST.find_invariants md main_module
         List.iteri
             (
-                fun i v ->
-                    let mv = MinimalAST.value2minimal md v
+                fun i (d:AST.InvariantDecl) ->
+                    let mv = MinimalAST.value2minimal md d.Formula
                     match Interpreter.evaluate_value mmd infos env' mv with
                     | ConstBool true -> Console.ForegroundColor <- ConsoleColor.Green
                     | ConstBool false -> Console.ForegroundColor <- ConsoleColor.Red
                     | _ -> Console.ResetColor()
-                    printfn "%i. %s" i (Printer.value_to_string decls v 0)
-            ) md.Invariants
+                    printfn "%i. [%s] %s" i d.Module (Printer.value_to_string decls d.Formula 0)
+            ) invs
         Console.ResetColor()
 
         let nb = Convert.ToInt32 (Console.ReadLine())
-        let formula = List.item nb md.Invariants
+        let formula = List.item nb (AST.invariants_to_formulas invs)
         let formula = MinimalAST.value2minimal md formula
-        (mmd, name, infos, env, cs, formula, tr)
+        (mmd, action, infos, env, cs, formula, tr)
     else
-        (mmd, name, infos, env, cs, MinimalAST.ValueConst (ConstBool true), tr)
+        (mmd, action, infos, env, cs, MinimalAST.ValueConst (ConstBool true), tr)
     
 let manual_allowed_path (md:ModuleDecl) decls env cs m um' =
     printfn "Please modify some constraints on the environment to change the final formula value."
@@ -100,16 +99,17 @@ let manual_allowed_path (md:ModuleDecl) decls env cs m um' =
 
 // ----- AUTO MODE -----
 
-let auto_counterexample (md:ModuleDecl) decls verbose =
+let auto_counterexample (md:ModuleDecl) decls action verbose =
 
-    printfn "Enter the name of the action:"
-    let action = Console.ReadLine()
     let mmd = MinimalAST.module2minimal md action
     let mmd = Determinization.determinize_action mmd action
     let action_args = (MinimalAST.find_action mmd action).Args
 
     let counterexample = ref None
     let first_loop = ref true
+
+    let (main_module,_) = AST.decompose_name action
+    let invs = AST.find_invariants md main_module
 
     while (!counterexample) = None do
 
@@ -121,16 +121,17 @@ let auto_counterexample (md:ModuleDecl) decls verbose =
                 MinimalAST.ValueConst (ConstBool true)
             else
                 printfn "Select the conjecture to test:"
-                List.iteri (fun i v -> printfn "%i. %s" i (Printer.value_to_string decls v 0)) md.Invariants
+                List.iteri (fun i (d:AST.InvariantDecl) -> printfn "%i. [%s] %s" i d.Module (Printer.value_to_string decls d.Formula 0)) invs
                 let nb = Convert.ToInt32 (Console.ReadLine())
-                let formula = List.item nb md.Invariants
+                let formula = List.item nb (AST.invariants_to_formulas invs)
                 MinimalAST.value2minimal md formula
 
         let z3formula = WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd formula) false
         let wpr = WPR.wpr_for_action mmd z3formula action false
         if verbose then printfn "%A" wpr
 
-        let conjectures = WPR.conjunction_of (WPR.conjectures_to_z3values mmd mmd.Invariants)
+        let all_invariants = MinimalAST.invariants_to_formulas mmd.Invariants
+        let conjectures = WPR.conjunction_of (WPR.conjectures_to_z3values mmd all_invariants)
         let axioms = WPR.conjunction_of (WPR.conjectures_to_z3values mmd mmd.Axioms)
     
         let is_inductive_v = WPR.Z3And (WPR.Z3And (conjectures, axioms), WPR.Z3Not wpr)
@@ -181,7 +182,8 @@ let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) 
     // 3. Possibly valid run: WPR & conjectures & axioms
     let z3formula = WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd formula) false
     let wpr = WPR.wpr_for_action mmd z3formula action true
-    let conjectures = WPR.conjunction_of (WPR.conjectures_to_z3values mmd mmd.Invariants)
+    let all_invariants = MinimalAST.invariants_to_formulas mmd.Invariants
+    let conjectures = WPR.conjunction_of (WPR.conjectures_to_z3values mmd all_invariants)
     let axioms = WPR.conjunction_of (WPR.conjectures_to_z3values mmd mmd.Axioms)
     let valid_run = WPR.Z3And (axioms, WPR.Z3And(conjectures, wpr))
 
@@ -262,10 +264,32 @@ let main argv =
                 ParserAST.ivy_elements_to_ast_module filename parsed_elts
     let decls = Model.declarations_of_module md
 
+    // Concrete modules list & main action
+
+    printfn "Please enter the names of the concrete modules to use ($ for empty):"
+    let str = read_until_line_jump ()
+    let concrete_modules = str.Split([|Environment.NewLine|], StringSplitOptions.RemoveEmptyEntries)
+    let concrete_modules = List.map (fun str -> if str = "$" then "" else str) (Seq.toList concrete_modules)
+    let concrete_actions =
+        List.filter
+            (fun (d:ActionDecl) ->
+                let (p,_) = AST.decompose_name d.Name
+                List.contains p concrete_modules
+            ) md.Actions
+    let concrete_actions = List.map (fun (d:ActionDecl) -> d.Name) concrete_actions
+    let concrete_actions = List.filter (fun str -> let (_,v) = AST.decompose_action_name str in v = "") concrete_actions
+
+    printfn "Which action do you want to analyze?"
+    List.iteri (fun i str -> printfn "%i. %s" i str) concrete_actions
+    let nb = Convert.ToInt32 (Console.ReadLine())
+    let name = List.item nb concrete_actions
+
+    // Let's go!
+
     let (mmd, name, infos, env, cs, formula, tr) =
         if manual
-        then manual_counterexample md decls verbose
-        else auto_counterexample md decls verbose
+        then manual_counterexample md decls name verbose
+        else auto_counterexample md decls name verbose
 
     let (b,finished_exec,(m,um,ad)) =
         analyse_example_ending mmd infos tr formula

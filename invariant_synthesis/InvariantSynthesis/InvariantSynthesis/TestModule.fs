@@ -116,11 +116,15 @@
 
         let invariants =
             [
-                ValueOr
-                    (
-                        empty_formula,
-                        ValueEqual (ValueVar "q.first", ValueFun ("q.spec.content_f", [ValueVar "q.first_e"]))
-                    )
+                {
+                    Module = "q" ;
+                    Formula =
+                        ValueOr
+                            (
+                                empty_formula,
+                                ValueEqual (ValueVar "q.first", ValueFun ("q.spec.content_f", [ValueVar "q.first_e"]))
+                            )
+                }
             ]
 
         let queue_module : ModuleDecl =

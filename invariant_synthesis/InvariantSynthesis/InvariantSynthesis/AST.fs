@@ -113,13 +113,15 @@
 
     type MacroDecl = { Name: string; Args: List<VarDecl>; Output: Type; Value: Value ; Representation: RepresentationInfos }
 
+    type InvariantDecl = { Module: string; Formula: Value }
+
     [<NoEquality;NoComparison>]
     type InterpretedActionDecl<'a,'b> = { Name: string; Args: List<Type>; Output: Type; Effect: 'a -> 'b -> List<ConstValue> -> ConstValue ; Representation: RepresentationInfos }
 
     [<NoEquality;NoComparison>]
     type ModuleDecl<'a,'b> =
         { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; InterpretedActions: List<InterpretedActionDecl<'a,'b>>;
-            Actions: List<ActionDecl>; Macros: List<MacroDecl>; Invariants: List<Value>; Implications: List<ImplicationRule> ; Axioms: List<Value> }
+            Actions: List<ActionDecl>; Macros: List<MacroDecl>; Invariants: List<InvariantDecl>; Implications: List<ImplicationRule> ; Axioms: List<Value> }
 
 
     let empty_module name =
@@ -168,6 +170,26 @@
     let local_name name =
         sprintf "%s%s" local_var_prefix name
 
+    let compose_name base_name name =
+        if name = ""
+        then base_name
+        else if base_name = ""
+        then name
+        else sprintf "%s%c%s" base_name name_separator name
+
+    // Decompose a name and returns a tuple of the form (parent_name,last_name)
+    let decompose_name (name:string) =
+        let i = name.LastIndexOf(name_separator)
+        if i >= 0
+        then (name.Substring(0,i), name.Substring(i+1))
+        else ("", name)
+
+    let has_base_name (name:string) (base_name:string) =
+        base_name = "" || name = base_name || name.StartsWith(sprintf "%s%c" base_name name_separator)
+
+    let has_reference_name (name:string) reference_name =
+        name = reference_name || name.EndsWith(sprintf "%c%s" name_separator reference_name)
+
     // Utility functions
 
     let find_function (m:ModuleDecl<'a,'b>) str =
@@ -182,6 +204,12 @@
 
     let find_macro (m:ModuleDecl<'a,'b>) str =
         List.find (fun (decl:MacroDecl) -> decl.Name = str) m.Macros
+
+    let find_invariants (m:ModuleDecl<'a,'b>) module_name =
+        List.filter (fun (d:InvariantDecl) -> has_base_name d.Module module_name) m.Invariants
+
+    let invariants_to_formulas invs =
+        List.map (fun (d:InvariantDecl) -> d.Formula) invs
 
     let rec map_vars_in_value v dico =
         match v with

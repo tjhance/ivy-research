@@ -38,13 +38,14 @@
         | Assert of Value
         | Assume of Value
 
+    type InvariantDecl = { Module: string; Formula: Value }
     type ActionDecl = { Name: string; Args: List<VarDecl>; Output: VarDecl; Content: Statement }
     type MacroDecl = { Name: string; Args: List<VarDecl>; Output: Type; Value: Value ; Representation: RepresentationInfos }
     type InterpretedActionDecl<'a,'b> = AST.InterpretedActionDecl<'a,'b>
     [<NoEquality;NoComparison>]
     type ModuleDecl<'a,'b> =
         { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; InterpretedActions: List<InterpretedActionDecl<'a,'b>>;
-            Actions: List<ActionDecl>; Invariants: List<Value>; Implications: List<ImplicationRule> ; Axioms: List<Value> }
+            Actions: List<ActionDecl>; Invariants: List<InvariantDecl>; Implications: List<ImplicationRule> ; Axioms: List<Value> }
 
     // Functions on HoleValue
 
@@ -85,6 +86,12 @@
 
     let find_interpreted_action (m:ModuleDecl<'a,'b>) str =
         List.find (fun (decl:InterpretedActionDecl<'a,'b>) -> decl.Name = str) m.InterpretedActions
+
+    let find_invariants (m:ModuleDecl<'a,'b>) module_name =
+        List.filter (fun (d:InvariantDecl) -> AST.has_base_name d.Module module_name) m.Invariants
+
+    let invariants_to_formulas invs =
+        List.map (fun (d:InvariantDecl) -> d.Formula) invs
 
     let rec map_vars_in_value v dico =
         match v with
@@ -392,7 +399,7 @@
             { ActionDecl.Name = name; ActionDecl.Args = args ; ActionDecl.Output = output ; ActionDecl.Content = st }::acc
 
         let actions = Set.fold convert_action [] all_actions
-        let invariants = List.map (value2minimal m) m.Invariants
+        let invariants = List.map (fun (d:AST.InvariantDecl) -> { Module=d.Module ; Formula=value2minimal m d.Formula }) m.Invariants
         let axioms = List.map (value2minimal m) m.Axioms
 
         { Name = m.Name; Types = m.Types; Funs = m.Funs; InterpretedActions = m.InterpretedActions;

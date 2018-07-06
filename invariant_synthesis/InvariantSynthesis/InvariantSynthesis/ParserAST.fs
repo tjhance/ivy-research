@@ -203,32 +203,12 @@ open Prime
     // Operations on names
 
     let void_return_decl = AST.void_return_decl
-
     let local_name = AST.local_name
-
-    let separator = AST.name_separator
-
     let variant_action_name = AST.variant_action_name
-
-    let compose_name base_name name =
-        if name = ""
-        then base_name
-        else if base_name = ""
-        then name
-        else sprintf "%s%c%s" base_name separator name
-
-    // Decompose a name and returns a tuple of the form (parent_name,last_name)
-    let decompose_name (name:string) =
-        let i = name.LastIndexOf(separator)
-        if i >= 0
-        then (name.Substring(0,i), name.Substring(i+1))
-        else ("", name)
-
-    let has_base_name (name:string) (base_name:string) =
-        base_name = "" || name = base_name || name.StartsWith(sprintf "%s%c" base_name separator)
-
-    let has_reference_name (name:string) reference_name =
-        name = reference_name || name.EndsWith(sprintf "%c%s" separator reference_name)
+    let compose_name = AST.compose_name
+    let decompose_name = AST.decompose_name
+    let has_base_name = AST.has_base_name
+    let has_reference_name = AST.has_reference_name
 
     // Resolve references
     let resolve_reference candidates base_name reference =
@@ -756,7 +736,8 @@ open Prime
                     let (dico, expr) = p2a_expr m base_name Map.empty Map.empty (Some AST.Bool) expr
                     let expr = close_formula m Map.empty dico Set.empty expr
                     let v = AST.expr_to_value expr
-                    ({ m with AST.Invariants=(v::m.Invariants) }, tmp_elements)
+                    let d = { AST.InvariantDecl.Module = base_name ; AST.InvariantDecl.Formula = v }
+                    ({ m with AST.Invariants=(d::m.Invariants) }, tmp_elements)
                 | Rule expr ->
                     let (dico, expr) = p2a_expr m base_name Map.empty Map.empty (Some AST.Bool) expr
                     let v = AST.expr_to_value expr
