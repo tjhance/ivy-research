@@ -7,6 +7,8 @@
 \usepackage{times}
 \usepackage{amsmath}
 \usepackage{amsthm}
+\usepackage{syntax}
+\usepackage{multicol}
 
 \usepackage[
 breaklinks=true,colorlinks=true,
@@ -167,12 +169,47 @@ March-July 2018
         \item A list of uninterpreted types that we call `sorts'. A sort has an unbounded number of elements (`values').
         \item A list of variables, relations and functions over these types (a variable can be considered like a function of arity 0, and a relation can be considered as a function
         which returns a boolean). These elements are mutable and their valuation constitute the `state' of the program.
-        \item A list of axioms over these variables, functions and relations (we use a fragment of the first order logic that we will detail later).
-        \item A list of transitions (see the figure below).
+        \item A list of axioms over these variables, functions and relations. Axioms have the form \( \phi_{EA} \) in the grammar below.
+        \item A list of transitions that we call `actions' (see the grammar of \(statement\) below).
         \item A special `init' transition can be used to constraint the initial states of the system.
     \end{itemize}
 
-    [Insert figure EPR cmd]
+    The transitions can be written using the following grammar:
+    \begin{multicols}{2}
+        \begin{grammar}
+
+            <statement> ::= skip
+            \alt abort
+            \alt \textbf{r}(\(\bar{x}\)) := \( \phi_{QF}(\bar{x}) \)
+            \alt \textbf{f}(\(\bar{x}\)) := \( t(\bar{x}) \)
+            \alt \textbf{v} := \( * \)
+            \alt assume \( \phi_{EA} \)
+            \alt \( statement \) ; \( statement \)
+            \alt \( statement \) | \( statement \)
+            
+        \end{grammar}
+
+        \columnbreak
+
+        \begin{grammar}
+
+            <t> ::= \(x\)
+            \alt \textbf{v}
+            \alt \textbf{f}(\(t,...t\))
+            \alt ite(\( \phi_{QF},t,t\))
+
+            <\( \phi_{QF} \)> ::= \textbf{r}(\(t,\ldots t\))
+            \alt \( t = t \)
+            \alt \( \phi_{QF} \land \phi_{QF} \) \quad | \quad \( \phi_{QF} \lor \phi_{QF} \) \quad | \quad \( \neg \phi_{QF} \)
+            
+            <\( \phi_{EA} \)> ::= \( \exists x_1,\ldots,x_n \forall x_{n+1},\ldots,x_{n+m} \phi_{QF} \)
+
+        \end{grammar}
+    \end{multicols}
+
+
+    Note that the formulas \( \phi_{EA} \) are subject to some additional restrictions that will be detailled in section 1.3.
+    The semantic of terms and formulas is as usual. The semantic of statements will be detailled in the section 1.4.
 
     One important thing to note is that RML only allows uninterpreted sorts and booleans (and possibly other enumerated types).
     In particular, we can't define arithmetic operations.
@@ -185,7 +222,7 @@ March-July 2018
     \section{Decidable logics}
 
     In this section, we will describe the Bernays-Schönfinkel class of formulas. It is a decidable fragment of the first order logic that is used by IVy.
-    We will refer to it as EPR (for Effectively Propositional) because this logic can be effectively translated into propositional logic (see the subsection `Deciding EPR').
+    We will refer to it as EPR (for Effectively Propositional) because this logic can be effectively translated into propositional logic (see the subsection 1.3.2).
 
         \subsection{The Bernays-Schönfinkel class (EPR)}
 
@@ -292,6 +329,10 @@ March-July 2018
         In this report, we will not use such extension of EPR, because it breaks the finite model property.
     
     \section{Deciding IVy}
+
+    % Table with:
+    % Semantic of statements & syntactic sugars
+    % How to compute their wpr
 
     \section{Interactive tools}
 
