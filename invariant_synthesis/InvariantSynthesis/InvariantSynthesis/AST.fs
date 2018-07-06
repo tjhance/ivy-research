@@ -17,7 +17,6 @@
     // TODO: Add a final step that uses model checking to make the invariant the strongest possible by trying to weaken constraints
 
     // Important:
-    // Replace abstract_modules system by: if there is an implementation, it is concrete. Otherwise...
     // Add provenance for actions decl (for before, impl, after)
     // Add a list of modules (=implementation) to ignore (it should be removed from the module decl)
 

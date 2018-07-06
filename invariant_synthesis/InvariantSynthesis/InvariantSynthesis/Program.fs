@@ -19,7 +19,7 @@ let parser_error_path = "parser.err"
 
 // ----- MANUAL MODE -----
 
-let manual_counterexample (md:ModuleDecl) decls concrete_modules action verbose =
+let manual_counterexample (md:ModuleDecl) decls action verbose =
     printfn "Please enter constraints:"
     let str = read_until_line_jump ()
     printfn "Loading constraints..."
@@ -46,7 +46,7 @@ let manual_counterexample (md:ModuleDecl) decls concrete_modules action verbose 
             )
             env args_decl
     
-    let mmd = MinimalAST.module2minimal md concrete_modules action
+    let mmd = MinimalAST.module2minimal md action
 
     printfn "Executing..."
     let tr = TInterpreter.trace_action mmd infos env action (List.map (fun (d:VarDecl) -> MinimalAST.ValueVar d.Name) args_decl) AST.impossible_var_factor
@@ -99,9 +99,9 @@ let manual_allowed_path (md:ModuleDecl) decls env cs m um' =
 
 // ----- AUTO MODE -----
 
-let auto_counterexample (md:ModuleDecl) decls concrete_modules action verbose =
+let auto_counterexample (md:ModuleDecl) decls action verbose =
 
-    let mmd = MinimalAST.module2minimal md concrete_modules action
+    let mmd = MinimalAST.module2minimal md action
     let mmd = Determinization.determinize_action mmd action
     let action_args = (MinimalAST.find_action mmd action).Args
 
@@ -264,32 +264,27 @@ let main argv =
                 ParserAST.ivy_elements_to_ast_module filename parsed_elts
     let decls = Model.declarations_of_module md
 
-    // Concrete modules list & main action
-
-    printfn "Please enter the names of the concrete modules to use ($ for root):"
+    // Remove unwanted implementations from the module decl
+    // TODO
+    printfn "Please enter the names of the concrete modules to ban:"
     let str = read_until_line_jump ()
-    let concrete_modules = str.Split([|Environment.NewLine|], StringSplitOptions.RemoveEmptyEntries)
-    let concrete_modules = List.map (fun str -> if str = "$" then "" else str) (Seq.toList concrete_modules)
-    let concrete_actions =
-        List.filter
-            (fun (d:ActionDecl) ->
-                let (p,_) = AST.decompose_name d.Name
-                List.contains p concrete_modules
-            ) md.Actions
-    let concrete_actions = List.map (fun (d:ActionDecl) -> d.Name) concrete_actions
-    let concrete_actions = List.filter (fun str -> let (_,v) = AST.decompose_action_name str in v = "") concrete_actions
+    let banned_modules = str.Split([|Environment.NewLine|], StringSplitOptions.RemoveEmptyEntries)
 
+    // Choose the actionto analyze
+
+    let possible_actions = List.map (fun (d:ActionDecl) -> d.Name) md.Actions
+    let possible_actions = List.filter (fun str -> let (_,v) = AST.decompose_action_name str in v = "") possible_actions
     printfn "Which action do you want to analyze?"
-    List.iteri (fun i str -> printfn "%i. %s" i str) concrete_actions
+    List.iteri (fun i str -> printfn "%i. %s" i str) possible_actions
     let nb = Convert.ToInt32 (Console.ReadLine())
-    let name = List.item nb concrete_actions
+    let name = List.item nb possible_actions
 
     // Let's go!
 
     let (mmd, name, infos, env, cs, formula, tr) =
         if manual
-        then manual_counterexample md decls concrete_modules name verbose
-        else auto_counterexample md decls concrete_modules name verbose
+        then manual_counterexample md decls name verbose
+        else auto_counterexample md decls name verbose
 
     let (b,finished_exec,(m,um,ad)) =
         analyse_example_ending mmd infos tr formula

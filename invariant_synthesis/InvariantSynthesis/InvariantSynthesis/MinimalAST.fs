@@ -347,7 +347,7 @@
         let (decls, sts) = aux dico_types s
         packIfNecessary decls sts
 
-    let module2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) concrete_modules main_action =
+    let module2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) main_action =
         reinit_tmp_vars () // Note: be carefull with it
 
         let all_actions =
@@ -376,22 +376,25 @@
                     [after.Content]
                 with :? System.Collections.Generic.KeyNotFoundException -> []
 
-            let concrete_impl =
+            let (concrete_impl, is_concrete) =
                 try
                     let impl = AST.find_action m name ""
-                    [impl.Content]
-                with :? System.Collections.Generic.KeyNotFoundException -> []
+                    ([impl.Content], true)
+                with :? System.Collections.Generic.KeyNotFoundException -> ([], false)
 
             let (parent_module,_) = AST.decompose_name name
             let (st,spec_policy) =
                 if name = main_action
                 then
+                    if not (is_concrete) then failwith "Main action must have an implementation!"
                     let st = AST.NewBlock([],before@concrete_impl@after)
                     (st, Normal)
-                else if List.contains parent_module concrete_modules
+                else if is_concrete
                 then
                     // Concrete case
                     let st = AST.NewBlock([],before@concrete_impl@after)
+                    // We ignore specifications, because they assume that all invariants are initially satisfied.
+                    // It may not be the case, and we don't want to require it.
                     (st, Ignore)
                 else
                     // Abstract case
@@ -400,7 +403,6 @@
                     let prerequisites = List.map (fun v -> AST.Assert v) invariants
                     let guarantees = List.map (fun v -> AST.Assume v) invariants
                     let abstract_impl = prerequisites@assignments@guarantees
-
                     let st = AST.NewBlock([],before@abstract_impl@after)
                     (st, Inverse)
 
