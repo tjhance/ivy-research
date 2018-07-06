@@ -27,8 +27,8 @@ object incrementable = {
         instantiate total_order(t, <=) 
 
         after next {
-            assert ~(output <= input) ;
-			assert succ(input, output);
+            ensure ~(output <= input) ;
+			ensure succ(input, output);
         }
     }
 
@@ -42,7 +42,6 @@ object incrementable = {
 
         implement next {
             output := input + 1;
-			assume succ(input,output);
         }
     }
 }

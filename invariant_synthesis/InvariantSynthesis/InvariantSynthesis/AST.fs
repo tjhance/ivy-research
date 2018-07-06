@@ -17,10 +17,9 @@
     // TODO: Add a final step that uses model checking to make the invariant the strongest possible by trying to weaken constraints
 
     // Important:
-    // TODO: Add a system to choose which modules should be used concretely and which modules should be abstracted
-    // TODO: Do not execute/analyse/wpr the implementation of abstract content (only their specification)
-    // In particular: non-deterministic assignments should be added for each var/fun declared in the module
-    // Conjectures declared in the module should be asserted at the begining and assumed at the end
+    // Replace abstract_modules system by: if there is an implementation, it is concrete. Otherwise...
+    // Add provenance for actions decl (for before, impl, after)
+    // Add a list of modules (=implementation) to ignore (it should be removed from the module decl)
 
     // Refactor:
     // TODO: Create a function that retrieve the name of a var decl, and use it everywhere.

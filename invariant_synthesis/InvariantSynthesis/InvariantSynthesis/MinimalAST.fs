@@ -347,7 +347,7 @@
         let (decls, sts) = aux dico_types s
         packIfNecessary decls sts
 
-    let module2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) main_action =
+    let module2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) concrete_modules main_action =
         reinit_tmp_vars () // Note: be carefull with it
 
         let all_actions =
@@ -382,17 +382,27 @@
                     [impl.Content]
                 with :? System.Collections.Generic.KeyNotFoundException -> []
 
+            let (parent_module,_) = AST.decompose_name name
             let (st,spec_policy) =
                 if name = main_action
                 then
                     let st = AST.NewBlock([],before@concrete_impl@after)
-                    let spec_policy = Normal
-                    (st,spec_policy)
-                else
-                    // TODO: Abstract case
+                    (st, Normal)
+                else if List.contains parent_module concrete_modules
+                then
+                    // Concrete case
                     let st = AST.NewBlock([],before@concrete_impl@after)
-                    let spec_policy = Ignore
-                    (st, spec_policy)
+                    (st, Ignore)
+                else
+                    // Abstract case
+                    let assignments = [AST.VarAssign (output.Name, AST.ExprStar output.Type)]
+                    let invariants = AST.invariants_to_formulas (AST.find_invariants m parent_module)
+                    let prerequisites = List.map (fun v -> AST.Assert v) invariants
+                    let guarantees = List.map (fun v -> AST.Assume v) invariants
+                    let abstract_impl = prerequisites@assignments@guarantees
+
+                    let st = AST.NewBlock([],before@abstract_impl@after)
+                    (st, Inverse)
 
             let dico_types = List.fold (fun acc (d:VarDecl) -> Map.add d.Name d.Type acc) Map.empty (output::args)
             let st = statement2minimal m dico_types st spec_policy

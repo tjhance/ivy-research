@@ -19,7 +19,7 @@ let parser_error_path = "parser.err"
 
 // ----- MANUAL MODE -----
 
-let manual_counterexample (md:ModuleDecl) decls action verbose =
+let manual_counterexample (md:ModuleDecl) decls concrete_modules action verbose =
     printfn "Please enter constraints:"
     let str = read_until_line_jump ()
     printfn "Loading constraints..."
@@ -46,7 +46,7 @@ let manual_counterexample (md:ModuleDecl) decls action verbose =
             )
             env args_decl
     
-    let mmd = MinimalAST.module2minimal md action
+    let mmd = MinimalAST.module2minimal md concrete_modules action
 
     printfn "Executing..."
     let tr = TInterpreter.trace_action mmd infos env action (List.map (fun (d:VarDecl) -> MinimalAST.ValueVar d.Name) args_decl) AST.impossible_var_factor
@@ -99,9 +99,9 @@ let manual_allowed_path (md:ModuleDecl) decls env cs m um' =
 
 // ----- AUTO MODE -----
 
-let auto_counterexample (md:ModuleDecl) decls action verbose =
+let auto_counterexample (md:ModuleDecl) decls concrete_modules action verbose =
 
-    let mmd = MinimalAST.module2minimal md action
+    let mmd = MinimalAST.module2minimal md concrete_modules action
     let mmd = Determinization.determinize_action mmd action
     let action_args = (MinimalAST.find_action mmd action).Args
 
@@ -266,7 +266,7 @@ let main argv =
 
     // Concrete modules list & main action
 
-    printfn "Please enter the names of the concrete modules to use ($ for empty):"
+    printfn "Please enter the names of the concrete modules to use ($ for root):"
     let str = read_until_line_jump ()
     let concrete_modules = str.Split([|Environment.NewLine|], StringSplitOptions.RemoveEmptyEntries)
     let concrete_modules = List.map (fun str -> if str = "$" then "" else str) (Seq.toList concrete_modules)
@@ -288,8 +288,8 @@ let main argv =
 
     let (mmd, name, infos, env, cs, formula, tr) =
         if manual
-        then manual_counterexample md decls name verbose
-        else auto_counterexample md decls name verbose
+        then manual_counterexample md decls concrete_modules name verbose
+        else auto_counterexample md decls concrete_modules name verbose
 
     let (b,finished_exec,(m,um,ad)) =
         analyse_example_ending mmd infos tr formula
