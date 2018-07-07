@@ -58,6 +58,7 @@ bindingoffset=10mm, top=25mm,bottom=25mm}
 \newtheorem*{theorem}{Theorem}
 \newtheorem*{definition}{Definition}
 \newtheorem*{property}{Property}
+\newtheorem*{lemma}{Lemma}
 
 %%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%
 
@@ -160,17 +161,16 @@ March-July 2018
     it can force him to rethink the architecture of its code, to fragment its code by creating intermediate abstract modules,
     to add some `ghost' variables, etc.
 
-    \section{The language}
+    \section{The RML language}
 
-    IVy is inspired by a restricted modeling language called RML (Relational Modeling Language).
-
+    IVy is inspired by a modeling language called RML (Relational Modeling Language). It is restricted such that some decidability properties are guaranteed (see section 1.4).
     A RML program is composed of:
     \begin{itemize}
         \item A list of uninterpreted types that we call `sorts'. A sort has an unbounded number of elements (`values').
         \item A list of variables, relations and functions over these types (a variable can be considered like a function of arity 0, and a relation can be considered as a function
-        which returns a boolean). These elements are mutable and their valuation constitute the `state' of the program.
-        \item A list of axioms over these variables, functions and relations. Axioms have the form \( \phi_{EA} \) in the grammar below.
-        \item A list of transitions that we call `actions' (see the grammar of \(statement\) below).
+        which returns a boolean). These elements are mutable (their valuation can be modified by the transitions described below).
+        \item A list of axioms over these variables, functions and relations. Axioms are \(\exists^*\forall^*\) formulas (\( \phi_{EA} \) in the grammar below).
+        \item A list of transitions that we call `actions'. An action is a \(statement\) (see the grammar below).
         \item A special `init' transition can be used to constraint the initial states of the system.
     \end{itemize}
 
@@ -207,15 +207,13 @@ March-July 2018
         \end{grammar}
     \end{multicols}
 
-
-    Note that the formulas \( \phi_{EA} \) are subject to some additional restrictions that will be detailled in section 1.3.
     The semantic of terms and formulas is as usual. The semantic of statements will be described later in the section 1.4.
 
     One important thing to note is that RML only allows uninterpreted sorts and booleans (and possibly other enumerated types).
     In particular, we can't define arithmetic operations.
     However, we will see later that it is possible to extend it with linear integer arithmetic or some other theories.
 
-    Also, unlike many other languages like F*, IVy does not allow refinement types or dependent types (for decidability reasons).
+    Also, unlike some other languages like F*, IVy does not allow refinement types or dependent types (for decidability reasons).
     As a consequence, we can't encode any property in the types.
     Instead, the specifications of the program will be expressed using assertions and invariants.
 
@@ -304,7 +302,7 @@ March-July 2018
 
         \subsection{EPR with types}
 
-        In IVy, relations, functions and constants (that are preferably called `variables' since they are mutable) are typed.
+        In RML, relations, functions and constants (that are preferably called `variables' since they are mutable) have types.
         For instance, a function takes arguments of some specific sorts and also return a value in a specific sort (sorts are unbounded set of values).
 
         We can easily add these typing constraints to the logical symbols we used in the previous subsection.
@@ -328,23 +326,63 @@ March-July 2018
         
         In this report, we will not use such extension of EPR, because it breaks the finite model property.
     
-    \section{Deciding IVy}
+    \section{Checking a RML program}
 
-    % Table with:
-    % Semantic of statements & syntactic sugars
-    % How to compute their wpr
+    \begin{definition}[State]
+        A state of a RML program is a pair \(((D_s)_{s\in \text{sorts}}, (I_s)_{s\in \text{symbols}})\) where:
+        \begin{itemize}
+            \item For all \(s \in \text{sorts}\), \(D_s\) is a finite domain associated to the sort \(s\).
+            \item For all \(s \in \text{symbols}\) (variable, function or relation), \(I_s\) is an interpretation (=valuation) for the symbol \(s\) over the corresponding domains of \((D_s)\).
+        \end{itemize}
+        A state must satisfy every axiom defined in the RML program.
+    \end{definition}
+
+    In order to certify that a RML program never abort abnormally, we must provide IVy with an invariant \(I\) such that:
+    \begin{enumerate}
+        \item \(I\) is satisfied just after the initialization of the program.
+        \item \(I\) is inductive, that is: for any state satisfying \(I\), the new state of the program after executing any action of the RML program must also satisfy \(I\).
+        \item Actions never abort abnormally from a state satisfying \(I\).
+    \end{enumerate}
+
+    In order to check whether a formula satisfies all these properties, we introduce the notion of weakest precondition \(wp\):
+    \begin{definition}[Weakest precondition]
+        For any statement \(S\) and formula \(Q\), the weakest precondition of \(Q\) by \(S\) (noted \(wp(S,Q)\)) is the weakest formula \(P\) such that
+        every execution of \(S\) starting from a state satisfying \(P\) will lead to a state that satisfies \(Q\).
+    \end{definition}
+
+    Weakest preconditions can be computed as below:\\
 
     \begin{tabular}{|l|l|l|}
         \hline
         Statement & Semantic & \( wp(\text{statement},Q) \) \\
         \hline
         skip & Do nothing & \(Q\) \\
-        abort & Terminate abnormally & false \\
-        \textbf{r}(\(\bar{x}\)) := \( \phi_{QF}(\bar{x}) \) & Quantifier-free update & \((A \rightarrow Q) [\phi_{QF}(\bar{s})\ /\ \text{\textbf{r}}(\bar{s})]\) \\
+        abort & Terminate abnormally (fail) & false \\
+        \textbf{r}(\(\bar{x}\)) := \( \phi_{QF}(\bar{x}) \) & Quantifier-free update of relation \textbf{r} & \((A \rightarrow Q) [\phi_{QF}(\bar{s})\ /\ \text{\textbf{r}}(\bar{s})]\) \\
+        \textbf{f}(\(\bar{x}\)) := \( t(\bar{x}) \) & Update of function \textbf{f} to term \( t(\bar{x}) \) & \((A \rightarrow Q) [t(\bar{s})\ /\ \text{\textbf{f}}(\bar{s})]\) \\
+        \textbf{v} := \( * \) & Non-deterministic assignment of variable \textbf{v} & \(\forall x. (A \rightarrow Q) [x\ /\ \text{\textbf{v}}]\)\\
+        assume \( \phi_{EA} \) & Assume a \( \exists^*\forall^* \) formula holds & \( \phi_{EA} \rightarrow Q \) \\
+        \( S_1 \) ; \( S_2 \) & Sequential composition & \( wp(S_1, wp(S_2, Q)) \) \\
+        \( S_1 \) | \( S_2 \) & Non-deterministic choice & \( wp(S_1, Q) \land wp(S_2, Q) \) \\
         \hline
-    \end{tabular}
+    \end{tabular}\\
+    \( \phi(\beta,\alpha) \) denotes \(\phi\) with occurences of \(\alpha\) substituted by \(\beta\), and \(A\) denotes the axioms of the RML program.
 
-    \section{Interactive tools}
+    We can now rewrite the properties above using weakest preconditions:
+    \begin{enumerate}
+        \item %TODO
+        \item 
+        \item 
+    \end{enumerate}
+
+    \begin{lemma}
+        Let \(S\) be a RML statement and \(Q\) a \(\forall^*\exists^*\) formula (that is a formula whose normal prenex form has a \(\forall^*\exists^*\) prefix followed by a quantifier-free part), then \(wp(S,Q)\) is also a \(\forall^*\exists^*\) formula.
+    \end{lemma}
+
+    This lemma can easily be proved by induction on \(S\).
+    % TODO
+
+    \section{Interactive tools to find an inductive invariant}
 
     \section{Challenges}
 
