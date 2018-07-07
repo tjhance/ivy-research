@@ -671,7 +671,9 @@ open Prime
                 let (args, ret) = Map.find name tmp_elements.AbstractActions
                 let local_vars = List.fold (fun acc (v:AST.VarDecl) -> Map.add v.Name v.Type acc) Map.empty (ret::args)
                 let st = p2a_stats m base_name [st] local_vars
-                let action = { AST.ActionDecl.Name = variant_action_name name variant; AST.ActionDecl.Args = args ; AST.ActionDecl.Output = ret ; AST.ActionDecl.Content = AST.NewBlock([],st) }
+                let action =
+                    { AST.ActionDecl.Name = variant_action_name name variant; AST.ActionDecl.Args = args ;
+                        AST.ActionDecl.Output = ret ; AST.ActionDecl.Content = AST.NewBlock([],st) ; AST.ActionDecl.Module = base_name }
                 ({ m with AST.Actions=(action::m.Actions) }, tmp_elements)
 
             let rec treat (m,tmp_elements) e =

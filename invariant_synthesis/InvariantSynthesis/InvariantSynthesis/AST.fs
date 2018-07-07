@@ -16,10 +16,6 @@
 
     // TODO: Add a final step that uses model checking to make the invariant the strongest possible by trying to weaken constraints
 
-    // Important:
-    // Add provenance for actions decl (for before, impl, after)
-    // Add a list of modules (=implementation) to ignore (it should be removed from the module decl)
-
     // Refactor:
     // TODO: Create a function that retrieve the name of a var decl, and use it everywhere.
     // TODO: Factorize parameters passed to marks_for_value (etc.) by redefining this function. 
@@ -107,7 +103,7 @@
         | Require of Value
         | Ensure of Value
 
-    type ActionDecl = { Name: string; Args: List<VarDecl>; Output: VarDecl; Content: Statement }
+    type ActionDecl = { Name: string; Args: List<VarDecl>; Output: VarDecl; Content: Statement; Module: string }
 
     type MacroDecl = { Name: string; Args: List<VarDecl>; Output: Type; Value: Value ; Representation: RepresentationInfos }
 
@@ -196,6 +192,9 @@
     let find_action (m:ModuleDecl<'a,'b>) str variant =
         let str = variant_action_name str variant
         List.find (fun (decl:ActionDecl) -> decl.Name = str) m.Actions
+
+    let find_action_any_variant (m:ModuleDecl<'a,'b>) str =
+        List.find (fun (decl:ActionDecl) -> let (str',_) = decompose_action_name decl.Name in str'=str) m.Actions
 
     let find_interpreted_action (m:ModuleDecl<'a,'b>) str =
         List.find (fun (decl:InterpretedActionDecl<'a,'b>) -> decl.Name = str) m.InterpretedActions
@@ -314,6 +313,31 @@
     let expand_macro (macro:MacroDecl) args =
         let dico = List.fold2 (fun acc (d:VarDecl) v -> Map.add d.Name v acc) Map.empty macro.Args args
         map_vars_in_value (macro.Value) dico
+
+    let exclude_from_module (m:ModuleDecl<'a,'b>) exclusions =
+        let is_provenance_excluded name =
+            List.exists (fun str -> has_base_name name str) exclusions
+        let filter_types (t:TypeDecl) =
+            let (bn,_) = decompose_name t.Name
+            not (is_provenance_excluded bn)
+        let filter_funs (f:FunDecl) =
+            let (bn,_) = decompose_name f.Name
+            not (is_provenance_excluded bn)
+        let filter_actions (a:ActionDecl) =
+            not (is_provenance_excluded a.Module)
+        let filter_macros (m:MacroDecl) =
+            let (bn,_) = decompose_name m.Name
+            not (is_provenance_excluded bn)
+        let filter_invariants (i:InvariantDecl) =
+            not (is_provenance_excluded i.Module)
+        // TODO: filter implications & axioms
+        let t = List.filter filter_types m.Types
+        let f = List.filter filter_funs m.Funs
+        let a = List.filter filter_actions m.Actions
+        let ma = List.filter filter_macros m.Macros
+        let i = List.filter filter_invariants m.Invariants
+        { ModuleDecl.Name=m.Name ; Types=t; Funs=f; Actions=a; Macros=ma; Invariants=i;
+            Implications=m.Implications; InterpretedActions=m.InterpretedActions; Axioms=m.Axioms }
 
     // Functions on types
 

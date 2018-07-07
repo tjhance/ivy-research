@@ -262,13 +262,13 @@ let main argv =
                 let parsed_elts = ParserAST.deserialize content
                 printfn "Converting parsed AST..."
                 ParserAST.ivy_elements_to_ast_module filename parsed_elts
-    let decls = Model.declarations_of_module md
 
     // Remove unwanted implementations from the module decl
-    // TODO
     printfn "Please enter the names of the concrete modules to ban:"
     let str = read_until_line_jump ()
     let banned_modules = str.Split([|Environment.NewLine|], StringSplitOptions.RemoveEmptyEntries)
+    let md = AST.exclude_from_module md (Seq.toList banned_modules)
+    let decls = Model.declarations_of_module md
 
     // Choose the actionto analyze
 

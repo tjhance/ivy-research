@@ -218,7 +218,7 @@
                 ([d], [st], ValueVar name)
             | AST.ExprAction (str, es) ->
                 let tmp_name = new_tmp_var ()
-                let t = (AST.find_action m str "").Output.Type
+                let t = (AST.find_action_any_variant m str).Output.Type
                 let d = AST.default_var_decl tmp_name t
                 let (ds,sts,vs) = exprs2minimal m dico_types es
                 let st = VarAssignAction (tmp_name, str, vs)
@@ -355,14 +355,7 @@
 
         let convert_action acc name =
             let (args, output) =
-                let action =
-                    try AST.find_action m name ""
-                    with :? System.Collections.Generic.KeyNotFoundException ->
-                        try AST.find_action m name "before"
-                        with :? System.Collections.Generic.KeyNotFoundException ->
-                            try AST.find_action m name "after"
-                            with :? System.Collections.Generic.KeyNotFoundException ->
-                                failwith "Action not found..."
+                let action = AST.find_action_any_variant m name
                 (action.Args, action.Output)
 
             let before =

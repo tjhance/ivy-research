@@ -85,7 +85,8 @@
                                             )
                                     ]
                                 )
-                        )
+                        ) ;
+                    Module="incrementable" 
                 } ;
                 {
                     Name="q.pop" ;
@@ -111,6 +112,7 @@
                                     ]
                                 )
                         ) ;
+                    Module="q" 
                 }
             ]
 
