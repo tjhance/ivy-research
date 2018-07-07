@@ -107,19 +107,8 @@
     let remove_var_marks (m, um, ad) var : Marks * Marks * AdditionalData =
         ({m with v = Set.remove var m.v}, {um with v = Set.remove var um.v}, ad)
 
-    let config_is_included (m1,um1,ad1) (m2,um2,ad2) =
-        let ad_is_included (ad1:AdditionalData) (ad2:AdditionalData) =
-            if ad1.md && not ad2.md
-            then false
-            else
-                let is_included (str, cvs) is =
-                    match Map.tryFind (str, cvs) ad2.ufmi with
-                    | None -> Set.isEmpty is
-                    | Some is' -> Set.isSubset is is' 
-                Map.forall is_included ad1.ufmi
-        let marks_are_included m1 m2 =
-            Set.isSubset m1.f m2.f && Set.isSubset m1.v m2.v
-        ad_is_included ad1 ad2 && marks_are_included m1 m2 && marks_are_included um1 um2
+    let config_is_included cfg1 cfg2 =
+        config_union cfg1 cfg2 = cfg2
 
     let remove_worst_configs cfgs =
         let is_strictly_included cfg1 cfg2 =

@@ -368,12 +368,12 @@
                     (st, Ignore)
                 else
                     // Abstract case
-                    let assignments = [AST.VarAssign (output.Name, AST.ExprStar output.Type)]
+                    let assignment = [AST.VarAssign (output.Name, AST.ExprStar output.Type)]
                     let invariants = AST.invariants_to_formulas (AST.find_invariants m parent_module)
+                    // Perequisites (invariants of the module) must be satisfied
                     let prerequisites = List.map (fun v -> AST.Assert v) invariants
-                    let guarantees = List.map (fun v -> AST.Assume v) invariants
-                    let abstract_impl = prerequisites@assignments@guarantees
-                    let st = AST.NewBlock([],before@abstract_impl@after)
+                    let guarantees = []//List.map (fun v -> AST.Assume v) invariants // Not necessary
+                    let st = AST.NewBlock([],prerequisites@before@assignment@after@guarantees)
                     (st, Inverse)
 
             let dico_types = List.fold (fun acc (d:VarDecl) -> Map.add d.Name d.Type acc) Map.empty (output::args)

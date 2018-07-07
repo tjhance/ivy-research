@@ -2,7 +2,7 @@
 
     (* A VERY BASIC AST FOR IVY *)
 
-    // IMPORTANT TODO: Fix and optimize new method OR go back to previous commit and simplify WPR forall_fun_assign translation
+    // IMPORTANT TODO: Optimize new value marks system
 
     // TODO: Enumerated types
     // TODO: "while" loops
