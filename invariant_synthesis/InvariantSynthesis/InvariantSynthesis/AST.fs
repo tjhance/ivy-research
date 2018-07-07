@@ -2,6 +2,8 @@
 
     (* A VERY BASIC AST FOR IVY *)
 
+    // IMPORTANT TODO: Fix and optimize new method OR go back to previous commit and simplify WPR forall_fun_assign translation
+
     // TODO: Enumerated types
     // TODO: "while" loops
     // TODO: "if some" with multiple var decls

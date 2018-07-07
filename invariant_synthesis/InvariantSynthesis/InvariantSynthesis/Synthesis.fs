@@ -335,53 +335,34 @@
                     let cfgs = union_of_cfg_possibilities ((Set.singleton cfg)::args_cfgs)
                     let cfgs = Set.map (fun cfg -> aux group_trs cfg) cfgs
                     best_cfg cfgs
-                | TrFunAssign ((env,_,_), str, hvs, v) ->
-                    // Get rid of expressions in arguments
-                    let (vs, ds) = separate_hvals hvs
-                    let added_names = List.init (List.length vs) (fun _ -> new_tmp_var ())
-                    let existing_names = List.map (fun (d:VarDecl) -> d.Name) ds
-                    let names = reconstruct_hvals hvs added_names existing_names
-                    let decls = List.map2 (fun str t -> AST.default_var_decl str t) names (find_function mdecl str).Input
-
+                | TrFunAssign ((env,_,_), str, ds, v) ->
                     // Retrieve the involved marks and remove them
                     let (_,_,ad) = cfg
                     let (m_marks,um_marks) = fun_marks cfg str
                     let cfg = Set.fold (fun cfg (str,vs) -> remove_fun_marks cfg str vs) cfg (Set.union m_marks um_marks)
                     let m_marks = Set.map (fun (_,cvs) -> cvs) m_marks
                     let um_marks = Set.map (fun (_,cvs) -> cvs) um_marks
-
-                    let proceed_with_permutation p =
-                        // Building v
-                        let p = Helper.permutation_to_fun p
-                        let add_condition acc name vcond =
-                            let vcond = ValueEqual (vcond, ValueVar name)
-                            ValueIfElse (vcond, acc, ValueFun (str, List.map (fun str -> ValueVar str) names))
-                        let v = List.fold2 add_condition v (List.permute p added_names) (List.permute p vs)
                         
-                        // Adding marks for the marked instances of v
-                        let compute_marks_for model_dependent uvs =
-                            let uvars =
-                                if model_dependent
-                                then
-                                    let md_qvars = List.mapi (fun i uv -> (i,uv)) decls
-                                    let ufmi = get_ufmi_entry ad str uvs
-                                    let md_qvars = List.filter (fun (i,d:VarDecl) -> is_model_dependent_type d.Type && Set.contains i ufmi) md_qvars
-                                    List.map (fun (_,d:VarDecl) -> d.Name) md_qvars |> Set.ofList
-                                else Set.empty
-                            marks_for_value_with mdecl infos env uvars v (List.map (fun (d:VarDecl) -> d.Name) decls) uvs
-                        let add_marks_for_all model_dependent uvs cfgs =
-                            let aux acc uvs =
-                                let (_,cfgs) = compute_marks_for model_dependent uvs
-                                union_of_cfg_possibilities [acc; cfgs]
-                            Set.fold aux cfgs uvs
+                    // Adding marks for the marked instances of v
+                    let compute_marks_for model_dependent uvs =
+                        let uvars =
+                            if model_dependent
+                            then
+                                let md_qvars = List.mapi (fun i uv -> (i,uv)) ds
+                                let ufmi = get_ufmi_entry ad str uvs
+                                let md_qvars = List.filter (fun (i,d:VarDecl) -> is_model_dependent_type d.Type && Set.contains i ufmi) md_qvars
+                                List.map (fun (_,d:VarDecl) -> d.Name) md_qvars |> Set.ofList
+                            else Set.empty
+                        marks_for_value_with mdecl infos env uvars v (List.map (fun (d:VarDecl) -> d.Name) ds) uvs
+                    let add_marks_for_all model_dependent uvs cfgs =
+                        let aux acc uvs =
+                            let (_,cfgs) = compute_marks_for model_dependent uvs
+                            union_of_cfg_possibilities [acc; cfgs]
+                        Set.fold aux cfgs uvs
 
-                        let cfgs = add_marks_for_all false m_marks (Set.singleton cfg)
-                        let cfgs = add_marks_for_all true um_marks cfgs
-                        let cfgs = Set.map (fun cfg -> aux group_trs cfg) cfgs
-                        best_cfg cfgs
-
-                    let permutations = Helper.all_permutations (List.length vs) |> Seq.toList
-                    let cfgs = List.map proceed_with_permutation permutations
+                    let cfgs = add_marks_for_all false m_marks (Set.singleton cfg)
+                    let cfgs = add_marks_for_all true um_marks cfgs
+                    let cfgs = Set.map (fun cfg -> aux group_trs cfg) cfgs
                     best_cfg cfgs
                 | TrIfElse ((env,_,_), v, tr) ->
                     let cfg = marks_before_statement mdecl infos ignore_asserts ignore_assumes tr cfg

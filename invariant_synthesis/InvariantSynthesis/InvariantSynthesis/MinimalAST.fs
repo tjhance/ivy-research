@@ -23,16 +23,12 @@
         | ValueForall of VarDecl * Value
         | ValueInterpreted of string * List<Value>
 
-    type HoleValue =
-        | Hole of VarDecl
-        | Val of Value
-
     type Statement =
         | AtomicGroup of List<Statement>
         | NewBlock of List<VarDecl> * List<Statement>
         | VarAssign of string * Value
         | VarAssignAction of string * string * List<Value>
-        | FunAssign of string * List<HoleValue> * Value
+        | FunAssign of string * List<VarDecl> * Value
         | IfElse of Value * Statement * Statement
         | IfSomeElse of VarDecl * Value * Statement * Statement
         | Assert of Value
@@ -46,35 +42,6 @@
     type ModuleDecl<'a,'b> =
         { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; InterpretedActions: List<InterpretedActionDecl<'a,'b>>;
             Actions: List<ActionDecl>; Invariants: List<InvariantDecl>; Implications: List<ImplicationRule> ; Axioms: List<Value> }
-
-    // Functions on HoleValue
-
-    let rec reconstruct_hvals hvs vs uvs =
-        match hvs with
-        | [] -> []
-        | (Hole _)::hes -> (List.head uvs)::(reconstruct_hvals hes vs (List.tail uvs))
-        | (Val _)::hes -> (List.head vs)::(reconstruct_hvals hes (List.tail vs) uvs)
-
-    let separate_hvals hvs =
-        // Fixed values
-        let vs = List.filter (fun hv -> match hv with Hole _ -> false | Val _ -> true) hvs
-        let vs = List.map (fun hv -> match hv with Hole _ -> failwith "" | Val v -> v) vs
-        // Universally quantified vars
-        let uvs = List.filter (fun hv -> match hv with Hole _ -> true | Val _ -> false) hvs
-        let uvs = List.map (fun hv -> match hv with Hole d -> d | Val _ -> failwith "") uvs
-        (vs, uvs)
-
-    let rec keep_only_vals hvs res =
-        match hvs with
-        | [] -> []
-        | (Hole _)::hvs -> keep_only_vals hvs (List.tail res)
-        | (Val _)::hvs -> (List.head res)::(keep_only_vals hvs (List.tail res))
-
-    let rec keep_only_holes hvs res =
-        match hvs with
-        | [] -> []
-        | (Hole _)::hvs -> (List.head res)::(keep_only_holes hvs (List.tail res))
-        | (Val _)::hvs -> keep_only_holes hvs (List.tail res)
 
     // Utility functions
 
@@ -271,18 +238,12 @@
         | (AST.Hole _)::lst -> exprs_of_hexprs lst
         | (AST.Expr e)::lst -> e::(exprs_of_hexprs lst)
 
-    let rec holes_of_hexprs hexprs =
-        match hexprs with
-        | [] -> []
-        | (AST.Hole d)::lst -> d::(holes_of_hexprs lst)
-        | (AST.Expr _)::lst -> holes_of_hexprs lst
-
-    let rec hvals_of_hexprs hexprs vals =
-        match hexprs, vals with
-        | [], [] -> []
-        | (AST.Hole h)::lst, vals -> (Hole h)::(hvals_of_hexprs lst vals)
-        | (AST.Expr _)::lst, v::vals -> (Val v)::(hvals_of_hexprs lst vals)
-        | _ -> failwith "Invalid HoleExpression!"
+    let rec hexprs_to_decls hexprs new_names types =
+        match hexprs, new_names, types with
+        | [], [], [] -> []
+        | (AST.Hole d)::hexprs, new_names, _::types -> d::(hexprs_to_decls hexprs new_names types)
+        | (AST.Expr _)::hexprs, str::new_names, t::types -> (AST.default_var_decl str t)::(hexprs_to_decls hexprs new_names types)
+        | _, _, _ -> failwith "Can't convert hole-expressions to declarations."
 
     type SpecificationsPolicy = Normal | Inverse | Ignore
 
@@ -310,14 +271,30 @@
             | AST.FunAssign (str, es, e) ->
                 let (ds1, sts1, vs) = exprs2minimal m dico_types es
                 let (ds2, sts2, v) = expr2minimal m dico_types e
+
+                let names = List.map (fun _ -> new_tmp_var ()) vs
+                let decls = List.map2 (fun str t -> AST.default_var_decl str t) names (AST.find_function m str).Input
+                let add_eq_constraint acc str v =
+                    ValueOr (acc, ValueNot (ValueEqual (ValueVar str, v)))
+                let new_v = List.fold2 add_eq_constraint (ValueConst (AST.ConstBool false)) names vs
+                let new_v = ValueIfElse (new_v, ValueFun(str,List.map (fun str -> ValueVar str) names), v)
+                
                 let (ds, sts) = (ds1@ds2, sts1@sts2)
-                let st = FunAssign (str, List.map (fun v -> Val v) vs, v)
+                let st = FunAssign (str, decls, new_v)
                 (ds, group_sts (sts@[st]))
             | AST.ForallFunAssign (str, hes, v) ->
                 let es = exprs_of_hexprs hes
                 let (ds, sts, vs) = exprs2minimal m dico_types es
                 let v = value2minimal m v
-                let st = FunAssign (str, hvals_of_hexprs hes vs, v)
+
+                let new_names = List.map (fun _ -> new_tmp_var ()) vs
+                let decls = hexprs_to_decls hes new_names (AST.find_function m str).Input
+                let add_eq_constraint acc str v =
+                    ValueOr (acc, ValueNot (ValueEqual (ValueVar str, v)))
+                let new_v = List.fold2 add_eq_constraint (ValueConst (AST.ConstBool false)) new_names vs
+                let new_v = ValueIfElse (new_v, ValueFun(str,List.map (fun (d:VarDecl) -> ValueVar d.Name) decls), v)
+                
+                let st = FunAssign (str, decls, new_v)
                 (ds, group_sts (sts@[st]))
             | AST.IfElse (e, sif, selse) ->
                 let (ds, sts, v) = expr2minimal m dico_types e

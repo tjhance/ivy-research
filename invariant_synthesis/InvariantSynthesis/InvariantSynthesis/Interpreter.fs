@@ -96,16 +96,13 @@
             let cvs = List.map (evaluate_value m infos env) vs
             let (env,cv) = execute_action m infos env action cvs
             execute_statement m infos env (VarAssign (var, ValueConst cv))
-        | FunAssign (str, hvs, v) -> // For now, we don't check the types
-            let compute_value_for (env:Model.Environment) vs uvs acc inst =
-                let value = eval_value_with m infos env v (List.map (fun (v:VarDecl) -> v.Name) uvs) inst
-                let args = reconstruct_hvals hvs vs inst
-                Map.add (str,args) value acc
-            let (vs, uvs) = separate_hvals hvs
-            let cvs = evaluate_values m infos env vs
-            let possibilities = List.map (fun (d:VarDecl) -> d.Type) uvs
+        | FunAssign (str, ds, v) -> // For now, we don't check the types
+            let compute_value_for acc inst =
+                let value = eval_value_with m infos env v (List.map (fun (v:VarDecl) -> v.Name) ds) inst
+                Map.add (str,inst) value acc
+            let possibilities = List.map (fun (d:VarDecl) -> d.Type) ds
             let possibilities = Model.all_values_ext infos possibilities |> Seq.toList
-            let res = List.fold (compute_value_for env cvs uvs) Map.empty possibilities
+            let res = List.fold compute_value_for Map.empty possibilities
             let f' = Map.fold (fun acc k v -> Map.add k v acc) env.f res
             { env with f=f' }
         | IfElse (v, sif, selse) ->

@@ -209,7 +209,7 @@ March-July 2018
 
 
     Note that the formulas \( \phi_{EA} \) are subject to some additional restrictions that will be detailled in section 1.3.
-    The semantic of terms and formulas is as usual. The semantic of statements will be detailled in the section 1.4.
+    The semantic of terms and formulas is as usual. The semantic of statements will be described later in the section 1.4.
 
     One important thing to note is that RML only allows uninterpreted sorts and booleans (and possibly other enumerated types).
     In particular, we can't define arithmetic operations.
@@ -333,6 +333,16 @@ March-July 2018
     % Table with:
     % Semantic of statements & syntactic sugars
     % How to compute their wpr
+
+    \begin{tabular}{|l|l|l|}
+        \hline
+        Statement & Semantic & \( wp(\text{statement},Q) \) \\
+        \hline
+        skip & Do nothing & \(Q\) \\
+        abort & Terminate abnormally & false \\
+        \textbf{r}(\(\bar{x}\)) := \( \phi_{QF}(\bar{x}) \) & Quantifier-free update & \((A \rightarrow Q) [\phi_{QF}(\bar{s})\ /\ \text{\textbf{r}}(\bar{s})]\) \\
+        \hline
+    \end{tabular}
 
     \section{Interactive tools}
 

@@ -95,14 +95,10 @@
             let vs' = List.map (fun (d:VarDecl) -> ValueVar d.Name) ds'
             (ds@ds', ass@[VarAssignAction(str,action.Name,vs@vs')], das)
 
-        | FunAssign (str, hvs, v) ->
-            let (vs,uvs) = separate_hvals hvs
-            let (ds, ass, vs) = deter_vs md vs
+        | FunAssign (str, decls, v) ->
+            let (ds, ass, v) = deter_value md v
             let ass = List.map (fun a -> Assume a) ass
-            let hvs = reconstruct_hvals hvs (List.map (fun v -> Val v) vs) (List.map (fun d -> Hole d) uvs)
-            let (ds', ass', v) = deter_value md v
-            let ass' = List.map (fun a -> Assume a) ass'
-            (ds@ds', ass@ass'@[FunAssign (str, hvs, v)], das)
+            (ds, ass@[FunAssign (str, decls, v)], das)
 
         | IfElse (v, sif, selse) ->
             let (ds, ass, v) = deter_value md v

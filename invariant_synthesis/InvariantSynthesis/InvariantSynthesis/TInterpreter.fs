@@ -23,10 +23,10 @@
             TrVarAssign (rd, str, v)
         | VarAssignAction (name, action, vs) ->
             trace_action m infos env action vs name
-        | FunAssign (str, hvs, v) ->
-            let env' = Interpreter.execute_statement m infos env (FunAssign (str,hvs,v))
+        | FunAssign (str, ds, v) ->
+            let env' = Interpreter.execute_statement m infos env (FunAssign (str,ds,v))
             let rd = (env, env', true)
-            TrFunAssign (rd, str, hvs, v)
+            TrFunAssign (rd, str, ds, v)
         | IfElse (v, sif, selse) ->
             let cv = Interpreter.evaluate_value m infos env v
             let tr =

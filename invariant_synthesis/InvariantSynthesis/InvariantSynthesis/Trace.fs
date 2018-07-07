@@ -10,7 +10,7 @@
         | TrNewBlock of RuntimeData * List<VarDecl> * List<TrStatement>
         | TrVarAssign of RuntimeData * string * Value
         | TrVarAssignAction of RuntimeData * string * List<VarDecl> * VarDecl * List<Value> * TrStatement
-        | TrFunAssign of RuntimeData * string * List<HoleValue> * Value
+        | TrFunAssign of RuntimeData * string * List<VarDecl> * Value
         | TrIfElse of RuntimeData * Value * TrStatement
         | TrIfSomeElse of RuntimeData * Option<ConstValue> * VarDecl * Value * TrStatement
         | TrAssert of RuntimeData * Value
