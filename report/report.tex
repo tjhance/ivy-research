@@ -350,7 +350,7 @@ March-July 2018
         every execution of \(S\) starting from a state satisfying \(P\) will lead to a state that satisfies \(Q\).
     \end{definition}
 
-    Weakest preconditions can be computed as below:\\
+    Weakest preconditions can be computed as follows:\\
 
     \begin{tabular}{|l|l|l|}
         \hline
@@ -389,14 +389,31 @@ March-July 2018
         Then, if all function symbols are stratified, checking if \( P \rightarrow wp(S,Q) \) is decidable.
     \end{theorem}
 
-    In particular, it is possible to decidably check whether a \(\forall^*\) formula satisfies the two properties above.
+    In particular, checking whether a \(\forall^*\) formula satisfies the two properties above is decidable.
     In practice, since satisfiability of some formulas with \( \forall\exists \) quantifier alternation can still be decidable,
     not only \(\forall^*\) invariants are allowed in IVy. However, if an invariant can't be checked in a decidable way, IVy will reject it
     and will indicate to the user the faulty functions or quantifier alternations.
 
-    \section{Interactive tools to find an inductive invariant}
+    \section{Challenges and current research}
 
-    \section{Challenges}
+    As we have just seen, some inductive invariants can be checked in a decidable way.
+    However, it does not mean that they can be automatically produced.
+
+    Indeed, the two main challenges of IVy are:
+    \begin{itemize}
+        \item The implementation and specification of programs, in accordance with the restrictions of IVy
+        (stratification of functions, restriction on formulas, no recursion, limited use of while statements...).
+        A lot of research is in progress to help the user to make such programs. In particular, two majors methods are
+        studied: the fragmentation of code into many independent modules that can use different fragments of logic[REF],
+        and the adding of some mutable `ghost' relations in the program in order to capture the value of some formulas needed by the specification.[REF]
+        
+        \item The finding of inductive invariants (once the program is implemented and specified). As we will see in the next part,
+        IVy can help the user to find an inductive invariant by providing a counterexample when an invariant is not inductive.
+        From such counterexamples, a new conjecture can also be automatically generated in order to strengthen the current invariant.
+        My work has consisted in improving this generation of invariant.
+    \end{itemize}
+
+    Some other challenges are also studied, like the verification of liveness properties [REF].
 
 %\chapter{Research directions}
 %    \section{Make code EPR}
@@ -407,9 +424,15 @@ March-July 2018
 
 \chapter{Invariant Synthesis}
 
-    \section{Using weakest precondition}
+    % Restrictions on the form of the invariant (EPR)
+
+    \section{Weakest preconditions as new invariant}
+
+    \section{The generation of counterexamples}
 
     \section{Counterexample generalization}
+
+    % Model checking can also be used to detect when an invariant is incorrect.
 
     \section{Limits}
 
