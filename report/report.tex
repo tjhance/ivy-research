@@ -308,7 +308,7 @@ March-July 2018
         We can easily add these typing constraints to the logical symbols we used in the previous subsection.
         Moreover, it allows us to extend the domain of EPR formulas by keeping a finite Herbrand domain.
 
-        Indeed, we can allow function symbols and \(\forall^*\exists^*\) quantifier alternation as long as,
+        Indeed, we can allow function symbols and \(\forall\exists\) quantifier alternation as long as,
         when skolemized, the formula still has a finite Herbrand domain.
         In particular, function symbols are allowed as long as they are stratified (that is, as long as there exists
         an order over the sorts such that, for every function \( f: t_1 \to t_2 \), we have \( t_1 < t_2 \)).
@@ -379,16 +379,20 @@ March-July 2018
         Let \(S\) be a RML statement and \(Q\) a \(\forall^*\exists^*\) formula (that is a formula whose normal prenex form has a \(\forall^*\exists^*\) prefix followed by a quantifier-free part), then \(wp(S,Q)\) is also a \(\forall^*\exists^*\) formula.
     \end{lemma}
 
-    This lemma can easily be proved by induction on \(S\).
+    This lemma can easily be proved by induction on \(S\) (we remind that axioms \(A\) are \(\exists^*\forall^*\) formulas).
     
     Moreover, according to the section 1.3, \(\exists^*\forall^*\) formulas can be checked if function symbols are stratified.
     We can deduce the following theorem:
 
     \begin{theorem}[]
-        % TODO
+        Let \(S\) be a RML statement, \(P\) a \(\exists^*\forall^*\) formula and \(Q\) a \(\forall^*\exists^*\) formula.
+        Then, if all function symbols are stratified, checking if \( P \rightarrow wp(S,Q) \) is decidable.
     \end{theorem}
 
-    % TODO
+    In particular, it is possible to decidably check whether a \(\forall^*\) formula satisfies the two properties above.
+    In practice, since satisfiability of some formulas with \( \forall\exists \) quantifier alternation can still be decidable,
+    not only \(\forall^*\) invariants are allowed in IVy. However, if an invariant can't be checked in a decidable way, IVy will reject it
+    and will indicate to the user the faulty functions or quantifier alternations.
 
     \section{Interactive tools to find an inductive invariant}
 
