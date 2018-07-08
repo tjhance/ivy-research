@@ -426,9 +426,23 @@ March-July 2018
 
 \chapter{Invariant Synthesis}
 
-    % Restrictions on the form of the invariant (EPR)
+    \section{Introduction}
 
-    \section{Weakest preconditions as new invariant}
+    The synthesis of inductive invariants is a common problem in verification, and it is undecidable (excepted for very restricted systems). [REF]
+    In particular, even if checking whether an invariant is inductive or not in a RML program is decidable, the synthesis of a such invariant is not decidable.
+    Nevertheless, even an partial resolution can still be very helpful for the user.
+
+    In IVy, most of invariants are universal invariants (\(\forall^*\)), but sometimes a \(\forall^*\exists^*\) invariant can be required (under some restrictions in order
+    to stay in a decidable fragment of logic). Thus, we will restrain our search to these two types of invariant.
+    In particular, when possible, we will try to synthetize universal invariants because they are easier to generate and will never cause any decidability issue.
+    
+    As described in this article [REF], the most common way to find an universal inductive invariant is to start from the specification of the program
+    and try to sthrengthen it (using one of the methods described in the next sections) until we get an inductive invariant.
+    This iterative process may not terminate, but it offers to the user an interactive way to find an inductive invariant:
+    if the current invariant is not inductive, a new conjecture is proposed to the user (in order to be added to the current invariant).
+    If this conjecture is simple enough, the user can analyze it and adjust it as he wants, and we repeat this process.
+
+    \section{Sthrengthening an invariant with its weakest preconditions}
 
     \section{Naive counterexample generalization}
     % Finite model property for finding an invariant
