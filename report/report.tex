@@ -166,12 +166,12 @@ March-July 2018
     IVy is inspired by a modeling language called RML (Relational Modeling Language). It is restricted such that some decidability properties are guaranteed (see section 1.4).
     A RML program is composed of:
     \begin{itemize}
-        \item A list of uninterpreted types that we call `sorts'. A sort has an unbounded number of elements (`values').
-        \item A list of variables, relations and functions over these types (a variable can be considered like a function of arity 0, and a relation can be considered as a function
+        \item Some uninterpreted types that we call `sorts'. A sort has an unbounded number of elements (`values').
+        \item Some variables, relations and functions over these types (a variable can be considered like a function of arity 0, and a relation can be considered as a function
         which returns a boolean). These elements are mutable (their valuation can be modified by the transitions described below).
-        \item A list of axioms over these variables, functions and relations. Axioms are \(\exists^*\forall^*\) formulas (\( \phi_{EA} \) in the grammar below).
-        \item A list of transitions that we call `actions'. An action is a \(statement\) (see the grammar below).
-        \item A special `init' transition can be used to constraint the initial states of the system.
+        \item Some axioms over these variables, functions and relations. Axioms are \(\exists^*\forall^*\) formulas (\( \phi_{EA} \) in the grammar below).
+        \item Some transitions that we call `actions'. An action is a \(statement\) (see the grammar below).
+        \item A special `init' action that is only executed once at the beginning (before any other action).
     \end{itemize}
 
     The transitions can be written using the following grammar:
@@ -339,9 +339,9 @@ March-July 2018
 
     In order to certify that a RML program never abort abnormally, we must provide IVy with an invariant \(I\) such that:
     \begin{enumerate}
-        \item \(I\) is satisfied just after the initialization of the program.
+        \item \(I\) is initially satisfied (after any execution of the `init' action from any state).
         \item \(I\) is inductive, that is: for any state satisfying \(I\), the new state of the program after executing any action of the RML program must also satisfy \(I\).
-        \item Actions never abort abnormally from a state satisfying \(I\).
+        This also implies that actions never abort abnormally from a state satisfying \(I\).
     \end{enumerate}
 
     In order to check whether a formula satisfies all these properties, we introduce the notion of weakest precondition \(wp\):
@@ -365,14 +365,14 @@ March-July 2018
         \( S_1 \) ; \( S_2 \) & Sequential composition & \( wp(S_1, wp(S_2, Q)) \) \\
         \( S_1 \) | \( S_2 \) & Non-deterministic choice & \( wp(S_1, Q) \land wp(S_2, Q) \) \\
         \hline
-    \end{tabular}\\
+    \end{tabular}\\ \\
     \( \phi(\beta,\alpha) \) denotes \(\phi\) with occurences of \(\alpha\) substituted by \(\beta\), and \(A\) denotes the axioms of the RML program.
-
+    \\
+    \\
     We can now rewrite the properties above using weakest preconditions:
     \begin{enumerate}
-        \item %TODO
-        \item 
-        \item 
+        \item \(A \rightarrow wpr(\text{init},I)\)
+        \item For every action \(S\), \(A \land I \rightarrow wpr(\text{S},I)\)
     \end{enumerate}
 
     \begin{lemma}
@@ -380,6 +380,14 @@ March-July 2018
     \end{lemma}
 
     This lemma can easily be proved by induction on \(S\).
+    
+    Moreover, according to the section 1.3, \(\exists^*\forall^*\) formulas can be checked if function symbols are stratified.
+    We can deduce the following theorem:
+
+    \begin{theorem}[]
+        % TODO
+    \end{theorem}
+
     % TODO
 
     \section{Interactive tools to find an inductive invariant}
