@@ -308,12 +308,12 @@ March-July 2018
         For instance, a function takes arguments of some specific sorts and also return a value in a specific sort (sorts are unbounded set of values).
 
         We can easily add these typing constraints to the logical symbols we used in the previous subsection.
-        Moreover, it allows us to extend the domain of EPR formulas by keeping a finite Herbrand domain.
+        Moreover, it allows us to extend the domain of EPR formulas by still keeping a finite Herbrand domain.
 
         Indeed, we can allow function symbols and \(\forall\exists\) quantifier alternation as long as,
-        when skolemized, the formula still has a finite Herbrand domain.
-        In particular, function symbols are allowed as long as they are stratified (that is, as long as there exists
-        an order over the sorts such that, for every function \( f: t_1 \to t_2 \), we have \( t_1 < t_2 \)).
+        once the formula is skolemized, all function symbols are stratified (that is, there exists
+        an order over the sorts such that, for every function symbol \( f: t_1 \to t_2 \), we have \( t_1 < t_2 \)).
+        In this way, the formula will still has a finite Herbrand domain.
 
         However, the EPR fragment can still be too restrictive: for instance, we can't introduce linear arithmetic using only EPR axioms.
         Indeed, the standard way to define integers is to introduce a successor function symbol, which is not allowed because it is not stratified.
@@ -346,7 +346,7 @@ March-July 2018
         This also implies that actions never abort abnormally from a state satisfying \(I\).
     \end{enumerate}
 
-    In order to check whether a formula satisfies all these properties, we introduce the notion of weakest precondition \(wp\):
+    To formalize these two properties, we introduce the notion of weakest precondition \(wp\):
     \begin{definition}[Weakest precondition]
         For any statement \(S\) and formula \(Q\), the weakest precondition of \(Q\) by \(S\) (noted \(wp(S,Q)\)) is the weakest formula \(P\) such that
         every execution of \(S\) starting from a state satisfying \(P\) will lead to a state that satisfies \(Q\).
@@ -360,16 +360,16 @@ March-July 2018
         \hline
         skip & Do nothing & \(Q\) \\
         abort & Terminate abnormally (fail) & false \\
-        \textbf{r}(\(\bar{x}\)) := \( \phi_{QF}(\bar{x}) \) & Quantifier-free update of relation \textbf{r} & \((A \rightarrow Q) [\phi_{QF}(\bar{s})\ /\ \text{\textbf{r}}(\bar{s})]\) \\
-        \textbf{f}(\(\bar{x}\)) := \( t(\bar{x}) \) & Update of function \textbf{f} to term \( t(\bar{x}) \) & \((A \rightarrow Q) [t(\bar{s})\ /\ \text{\textbf{f}}(\bar{s})]\) \\
-        \textbf{v} := \( * \) & Non-deterministic assignment of variable \textbf{v} & \(\forall x. (A \rightarrow Q) [x\ /\ \text{\textbf{v}}]\)\\
+        \textbf{r}(\(\bar{x}\)) := \( \phi_{QF}(\bar{x}) \) & Quantifier-free update of relation \textbf{r} & \((A_r \rightarrow Q) [\phi_{QF}(\bar{s})\ /\ \text{\textbf{r}}(\bar{s})]\) \\
+        \textbf{f}(\(\bar{x}\)) := \( t(\bar{x}) \) & Update of function \textbf{f} to term \( t(\bar{x}) \) & \((A_f \rightarrow Q) [t(\bar{s})\ /\ \text{\textbf{f}}(\bar{s})]\) \\
+        \textbf{v} := \( * \) & Non-deterministic assignment of variable \textbf{v} & \(\forall x. (A_v \rightarrow Q) [x\ /\ \text{\textbf{v}}]\)\\
         assume \( \phi_{EA} \) & Assume a \( \exists^*\forall^* \) formula holds & \( \phi_{EA} \rightarrow Q \) \\
         \( S_1 \) ; \( S_2 \) & Sequential composition & \( wp(S_1, wp(S_2, Q)) \) \\
         \( S_1 \) | \( S_2 \) & Non-deterministic choice & \( wp(S_1, Q) \land wp(S_2, Q) \) \\
         \hline
     \end{tabular}\\ \\
-    \( \phi(\beta,\alpha) \) denotes \(\phi\) with occurences of \(\alpha\) substituted by \(\beta\), and \(A\) denotes the axioms of the RML program.
-    \\
+    \( \phi(\beta,\alpha) \) denotes \(\phi\) with occurences of \(\alpha\) substituted by \(\beta\), and \(A_s\) denotes the axioms of the RML program
+    that involve the symbol \(s\).\\
     \\
     We can now rewrite the properties above using weakest preconditions:
     \begin{enumerate}
@@ -391,9 +391,9 @@ March-July 2018
         Then, if all function symbols are stratified, checking if \( P \rightarrow wp(S,Q) \) is decidable.
     \end{theorem}
 
-    In particular, checking whether a \(\forall^*\) formula satisfies the two properties above is decidable.
+    In particular, checking whether a quantifier-alternation-free formula satisfies the two properties above is decidable.
     In practice, since satisfiability of some formulas with \( \forall\exists \) quantifier alternation can still be decidable,
-    not only \(\forall^*\) invariants are allowed in IVy. However, if an invariant can't be checked in a decidable way, IVy will reject it
+    not only quantifier-alternation-free invariants are allowed in IVy. However, if an invariant can't be checked in a decidable way, IVy will reject it
     and will indicate to the user the faulty functions or quantifier alternations.
 
     \section{Challenges and current research}
@@ -443,6 +443,9 @@ March-July 2018
     If this conjecture is simple enough, the user can analyze it and adjust it as he wants, and we repeat this process.
 
     \section{Sthrengthening an invariant with its weakest preconditions}
+    % Very complex formula!
+    % Can break decidability! (because forall quantifiers are added at the beginning by the process of wpr)
+    % Characterize it? (see 'weakening the conjecture' section)
 
     \section{Naive counterexample generalization}
     % Finite model property for finding an invariant
@@ -463,6 +466,9 @@ March-July 2018
     \section{Model-dependent constraints}
 
     \section{Weakening the conjecture}
+
+    % Not always decidable!
+    % Characterize it: decidable when studied invariant is universal only and axioms involved with mutation are existential only?
 
     \section{Guarantees}
 
