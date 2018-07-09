@@ -91,7 +91,7 @@ module counter =
     }
 
     after next {
-		assert ~(cur <= output);
+		ensure ~(cur <= output);
     }
 }
 
@@ -276,12 +276,14 @@ object lock =
     export get_cep
 
     conjecture (held(A) & held(B)) -> (A = B)
-	conjecture ~(incrementable.succ(lock.q.first_e, A) & lock.pending(B, C, lock.unlock) & lock.q.first ~= C)
+	#conjecture ~(incrementable.succ(lock.q.first_e, A) & lock.pending(B, C, lock.unlock) & lock.q.first ~= C)
 	# Obtained for receive_unlock & invariant above
 	#conjecture ~(incrementable.succ(B, lock.q.next_e) & incrementable.succ(lock.q.first_e, B) & incrementable.succ(lock.sep.cur, A) & lock.pending(lock.q.next_e, C, lock.unlock) & lock.pending(lock.sep.cur, C, lock.unlock) & lock.q.content(D, B) & C ~= D & lock.sep.cur ~= lock.q.next_e)
-    conjecture ~(incrementable.succ(lock.q.first_e, A) & lock.pending(B, C, lock.unlock) & lock.q.next_e = lock.q.first_e)
-	conjecture ~(lock.pending(A, B, lock.unlock) & lock.q.next_e = lock.q.first_e)
-	conjecture ~(incrementable.succ(lock.q.first_e, lock.q.next_e) & lock.pending(A, B, lock.unlock) & lock.pending(C, B, lock.unlock) & A ~= C)
+	
+	conjecture ~(lock.held(A) & lock.pending(B, C, lock.grant) & C ~= A)
+	conjecture ~(lock.pending(A, B, lock.grant) & lock.pending(C, D, lock.grant) & B ~= D)
+	#conjecture ~(incrementable.succ(lock.q.first_e, B) & incrementable.succ(lock.sep.cur, A) & lock.held(C) & lock.pending(B, D, lock.lock) & lock.q.next_e = lock.q.first_e & D ~= C)
+	
 	# NOTE : Conjectures added thanks to the IVy tool
     #conjecture forall A,B,C. pending(A,B,unlock) -> (~q.empty & q.first = B & ~held(C))
     #conjecture forall A,B,C. pending(A,B,grant) -> (~q.empty & q.first = B & ~held(C))

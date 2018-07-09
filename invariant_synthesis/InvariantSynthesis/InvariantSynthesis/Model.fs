@@ -61,6 +61,9 @@
         let lst = List.map (all_values infos) lst
         Helper.all_choices_combination lst
 
+    let cardinal infos =
+        Map.fold (fun acc _ nb -> acc + nb) 0 infos
+
     // Note: If some constraints are contradictory, the last one has the last word
     let constraints_to_env (m:ModuleDecl) cs : (TypeInfos * Environment) =
         // Type infos

@@ -119,47 +119,59 @@ let auto_counterexample (md:ModuleDecl) decls action verbose =
             then
                 first_loop := false
                 printfn "Searching assertions fail..."
-                Some (MinimalAST.ValueConst (ConstBool true))
+                Some [(-1,MinimalAST.ValueConst (ConstBool true))]
             else
-                printfn "Select the conjecture to test:"
+                printfn "Select the conjecture(s) to test (separate by space, '*' for all):"
                 List.iteri (fun i (d:AST.InvariantDecl) -> printfn "%i. [%s] %s" i d.Module (Printer.value_to_string decls d.Formula 0)) invs
                 let line = Console.ReadLine()
-                if String.IsNullOrEmpty line
+                let nbs =
+                    if line = "*"
+                    then List.mapi (fun i _ -> sprintf "%i" i) invs
+                    else line.Split ([|' '|], StringSplitOptions.RemoveEmptyEntries) |> List.ofArray
+                if List.isEmpty nbs
                 then None
                 else
-                    let nb = Convert.ToInt32 line
-                    let formula = List.item nb (AST.invariants_to_formulas invs)
-                    Some (MinimalAST.value2minimal md formula)
+                    let nbs = List.map (fun (str:string) -> Convert.ToInt32 str) nbs
+                    let formulas = List.map (fun nb -> (nb,List.item nb (AST.invariants_to_formulas invs))) nbs
+                    let formulas = List.map (fun (nb,formula) -> (nb,MinimalAST.value2minimal md formula)) formulas
+                    Some formulas
 
         match formula with
-        | None -> ()
-        | Some formula ->
-            let z3formula = WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd formula) false
-            let wpr = WPR.wpr_for_action mmd z3formula action false
-            if verbose then printfn "%A" wpr
-
+        | None -> finished := true
+        | Some formulas ->
             let all_invariants = MinimalAST.invariants_to_formulas mmd.Invariants
             let conjectures = WPR.conjunction_of (WPR.conjectures_to_z3values mmd all_invariants)
             let axioms = WPR.conjunction_of (WPR.conjectures_to_z3values mmd mmd.Axioms)
-    
-            let is_inductive_v = WPR.Z3And (WPR.Z3And (conjectures, axioms), WPR.Z3Not wpr)
-            let z3ctx = Z3Utils.build_context mmd
-            let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars mmd action z3ctx is_inductive_v
-            let z3e = Z3Utils.build_value z3ctx z3lvars is_inductive_v
+
+            let treat_formula (i,formula) =
+                let z3formula = WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd formula) false
+                let wpr = WPR.wpr_for_action mmd z3formula action false
+                if verbose then printfn "%A" wpr
+
+                let is_inductive_v = WPR.Z3And (WPR.Z3And (conjectures, axioms), WPR.Z3Not wpr)
+                let z3ctx = Z3Utils.build_context mmd
+                let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars mmd action z3ctx is_inductive_v
+                let z3e = Z3Utils.build_value z3ctx z3lvars is_inductive_v
         
-            counterexample :=
-                match Z3Utils.check z3ctx z3e with
-                | None ->
-                    printfn "No counterexample found!"
-                    None
-                | Some m ->
-                    let (infos, env) = Z3Utils.z3model_to_ast_model mmd z3ctx action_args z3lvars z3concrete_map m
-                    finished := true
-                    Some (formula, infos, env)
+                counterexample :=
+                    match Z3Utils.check z3ctx z3e with
+                    | None ->
+                        printfn "%i: No counterexample found!" i
+                        !counterexample
+                    | Some m ->
+                        let (infos, env) = Z3Utils.z3model_to_ast_model mmd z3ctx action_args z3lvars z3concrete_map m
+                        finished := true
+                        let former_cardinal = match !counterexample with None -> Int32.MaxValue | Some (_,_,infos,_) -> Model.cardinal infos
+                        if Model.cardinal infos < former_cardinal
+                        then Some (i, formula, infos, env)
+                        else !counterexample
+
+            List.iter treat_formula formulas
 
     match !counterexample with
     | None -> None
-    | Some (formula, infos, env) ->
+    | Some (i, formula, infos, env) ->
+        printfn "Invariant n°%i." i
         let tr = TInterpreter.trace_action mmd infos env action (List.map (fun (d:VarDecl) -> MinimalAST.ValueVar d.Name) action_args) AST.impossible_var_factor
         Some (mmd, action, infos, env, [], formula, tr)
 

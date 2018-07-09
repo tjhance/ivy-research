@@ -4,7 +4,8 @@
 
     // IMPORTANT TODO: Optimize new value marks system
 
-    // TODO: Improve conjecture generation for example verdi_lock
+    // TODO: Improve conjecture generation for example verdi_lock (action 5)
+    // TODO: For universal invariant, get rid of some constraints by trying to find allowed path
     // TODO: Try to improve final generated invariants by removing/weakening constraints using model checking
 
     // TODO: Enumerated types
