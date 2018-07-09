@@ -410,11 +410,11 @@
             -> simplify_value (ValueEqual (v, ValueConst (ConstBool (not b))))
         | ValueNot (ValueConst (ConstBool b)) -> simplify_value (ValueConst (ConstBool (not b)))
         | ValueNot (ValueNot f) -> simplify_value f
-        | ValueNot (ValueOr (f1, f2)) -> simplify_value (ValueAnd (ValueNot f1, ValueNot f2))
-        | ValueNot (ValueAnd (f1, f2)) -> simplify_value (ValueOr (ValueNot f1, ValueNot f2))
+        //| ValueNot (ValueOr (f1, f2)) -> simplify_value (ValueAnd (ValueNot f1, ValueNot f2))
+        //| ValueNot (ValueAnd (f1, f2)) -> simplify_value (ValueOr (ValueNot f1, ValueNot f2))
         | ValueNot (ValueForall (d,f)) -> simplify_value (ValueExists (d, ValueNot f))
         | ValueNot (ValueExists (d,f)) -> simplify_value (ValueForall (d, ValueNot f))
-        | ValueNot (ValueImply (f1, f2)) -> simplify_value (ValueAnd (f1, ValueNot f2))
+        //| ValueNot (ValueImply (f1, f2)) -> simplify_value (ValueAnd (f1, ValueNot f2))
         // Identity cases
         | ValueConst b -> ValueConst b
         | ValueStar t -> ValueStar t

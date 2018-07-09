@@ -11,7 +11,7 @@ let comment = '#' | "isolate" | "inductive" | "export" | "extract"
 let int = '-'? ['0'-'9'] ['0'-'9']*
 let qvar_id = ['A'-'Z']+
 let id =
-    ['a'-'z' 'A'-'Z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_' '.']* ['a'-'z' 'A'-'Z' '0'-'9' '_']
+    ['a'-'z' 'A'-'Z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_' '.' '[' ']']* ['a'-'z' 'A'-'Z' '0'-'9' '_' '[' ']']
   | ['a'-'z' 'A'-'Z' '_']
 let infix_cmp_id = ['<' '=' '~' '>']+
 let infix_fun_id = ['+' '-']+

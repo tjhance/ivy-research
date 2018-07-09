@@ -245,7 +245,7 @@
         | (AST.Expr _)::hexprs, str::new_names, t::types -> (AST.default_var_decl str t)::(hexprs_to_decls hexprs new_names types)
         | _, _, _ -> failwith "Can't convert hole-expressions to declarations."
 
-    type SpecificationsPolicy = Normal | Inverse | Ignore
+    type SpecificationsPolicy = Normal | Inverse | Ignore |InverseIgnore
 
     let statement2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) dico_types (s:AST.Statement) spec_policy =
         let packIfNecessary decls sts =
@@ -314,13 +314,13 @@
             | AST.Require v ->
                 match spec_policy with
                 | Normal -> ([], [Assume (value2minimal m v)])
-                | Inverse -> ([], [Assert (value2minimal m v)])
+                | Inverse | InverseIgnore -> ([], [Assert (value2minimal m v)])
                 | Ignore -> ([], [])
             | AST.Ensure v ->
                 match spec_policy with
                 | Normal -> ([], [Assert (value2minimal m v)])
                 | Inverse -> ([], [Assume (value2minimal m v)])
-                | Ignore -> ([], [])
+                | Ignore | InverseIgnore -> ([], [])
         let (decls, sts) = aux dico_types s
         packIfNecessary decls sts
 
@@ -362,10 +362,13 @@
                 else if is_concrete
                 then
                     // Concrete case
-                    let st = AST.NewBlock([],before@concrete_impl@after)
+                    let prerequisites = []
+                    let guarantees = []
+                    let st = AST.NewBlock([],prerequisites@before@concrete_impl@after@guarantees)
                     // We ignore specifications, because they assume that all invariants are initially satisfied.
                     // It may not be the case, and we don't want to require it.
-                    (st, Ignore)
+                    //(st, Ignore)
+                    (st, InverseIgnore)
                 else
                     // Abstract case
                     let assignment = [AST.VarAssign (output.Name, AST.ExprStar output.Type)]

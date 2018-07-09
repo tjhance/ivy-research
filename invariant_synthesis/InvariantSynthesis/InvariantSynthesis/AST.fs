@@ -4,6 +4,9 @@
 
     // IMPORTANT TODO: Optimize new value marks system
 
+    // TODO: Improve conjecture generation for example verdi_lock
+    // TODO: Try to improve final generated invariants by removing/weakening constraints using model checking
+
     // TODO: Enumerated types
     // TODO: "while" loops
     // TODO: "if some" with multiple var decls
@@ -15,8 +18,6 @@
     // with an additionals first parameters for every var/fun/action/etc (that corresponds the parameters of the initial function)
     // TODO: isolate, inductive, export, extract, interpret...
     // TODO: Infer types for macro args (currently, type annotations is required)
-
-    // TODO: Add a final step that uses model checking to make the invariant the strongest possible by trying to weaken constraints
 
     // Refactor:
     // TODO: Create a function that retrieve the name of a var decl, and use it everywhere.

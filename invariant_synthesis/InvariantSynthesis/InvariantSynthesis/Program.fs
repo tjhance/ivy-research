@@ -75,9 +75,9 @@ let manual_counterexample (md:ModuleDecl) decls action verbose =
         let nb = Convert.ToInt32 (Console.ReadLine())
         let formula = List.item nb (AST.invariants_to_formulas invs)
         let formula = MinimalAST.value2minimal md formula
-        (mmd, action, infos, env, cs, formula, tr)
+        Some (mmd, action, infos, env, cs, formula, tr)
     else
-        (mmd, action, infos, env, cs, MinimalAST.ValueConst (ConstBool true), tr)
+        Some (mmd, action, infos, env, cs, MinimalAST.ValueConst (ConstBool true), tr)
     
 let manual_allowed_path (md:ModuleDecl) decls env cs m um' =
     printfn "Please modify some constraints on the environment to change the final formula value."
@@ -107,52 +107,61 @@ let auto_counterexample (md:ModuleDecl) decls action verbose =
 
     let counterexample = ref None
     let first_loop = ref true
+    let finished = ref false
 
     let (main_module,_) = AST.decompose_name action
     let invs = AST.find_invariants md main_module
 
-    while (!counterexample) = None do
+    while not (!finished) do
 
         let formula =
             if !first_loop
             then
                 first_loop := false
                 printfn "Searching assertions fail..."
-                MinimalAST.ValueConst (ConstBool true)
+                Some (MinimalAST.ValueConst (ConstBool true))
             else
                 printfn "Select the conjecture to test:"
                 List.iteri (fun i (d:AST.InvariantDecl) -> printfn "%i. [%s] %s" i d.Module (Printer.value_to_string decls d.Formula 0)) invs
-                let nb = Convert.ToInt32 (Console.ReadLine())
-                let formula = List.item nb (AST.invariants_to_formulas invs)
-                MinimalAST.value2minimal md formula
+                let line = Console.ReadLine()
+                if String.IsNullOrEmpty line
+                then None
+                else
+                    let nb = Convert.ToInt32 line
+                    let formula = List.item nb (AST.invariants_to_formulas invs)
+                    Some (MinimalAST.value2minimal md formula)
 
-        let z3formula = WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd formula) false
-        let wpr = WPR.wpr_for_action mmd z3formula action false
-        if verbose then printfn "%A" wpr
+        match formula with
+        | None -> ()
+        | Some formula ->
+            let z3formula = WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd formula) false
+            let wpr = WPR.wpr_for_action mmd z3formula action false
+            if verbose then printfn "%A" wpr
 
-        let all_invariants = MinimalAST.invariants_to_formulas mmd.Invariants
-        let conjectures = WPR.conjunction_of (WPR.conjectures_to_z3values mmd all_invariants)
-        let axioms = WPR.conjunction_of (WPR.conjectures_to_z3values mmd mmd.Axioms)
+            let all_invariants = MinimalAST.invariants_to_formulas mmd.Invariants
+            let conjectures = WPR.conjunction_of (WPR.conjectures_to_z3values mmd all_invariants)
+            let axioms = WPR.conjunction_of (WPR.conjectures_to_z3values mmd mmd.Axioms)
     
-        let is_inductive_v = WPR.Z3And (WPR.Z3And (conjectures, axioms), WPR.Z3Not wpr)
-        let z3ctx = Z3Utils.build_context mmd
-        let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars mmd action z3ctx is_inductive_v
-        let z3e = Z3Utils.build_value z3ctx z3lvars is_inductive_v
+            let is_inductive_v = WPR.Z3And (WPR.Z3And (conjectures, axioms), WPR.Z3Not wpr)
+            let z3ctx = Z3Utils.build_context mmd
+            let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars mmd action z3ctx is_inductive_v
+            let z3e = Z3Utils.build_value z3ctx z3lvars is_inductive_v
         
-        counterexample :=
-            match Z3Utils.check z3ctx z3e with
-            | None ->
-                printfn "No counterexample found!"
-                None
-            | Some m ->
-                let (infos, env) = Z3Utils.z3model_to_ast_model mmd z3ctx action_args z3lvars z3concrete_map m
-                Some (formula, infos, env)
+            counterexample :=
+                match Z3Utils.check z3ctx z3e with
+                | None ->
+                    printfn "No counterexample found!"
+                    None
+                | Some m ->
+                    let (infos, env) = Z3Utils.z3model_to_ast_model mmd z3ctx action_args z3lvars z3concrete_map m
+                    finished := true
+                    Some (formula, infos, env)
 
     match !counterexample with
-    | None -> failwith "No counterexample found!"
+    | None -> None
     | Some (formula, infos, env) ->
         let tr = TInterpreter.trace_action mmd infos env action (List.map (fun (d:VarDecl) -> MinimalAST.ValueVar d.Name) action_args) AST.impossible_var_factor
-        (mmd, action, infos, env, [], formula, tr)
+        Some (mmd, action, infos, env, [], formula, tr)
 
 let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) _ (env:Model.Environment) formula
     action (m:Synthesis.Marks) prev_allowed only_terminating_run =
@@ -270,97 +279,101 @@ let main argv =
     let md = AST.exclude_from_module md (Seq.toList banned_modules)
     let decls = Model.declarations_of_module md
 
-    // Choose the actionto analyze
+    while true do
+        // Choose the action to analyze
 
-    let possible_actions = List.map (fun (d:ActionDecl) -> d.Name) md.Actions
-    let possible_actions = List.filter (fun str -> let (_,v) = AST.decompose_action_name str in v = "") possible_actions
-    printfn "Which action do you want to analyze?"
-    List.iteri (fun i str -> printfn "%i. %s" i str) possible_actions
-    let nb = Convert.ToInt32 (Console.ReadLine())
-    let name = List.item nb possible_actions
+        let possible_actions = List.map (fun (d:ActionDecl) -> d.Name) md.Actions
+        let possible_actions = List.filter (fun str -> let (_,v) = AST.decompose_action_name str in v = "") possible_actions
+        printfn "Which action do you want to analyze?"
+        List.iteri (fun i str -> printfn "%i. %s" i str) possible_actions
+        let nb = Convert.ToInt32 (Console.ReadLine())
+        let name = List.item nb possible_actions
 
-    // Let's go!
+        // Let's go!
 
-    let (mmd, name, infos, env, cs, formula, tr) =
-        if manual
-        then manual_counterexample md decls name verbose
-        else auto_counterexample md decls name verbose
+        let counterexample =
+            if manual
+            then manual_counterexample md decls name verbose
+            else auto_counterexample md decls name verbose
 
-    let (b,finished_exec,(m,um,ad)) =
-        analyse_example_ending mmd infos tr formula
-    if b then failwith "Invalid counterexample!"
+        match counterexample with
+        | None -> ()
+        | Some (mmd, name, infos, env, cs, formula, tr) ->
+            let (b,finished_exec,(m,um,ad)) =
+                analyse_example_ending mmd infos tr formula
+            if b then failwith "Invalid counterexample!"
 
-    printfn "Going back through the action..."
-    let (m,um,ad) = Synthesis.marks_before_statement mmd infos true false tr (m,um,ad)
-    if verbose
-    then
-        printfn "%A" m
-        printfn "%A" um
-        printfn "%A" ad
+            printfn "Going back through the action..."
+            let (m,um,ad) = Synthesis.marks_before_statement mmd infos true false tr (m,um,ad)
+            if verbose
+            then
+                printfn "%A" m
+                printfn "%A" um
+                printfn "%A" ad
 
-    let m' = Formula.simplify_marks infos md.Implications decls env m
-    let um' = Formula.simplify_marks infos md.Implications decls env um
-    let f = Formula.formula_from_marks env m' [] false
-    let f = Formula.simplify_value f
-    printfn "%s" (Printer.value_to_string decls f 0)
-    printfn ""
+            let m' = Formula.simplify_marks infos md.Implications decls env m
+            let um' = Formula.simplify_marks infos md.Implications decls env um
+            let f = Formula.formula_from_marks env m' [] false
+            let f = Formula.simplify_value f
+            printfn "%s" (Printer.value_to_string decls f 0)
+            printfn ""
 
-    let allowed_paths = ref []
-    if ad.md
-    then
-        printfn "This invariant may be too strong!"
-        printfn "(Some model-dependent marks have been ignored)"
-        printfn "Would you like to add an allowed path to the invariant? (y/n)"
-        let answer = ref (Console.ReadLine())
-        let only_terminating_exec = ref true
-        while !answer = "y" do
+            let allowed_paths = ref []
+            if ad.md
+            then
+                printfn "This invariant may be too strong!"
+                printfn "(Some model-dependent marks have been ignored)"
+                printfn "Would you like to add an allowed path to the invariant? (y/n)"
+                let answer = ref (Console.ReadLine())
+                let only_terminating_exec = ref true
+                while !answer = "y" do
 
-            let allowed_path_opt =
-                if manual
-                then manual_allowed_path md decls env cs m um'
-                else auto_allowed_path md mmd decls env formula name m (!allowed_paths) (!only_terminating_exec)
+                    let allowed_path_opt =
+                        if manual
+                        then manual_allowed_path md decls env cs m um'
+                        else auto_allowed_path md mmd decls env formula name m (!allowed_paths) (!only_terminating_exec)
 
-            match allowed_path_opt with
-            | Some (infos_allowed, env_allowed) ->
-                let args_decl = (MinimalAST.find_action mmd name).Args
-                let tr_allowed = TInterpreter.trace_action mmd infos_allowed env_allowed name (List.map (fun (d:VarDecl) -> MinimalAST.ValueVar d.Name) args_decl) AST.impossible_var_factor
+                    match allowed_path_opt with
+                    | Some (infos_allowed, env_allowed) ->
+                        let args_decl = (MinimalAST.find_action mmd name).Args
+                        let tr_allowed = TInterpreter.trace_action mmd infos_allowed env_allowed name (List.map (fun (d:VarDecl) -> MinimalAST.ValueVar d.Name) args_decl) AST.impossible_var_factor
 
-                let (b_al,_,(m_al,um_al,ad_al)) =
-                    analyse_example_ending mmd infos_allowed tr_allowed formula
+                        let (b_al,_,(m_al,um_al,ad_al)) =
+                            analyse_example_ending mmd infos_allowed tr_allowed formula
 
-                if b_al
-                then
-                    let (m_al,_,ad_al) =
-                        Synthesis.marks_before_statement mmd infos_allowed finished_exec true tr_allowed (m_al,um_al,ad_al)
-                    if ad_al.md
-                    then printfn "Warning: Some marks still are model-dependent! Generated invariant could be weaker than expected."
-                    let m_al' = Synthesis.marks_union m_al m'
-                    let m_al' = Formula.simplify_marks infos_allowed md.Implications decls env_allowed m_al'
-                    let m_al' = Synthesis.marks_diff m_al' m'
-                    allowed_paths := (m_al',env_allowed)::(!allowed_paths)
-                else printfn "ERROR: Illegal execution!"
-            | None ->
-                printfn "No more allowed path found!"
-                if !only_terminating_exec = true
-                then
-                    printfn "Extending the search domain to non-terminating runs..."
-                    only_terminating_exec := false
+                        if b_al
+                        then
+                            let (m_al,_,ad_al) =
+                                Synthesis.marks_before_statement mmd infos_allowed finished_exec true tr_allowed (m_al,um_al,ad_al)
+                            if ad_al.md
+                            then printfn "Warning: Some marks still are model-dependent! Generated invariant could be weaker than expected."
+                            let m_al' = Synthesis.marks_union m_al m'
+                            let m_al' = Formula.simplify_marks infos_allowed md.Implications decls env_allowed m_al'
+                            let m_al' = Synthesis.marks_diff m_al' m'
+                            allowed_paths := (m_al',env_allowed)::(!allowed_paths)
+                        else printfn "ERROR: Illegal execution!"
+                    | None ->
+                        printfn "No more allowed path found!"
+                        if !only_terminating_exec = true
+                        then
+                            printfn "Extending the search domain to non-terminating runs..."
+                            only_terminating_exec := false
             
-            printfn "Would you like to add an allowed path to the invariant? (y/n)"
-            answer := Console.ReadLine()
-    else
-        printfn "These conditions are sufficient to break the invariant!"
+                    printfn "Would you like to add an allowed path to the invariant? (y/n)"
+                    answer := Console.ReadLine()
+            else
+                printfn "These conditions are sufficient to break the invariant!"
 
-    let f =
-        if not (List.isEmpty (!allowed_paths))
-        then
-            let f = Formula.formula_from_marks env m' (!allowed_paths) false
-            Formula.simplify_value f
-        else f
+            let f =
+                if not (List.isEmpty (!allowed_paths))
+                then
+                    let f = Formula.formula_from_marks env m' (!allowed_paths) false
+                    Formula.simplify_value f
+                else f
 
-    printfn ""
-    printfn "Invariant to add:"
-    printfn "%s" (Printer.value_to_string decls f 0)
+            printfn ""
+            printfn "Invariant to add:"
+            printfn "%s" (Printer.value_to_string decls f 0)
+            ignore (Console.ReadLine())
     
-    ignore (Console.ReadLine())
     0
