@@ -479,8 +479,10 @@ March-July 2018
 
     Nevertheless, we can have the guarantee that the weakest precondition is EPR by adding these restrictions:
     \begin{itemize}
-        \item The initial invariant must be an universally quantified formula.
-        \item Axioms and assumptions must be existentially quantified formulas.
+        \item Function symbols must be stratified.
+        \item The initial invariant must be universally quantified.
+        \item Assumptions must be existentially quantified.
+        \item Axioms that involve a mutable variable, function or relation must be existentially quantified.
     \end{itemize}
     We can easily verify that under these conditions, the weakest precondition will be an universally quantified formula
     and thus will be EPR. However, these conditions are very restrictive and so they can't be reasonably imposed.
@@ -527,6 +529,12 @@ March-July 2018
     \section{What remains to be done}
 
     \section{Lessons from this internship}
+
+\chapter{Annexes}
+
+    \section{RML example: a leader election protocol}
+
+    \section{Comparison of results on different examples}
 
 \bibliographystyle{unsrt}
 \bibliography{sample}

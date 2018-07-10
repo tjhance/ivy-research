@@ -123,8 +123,9 @@
             | Z3Hole -> failwith "Can't convert a context to a Z3 formula!"
         aux Map.empty v
 
-    let check (ctx:ModuleContext) (e:Expr) =
+    let check (ctx:ModuleContext) (e:Expr) (timeout:int) =
         let s = ctx.Context.MkSolver()
+        s.Set ("timeout", uint32(timeout))
         s.Assert ([|e:?> BoolExpr|])
         match s.Check () with
         | Status.UNKNOWN ->

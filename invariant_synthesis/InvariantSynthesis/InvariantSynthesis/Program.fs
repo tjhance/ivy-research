@@ -154,7 +154,7 @@ let auto_counterexample (md:ModuleDecl) decls action verbose =
                 let z3e = Z3Utils.build_value z3ctx z3lvars is_inductive_v
         
                 counterexample :=
-                    match Z3Utils.check z3ctx z3e with
+                    match Z3Utils.check z3ctx z3e 3000 with
                     | None ->
                         printfn "%i: No counterexample found!" i
                         !counterexample
@@ -225,7 +225,7 @@ let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) 
     let z3e = Z3Utils.build_value z3ctx z3lvars f
 
     // Solve!
-    match Z3Utils.check z3ctx z3e with
+    match Z3Utils.check z3ctx z3e 3000 with
     | None -> None
     | Some m ->
         let args_decl = (MinimalAST.find_action mmd action).Args
