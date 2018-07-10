@@ -424,7 +424,7 @@ March-July 2018
 %    \section{Adding typing}
 %    \section{Invariant Synthesis}
 
-\chapter{Invariant Synthesis}
+\chapter{Invariant synthesis}
 
     \section{Introduction}
 
@@ -442,10 +442,53 @@ March-July 2018
     if the current invariant is not inductive, a new conjecture is proposed to the user (in order to be added to the current invariant).
     If this conjecture is simple enough, the user can analyze it and adjust it as he wants, and we repeat this process.
 
-    \section{Sthrengthening an invariant with its weakest preconditions}
-    % Very complex formula!
-    % Can break decidability! (because forall quantifiers are added at the beginning by the process of wpr)
-    % Characterize it? (see 'weakening the conjecture' section)
+    Thus, the problem we want to solve is as follows:
+    given an invariant that is not inductive, we want to sthrengthen it (as much as possible) by respecting these conditions:
+    \begin{enumerate}
+        \item \textbf{Correctness}: The new invariant must still be valid, in the sense that it must be satisfied by every state obtained
+        after executing the `init' action followed by as many other actions as we want.
+        \item \textbf{Decidability}: The new invariant should still be checkable in a decidable way (in our case it should be in EPR).
+        \item \textbf{Simplicity}: The new invariant should be easily understandable by the user in order to be adjusted if needed.
+    \end{enumerate}
+
+    \section{Weakest precondition as a new invariant}
+
+    One possible way to sthrengthen an invariant is to make the conjunction with its weakest precondition.
+    If the initial invariant is not inductive, the result will be stricltly stronger.
+
+    Let's see if this method respect the conditions.\\
+    
+    \textbf{Correctness:} We assume that the initial invariant \(I\) is valid. From that, we deduce that its weakest precondition \(P\) is also valid:
+    \\
+
+    By contradiction, let's suppose that we have a state \(S\), issued from a valid execution \(E\), that doesn't satisfy \(P\).
+    Two cases are possible:
+    \begin{itemize}
+        \item There exists an execution \(E'\) of one action from \(S\) such that the resulting state doesn't satisfy the initial invariant.
+        \(E\) followed by \(E'\) is a valid execution that doesn't satisfy \(I\) and thus we have a contradiction.
+        \item Every possible execution of one action from \(S\) will result in a state that satisfy \(I\).
+        In this case, we can generate a precondition for our initial invariant that is stricly weaker than \(P\):
+        let \(F\) be a formula that fully characterize \(S\) (its concrete domains and its interpretations in these domains),
+        then \(P \lor F\) is still a precondition for \(I\) and is strictly weaker than \(P\): contradiction. 
+    \end{itemize}
+
+    So \(P\) is valid and thus \(P \land I\) is valid.\\
+
+    \textbf{Decidability:} Even if the initial invariant is EPR, the weakest precondition is not guaranteed to be EPR.
+    Indeed, stratification can be broken in several cases: assumptions, non-deterministic operations, etc.
+
+    Nevertheless, we can have the guarantee that the weakest precondition is EPR by adding these restrictions:
+    \begin{itemize}
+        \item The initial invariant must be an universally quantified formula.
+        \item Axioms and assumptions must be existentially quantified formulas.
+    \end{itemize}
+    We can easily verify that under these conditions, the weakest precondition will be an universally quantified formula
+    and thus will be EPR. However, these conditions are very restrictive and so they can't be reasonably imposed.
+    \\
+
+    \textbf{Simplicity:} Weakest preconditions are usually very long, even after simplification (they can grow exponentially).
+    Moreover, they are not focused on one aspect in particular (they mix many elements together), and so they are even more complicated
+    to understand.
 
     \section{Naive counterexample generalization}
     % Finite model property for finding an invariant
@@ -453,28 +496,33 @@ March-July 2018
 
     \section{Limits: non-monotonic code}
 
-    \section{Using model checking}
+    \section{A solution: using model checking}
 
 
 
 \chapter{My contributions}
 
+    % First contribution: formalism and proofs above.
+
     \section{Filtering constraints using code analysis}
 
     % Complementary to model chacking!
 
-    \section{Model-dependent constraints}
+    \section{Case of non-monotonic code}
 
     \section{Weakening the conjecture}
 
     % Not always decidable!
-    % Characterize it: decidable when studied invariant is universal only and axioms involved with mutation are existential only?
+    % Characterize it:
+    % decidable when studied invariant is universal only,
+    % axioms involved with mutation are existential only
+    % assumption are existantial only
 
     \section{Guarantees}
 
-    \section{Comparison to other methods}
-
 \chapter{Conclusion}
+
+    \section{Comparison of the different methods}
 
     \section{What remains to be done}
 
