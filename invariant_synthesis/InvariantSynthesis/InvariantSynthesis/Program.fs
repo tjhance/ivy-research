@@ -323,8 +323,8 @@ let main argv =
                 printfn "%A" um
                 printfn "%A" ad
 
-            let m' = Formula.simplify_marks infos md.Implications decls env m
-            let um' = Formula.simplify_marks infos md.Implications decls env um
+            let m' = Simplification.simplify_marks mmd env m (Synthesis.empty_marks)//Formula.simplify_marks infos md.Implications decls env m
+            let um' = Simplification.simplify_marks mmd env um (Synthesis.empty_marks) //Formula.simplify_marks infos md.Implications decls env um
             let f = Formula.formula_from_marks env m' [] false
             let f = Formula.simplify_value f
             printfn "%s" (Printer.value_to_string decls f 0)
@@ -359,9 +359,10 @@ let main argv =
                                 Synthesis.marks_before_statement mmd infos_allowed finished_exec true tr_allowed (m_al,um_al,ad_al)
                             if ad_al.md
                             then printfn "Warning: Some marks still are model-dependent! Generated invariant could be weaker than expected."
-                            let m_al' = Synthesis.marks_union m_al m'
+                            (*let m_al' = Synthesis.marks_union m_al m'
                             let m_al' = Formula.simplify_marks infos_allowed md.Implications decls env_allowed m_al'
-                            let m_al' = Synthesis.marks_diff m_al' m'
+                            let m_al' = Synthesis.marks_diff m_al' m'*)
+                            let m_al' = Simplification.simplify_marks mmd env m_al m'
                             allowed_paths := (m_al',env_allowed)::(!allowed_paths)
                         else printfn "ERROR: Illegal execution!"
                     | None ->
@@ -375,6 +376,13 @@ let main argv =
                     answer := Console.ReadLine()
             else
                 printfn "These conditions are sufficient to break the invariant!"
+
+            printfn "Proceed to hard simplification?"
+            let m' =
+                if Console.ReadLine () = "y"
+                then
+                    Simplification.simplify_marks_hard mmd env m (!allowed_paths)
+                else m'
 
             let f =
                 if not (List.isEmpty (!allowed_paths))
