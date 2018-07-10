@@ -396,7 +396,7 @@
                 fun acc v ->
                     try
                         (z3val2deterministic_formula (minimal_val2z3_val m v) false)::acc
-                    with :? ValueNotAllowed -> printfn "Illegal axiom/conjecture ignored..." ; acc
+                    with :? ValueNotAllowed -> (*printfn "Illegal axiom/conjecture ignored..." ;*) acc
             ) [] conj
 
     let wpr_for_action<'a,'b> (m:ModuleDecl<'a,'b>) f action uq_args =

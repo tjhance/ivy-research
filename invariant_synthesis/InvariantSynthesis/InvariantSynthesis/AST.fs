@@ -5,11 +5,6 @@
     // IMPORTANT TODO: Optimize new value marks system
 
     // TODO: Analyze & improve marks for new examples (verdi_lock, leader election...)
-
-    // TODO: Implement new simplification module:
-    // - Use Z3 to know if a constraint is necessary or not (test if axiom & constraints\c -> constraints)
-    // - For universal invariant, get rid of some constraints by trying to find allowed path
-
     // TODO: Try to improve final generated invariants by removing/weakening constraints using model checking
 
     // TODO: Enumerated types

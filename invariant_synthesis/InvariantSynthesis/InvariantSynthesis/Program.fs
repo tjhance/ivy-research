@@ -114,7 +114,7 @@ let auto_counterexample (md:ModuleDecl) decls action verbose =
 
     while not (!finished) do
 
-        let formula =
+        let formulas =
             if !first_loop
             then
                 first_loop := false
@@ -136,31 +136,12 @@ let auto_counterexample (md:ModuleDecl) decls action verbose =
                     let formulas = List.map (fun (nb,formula) -> (nb,MinimalAST.value2minimal md formula)) formulas
                     Some formulas
 
-        match formula with
+        match formulas with
         | None -> finished := true
         | Some formulas ->
-            let axioms_conjectures = Simplification.z3_formula_for_axioms_and_conjectures mmd
-
-            let treat_formula (i,formula) =
-                let wpr = Simplification.z3_formula_for_wpr mmd action formula false
-                if verbose then printfn "%A" wpr
-
-                let f = WPR.Z3And (axioms_conjectures, WPR.Z3Not wpr)
-                let res = Simplification.check_z3_formula mmd (Some action) f 3000
-        
-                counterexample :=
-                    match res with
-                    | None ->
-                        printfn "%i: No counterexample found!" i
-                        !counterexample
-                    | Some (infos, env) ->
-                        finished := true
-                        let former_cardinal = match !counterexample with None -> Int32.MaxValue | Some (_,_,infos,_) -> Model.cardinal infos
-                        if Model.cardinal infos < former_cardinal
-                        then Some (i, formula, infos, env)
-                        else !counterexample
-
-            List.iter treat_formula formulas
+            match Simplification.find_counterexample mmd action formulas with
+            | None -> counterexample := None
+            | Some c -> finished := true ; counterexample := Some c
 
     match !counterexample with
     | None -> None
@@ -169,34 +150,10 @@ let auto_counterexample (md:ModuleDecl) decls action verbose =
         let tr = TInterpreter.trace_action mmd infos env action (List.map (fun (d:VarDecl) -> MinimalAST.ValueVar d.Name) action_args) AST.impossible_var_factor
         Some (mmd, action, infos, env, [], formula, tr)
 
-let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) _ (env:Model.Environment) formula
+let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) formula
     action (m:Synthesis.Marks) prev_allowed only_terminating_run =
 
-    // 1. Marked constraints
-    let cs = Simplification.z3_formula_for_constraints md mmd env m
-
-    // 2. NOT Previous semi-generalized allowed examples
-    let f = Formula.formula_from_marks env m prev_allowed true
-    let f = ValueNot f
-    let f = MinimalAST.value2minimal md f
-    let f = WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd f) false
-
-    // 3. Possibly valid run: WPR & conjectures & axioms
-    let wpr = Simplification.z3_formula_for_wpr mmd action formula true
-    let valid_run = WPR.Z3And (Simplification.z3_formula_for_axioms_and_conjectures mmd, wpr)
-
-    // 4. If we only want a terminating run...
-    let trc =
-        if only_terminating_run
-        then
-            // We know that the run will be valid for every argument value,
-            // so we can just search arguments such that the run does not satisfy the weakest precondition of 'false'
-            WPR.Z3Not (WPR.wpr_for_action mmd (WPR.Z3Const (AST.ConstBool false)) action false)
-        else
-            WPR.Z3Const (AST.ConstBool true)
-
-    // All together
-    let f = WPR.Z3And (WPR.Z3And(cs, trc), WPR.Z3And(f,valid_run))
+    let f = Simplification.generate_allowed_path_formula md mmd env formula action m prev_allowed only_terminating_run
     Simplification.check_z3_formula mmd (Some action) f 3000
 
 // ----- MAIN -----
@@ -290,9 +247,9 @@ let main argv =
                 printfn "%A" um
                 printfn "%A" ad
 
-            let m' = Simplification.simplify_marks md mmd env m (Synthesis.empty_marks)//Formula.simplify_marks infos md.Implications decls env m
-            let um' = Simplification.simplify_marks md mmd env um (Synthesis.empty_marks) //Formula.simplify_marks infos md.Implications decls env um
-            let f = Formula.formula_from_marks env m' [] false
+            let m = Simplification.simplify_marks md mmd env m (Synthesis.empty_marks)//Formula.simplify_marks infos md.Implications decls env m
+            let um = Simplification.simplify_marks md mmd env um (Synthesis.empty_marks) //Formula.simplify_marks infos md.Implications decls env um
+            let f = Formula.formula_from_marks env m [] false
             let f = Formula.simplify_value f
             printfn "%s" (Printer.value_to_string decls f 0)
             printfn ""
@@ -309,8 +266,8 @@ let main argv =
 
                     let allowed_path_opt =
                         if manual
-                        then manual_allowed_path md decls env cs m um'
-                        else auto_allowed_path md mmd decls env formula name m (!allowed_paths) (!only_terminating_exec)
+                        then manual_allowed_path md decls env cs m um
+                        else auto_allowed_path md mmd env formula name m (!allowed_paths) (!only_terminating_exec)
 
                     match allowed_path_opt with
                     | Some (infos_allowed, env_allowed) ->
@@ -326,11 +283,8 @@ let main argv =
                                 Synthesis.marks_before_statement mmd infos_allowed finished_exec true tr_allowed (m_al,um_al,ad_al)
                             if ad_al.md
                             then printfn "Warning: Some marks still are model-dependent! Generated invariant could be weaker than expected."
-                            (*let m_al' = Synthesis.marks_union m_al m'
-                            let m_al' = Formula.simplify_marks infos_allowed md.Implications decls env_allowed m_al'
-                            let m_al' = Synthesis.marks_diff m_al' m'*)
-                            let m_al' = Simplification.simplify_marks md mmd env m_al m'
-                            allowed_paths := (m_al',env_allowed)::(!allowed_paths)
+                            let m_al = Simplification.simplify_marks md mmd env m_al m
+                            allowed_paths := (m_al,env_allowed)::(!allowed_paths)
                         else printfn "ERROR: Illegal execution!"
                     | None ->
                         printfn "No more allowed path found!"
@@ -347,16 +301,11 @@ let main argv =
             printfn "Proceed to hard simplification? (y/n)"
             let m' =
                 if Console.ReadLine () = "y"
-                then
-                    Simplification.simplify_marks_hard md mmd env name m (!allowed_paths)
-                else m'
+                then Simplification.simplify_marks_hard md mmd env name formula m (!allowed_paths)
+                else m
 
-            let f =
-                if not (List.isEmpty (!allowed_paths))
-                then
-                    let f = Formula.formula_from_marks env m' (!allowed_paths) false
-                    Formula.simplify_value f
-                else f
+            let f = Formula.formula_from_marks env m' (!allowed_paths) false
+            let f = Formula.simplify_value f
 
             printfn ""
             printfn "Invariant to add:"

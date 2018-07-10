@@ -48,6 +48,60 @@
         let z3e = Z3Utils.build_value z3ctx z3lvars f
         Z3Utils.check_ext z3ctx z3e timeout
 
+
+    let find_counterexample mmd action formulas =
+        let axioms_conjectures = z3_formula_for_axioms_and_conjectures mmd
+        let counterexample = ref None
+
+        let treat_formula (i,formula) =
+            let wpr = z3_formula_for_wpr mmd action formula false
+
+            let f = WPR.Z3And (axioms_conjectures, WPR.Z3Not wpr)
+            let res = check_z3_formula mmd (Some action) f 3000
+        
+            counterexample :=
+                match res with
+                | None ->
+                    printfn "%i: No counterexample found!" i
+                    !counterexample
+                | Some (infos, env) ->
+                    let former_cardinal = match !counterexample with None -> System.Int32.MaxValue | Some (_,_,infos,_) -> Model.cardinal infos
+                    if Model.cardinal infos < former_cardinal
+                    then Some (i, formula, infos, env)
+                    else !counterexample
+
+        List.iter treat_formula formulas
+        !counterexample
+
+    let generate_allowed_path_formula (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) formula
+        action (m:Synthesis.Marks) prev_allowed only_terminating_run =
+
+        // 1. Marked constraints
+        let cs = z3_formula_for_constraints md mmd env m
+
+        // 2. NOT Previous semi-generalized allowed examples
+        let f = Formula.formula_from_marks env m prev_allowed true
+        let f = AST.ValueNot f
+        let f = MinimalAST.value2minimal md f
+        let f = WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd f) false
+
+        // 3. Possibly valid run: WPR & conjectures & axioms
+        let wpr = z3_formula_for_wpr mmd action formula true
+        let valid_run = WPR.Z3And (z3_formula_for_axioms_and_conjectures mmd, wpr)
+
+        // 4. If we only want a terminating run...
+        let trc =
+            if only_terminating_run
+            then
+                // We know that the run will be valid for every argument value,
+                // so we can just search arguments such that the run does not satisfy the weakest precondition of 'false'
+                WPR.Z3Not (WPR.wpr_for_action mmd (WPR.Z3Const (AST.ConstBool false)) action false)
+            else
+                WPR.Z3Const (AST.ConstBool true)
+
+        // All together
+        WPR.Z3And (WPR.Z3And(cs, trc), WPR.Z3And(f,valid_run))
+
     let simplify_marks (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) (m:Synthesis.Marks) (additional_marks:Synthesis.Marks) =
         // We remove local vars
         let m = { m with v = Set.empty }
@@ -74,6 +128,24 @@
             then m else Synthesis.marks_diff m m'
         Set.fold keep_diff_if_necessary m m.d
 
-    let simplify_marks_hard (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) action (m:Synthesis.Marks) (alt_exec:List<Synthesis.Marks*Model.Environment>) =
-        // TODO
-        m
+    let simplify_marks_hard (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) action formula (m:Synthesis.Marks) (alt_exec:List<Synthesis.Marks*Model.Environment>) =
+         // We remove local vars
+        let m = { m with v = Set.empty }
+        // We simplify functions
+        let are_marks_necessary (m:Synthesis.Marks) (m':Synthesis.Marks) =
+            let m = Synthesis.marks_diff m m'
+            let f = generate_allowed_path_formula md mmd env formula action m alt_exec true
+            match check_z3_formula_ext mmd (Some action) f 1000 with
+            | Microsoft.Z3.Status.UNSATISFIABLE -> false
+            | _ -> true
+        let keep_funmark_if_necessary (m:Synthesis.Marks) (str, cvs) =
+            let m' = { Synthesis.empty_marks with f=Set.singleton (str, cvs) }
+            if are_marks_necessary m m'
+            then m else Synthesis.marks_diff m m'
+        let m = Set.fold keep_funmark_if_necessary m m.f
+        // We simplify disequalities
+        let keep_diff_if_necessary (m:Synthesis.Marks) (cv1, cv2) =
+            let m' = { Synthesis.empty_marks with d=Set.singleton (cv1, cv2) }
+            if are_marks_necessary m m'
+            then m else Synthesis.marks_diff m m'
+        Set.fold keep_diff_if_necessary m m.d
