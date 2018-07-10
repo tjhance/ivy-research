@@ -146,7 +146,7 @@ let auto_counterexample (md:ModuleDecl) decls action verbose =
                 if verbose then printfn "%A" wpr
 
                 let f = WPR.Z3And (axioms_conjectures, WPR.Z3Not wpr)
-                let res = Simplification.check_z3_formula mmd action f 3000
+                let res = Simplification.check_z3_formula mmd (Some action) f 3000
         
                 counterexample :=
                     match res with
@@ -197,7 +197,7 @@ let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) 
 
     // All together
     let f = WPR.Z3And (WPR.Z3And(cs, trc), WPR.Z3And(f,valid_run))
-    Simplification.check_z3_formula mmd action f 3000
+    Simplification.check_z3_formula mmd (Some action) f 3000
 
 // ----- MAIN -----
 
@@ -348,7 +348,7 @@ let main argv =
             let m' =
                 if Console.ReadLine () = "y"
                 then
-                    Simplification.simplify_marks_hard md mmd env m (!allowed_paths)
+                    Simplification.simplify_marks_hard md mmd env name m (!allowed_paths)
                 else m'
 
             let f =

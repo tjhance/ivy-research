@@ -37,6 +37,8 @@
     let name_of_constint (t,i) =
         sprintf "%s%c%i" t AST.name_separator i
 
+    let empty_lvars = (Map.empty,[])
+
     let declare_lvars<'a,'b> (m:ModuleDecl<'a,'b>) action (ctx:ModuleContext) v =
         
         let args = (find_action m action).Args
