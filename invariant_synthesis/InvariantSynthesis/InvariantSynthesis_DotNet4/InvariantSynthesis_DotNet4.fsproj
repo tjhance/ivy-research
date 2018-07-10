@@ -91,8 +91,8 @@
     <Compile Include="..\InvariantSynthesis\TInterpreter.fs">
       <Link>TInterpreter.fs</Link>
     </Compile>
-    <Compile Include="..\InvariantSynthesis\Synthesis.fs">
-      <Link>Synthesis.fs</Link>
+    <Compile Include="..\InvariantSynthesis\Marking.fs">
+      <Link>Marking.fs</Link>
     </Compile>
     <Compile Include="..\InvariantSynthesis\Formula.fs">
       <Link>Formula.fs</Link>
@@ -103,8 +103,8 @@
     <Compile Include="..\InvariantSynthesis\Z3Utils.fs">
       <Link>Z3Utils.fs</Link>
     </Compile>
-	<Compile Include="..\InvariantSynthesis\Simplification.fs">
-      <Link>Simplification.fs</Link>
+	<Compile Include="..\InvariantSynthesis\Solver.fs">
+      <Link>Solver.fs</Link>
     </Compile>
     <Compile Include="..\InvariantSynthesis\ConstraintsParser.fs">
       <Link>ConstraintsParser.fs</Link>

@@ -37,7 +37,7 @@
     let name_of_constint (t,i) =
         sprintf "%s%c%i" t AST.name_separator i
 
-    let declare_lvars<'a,'b> (m:ModuleDecl<'a,'b>) args (ctx:ModuleContext) v =
+    let declare_lvars<'a,'b> args (ctx:ModuleContext) v =
         
         let add_civ (lvars,z3concrete_map) (t,i) =
             let name = name_of_constint (t,i)

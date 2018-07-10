@@ -54,12 +54,12 @@
     exception DoesntMatch
     exception EndCondition
 
-    let simplify_marks infos (impls:List<AST.ImplicationRule>) (decls:Model.Declarations) (env:Model.Environment) (m:Synthesis.Marks) =
+    let simplify_marks infos (impls:List<AST.ImplicationRule>) (decls:Model.Declarations) (env:Model.Environment) (m:Marking.Marks) =
 
         let value_equal cv1 cv2 = AST.value_equal cv1 cv2
 
         let value_diff diffs cv1 cv2 =
-            if Synthesis.is_model_dependent_value cv1 && Synthesis.is_model_dependent_value cv2
+            if Marking.is_model_dependent_value cv1 && Marking.is_model_dependent_value cv2
             then Set.contains (cv1,cv2) diffs || Set.contains (cv2,cv1) diffs
             else not (value_equal cv1 cv2)
 
@@ -118,7 +118,7 @@
                         with :? DoesntMatch -> acc
                // We add disequalities for non model-dependent types
                 let diffs_for_nmd_type t =
-                    if Synthesis.is_model_dependent_type t then Set.empty
+                    if Marking.is_model_dependent_type t then Set.empty
                     else
                         let couples = Model.all_values_ext infos [t;t]
                         let couples = Seq.map Helper.lst_to_couple couples
@@ -229,7 +229,7 @@
         let diffs = Set.fold remove_diff_if_useless diffs diffs
         
         // Result
-        { Synthesis.v = Set.empty ; Synthesis.f = mf ; Synthesis.d = diffs }
+        { Marking.v = Set.empty ; Marking.f = mf ; Marking.d = diffs }
 
     type ValueAssociation =
         | VAConst of ConstValue
@@ -237,8 +237,8 @@
         | ExistingVar of string
         | ExistingFun of string * List<ConstValue>
 
-    let formula_from_marks (env:Model.Environment) (m:Synthesis.Marks)
-        (alt_exec:List<Synthesis.Marks*Model.Environment>) semi_generalization =
+    let formula_from_marks (env:Model.Environment) (m:Marking.Marks)
+        (alt_exec:List<Marking.Marks*Model.Environment>) semi_generalization =
       
         // Associate a var to each value
         let next_name_nb = ref 0
@@ -264,7 +264,7 @@
         // Return the associated var or CREATES a new existentially quantified var
         let value2var no_generalization cv =
             match cv with
-            | cv when not (Synthesis.is_model_dependent_value cv) -> VAConst cv
+            | cv when not (Marking.is_model_dependent_value cv) -> VAConst cv
             | cv ->
                 try
                     Map.find cv !vars_map
@@ -280,7 +280,7 @@
 
         let value_assigned cv =
             match cv with
-            | cv when not (Synthesis.is_model_dependent_value cv) -> false
+            | cv when not (Marking.is_model_dependent_value cv) -> false
             | cv -> Map.containsKey cv !vars_map
 
         let all_new_vars_decl_assigned () : Set<VarDecl> =
@@ -304,7 +304,7 @@
                 let vs = List.map (fun cv -> value_of_association no_generalization (value2var no_generalization cv)) cvs
                 ValueFun (str, vs)
 
-        let constraints_for (m:Synthesis.Marks,env:Model.Environment) no_generalization =
+        let constraints_for (m:Marking.Marks,env:Model.Environment) no_generalization =
             // Browse the constraints to associate an existing var to values when possible
             Set.iter (associate_existing_var env) m.v
             let v' = // We remove trivial equalities

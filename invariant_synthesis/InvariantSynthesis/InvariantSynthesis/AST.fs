@@ -2,7 +2,7 @@
 
     (* A VERY BASIC AST FOR IVY *)
 
-    // IMPORTANT TODO: Optimize new value marks system
+    // IMPORTANT TODO: Optimize new marking system for values
 
     // TODO: Analyze & improve marks for new examples (verdi_lock, leader election...)
     // TODO: Try to improve final generated invariants by removing/weakening constraints using model checking
@@ -350,7 +350,7 @@
         | ConstBool _ -> Bool
         | ConstInt (s,_) -> Uninterpreted s
 
-    // Note: In synthesis.fs, operations like Set.contains or Set.remove doesn't take value_equal into account.
+    // Note: In Marking.fs, operations like Set.contains or Set.remove doesn't take value_equal into account.
     let value_equal v1 v2 = v1=v2
 
     let type_equal t1 t2 = t1=t2

@@ -99,7 +99,7 @@ let manual_allowed_path (md:ModuleDecl) decls env cs m um' =
 
 // ----- AUTO MODE -----
 
-let auto_counterexample (md:ModuleDecl) decls action verbose =
+let auto_counterexample (md:ModuleDecl) decls action =
 
     let mmd = MinimalAST.module2minimal md action
     let mmd = Determinization.determinize_action mmd action
@@ -139,7 +139,7 @@ let auto_counterexample (md:ModuleDecl) decls action verbose =
         match formulas with
         | None -> finished := true
         | Some formulas ->
-            match Simplification.find_counterexample mmd action formulas with
+            match Solver.find_counterexample mmd action formulas with
             | None -> counterexample := None
             | Some c -> finished := true ; counterexample := Some c
 
@@ -151,10 +151,10 @@ let auto_counterexample (md:ModuleDecl) decls action verbose =
         Some (mmd, action, infos, env, [], formula, tr)
 
 let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) formula
-    action (m:Synthesis.Marks) prev_allowed only_terminating_run =
+    action (m:Marking.Marks) prev_allowed only_terminating_run =
 
-    let f = Simplification.generate_allowed_path_formula md mmd env formula action m prev_allowed only_terminating_run
-    Simplification.check_z3_formula mmd (Some action) f 3000
+    let f = Solver.generate_allowed_path_formula md mmd env formula action m prev_allowed only_terminating_run
+    Solver.check_z3_formula mmd (Some action) f 3000
 
 // ----- MAIN -----
 
@@ -162,13 +162,13 @@ let analyse_example_ending mmd infos tr formula =
     let env' = Trace.final_env tr
     if Trace.is_fully_executed tr
     then
-        let (b,cfgs) = Synthesis.marks_for_value mmd infos env' Set.empty formula
-        let cfg = Synthesis.best_cfg cfgs
+        let (b,cfgs) = Marking.marks_for_value mmd infos env' Set.empty formula
+        let cfg = Marking.best_cfg cfgs
         if b <> ConstBool true && b <> ConstBool false
         then failwith "Invalid execution!"
         (b = ConstBool true, true, cfg)
     else
-        (Trace.assume_failed tr, false, Synthesis.empty_config)
+        (Trace.assume_failed tr, false, Marking.empty_config)
 
 [<EntryPoint>]
 let main argv =
@@ -230,7 +230,7 @@ let main argv =
         let counterexample =
             if manual
             then manual_counterexample md decls name verbose
-            else auto_counterexample md decls name verbose
+            else auto_counterexample md decls name
 
         match counterexample with
         | None -> ()
@@ -240,15 +240,15 @@ let main argv =
             if b then failwith "Invalid counterexample!"
 
             printfn "Going back through the action..."
-            let (m,um,ad) = Synthesis.marks_before_statement mmd infos true false tr (m,um,ad)
+            let (m,um,ad) = Marking.marks_before_statement mmd infos true false tr (m,um,ad)
             if verbose
             then
                 printfn "%A" m
                 printfn "%A" um
                 printfn "%A" ad
 
-            let m = Simplification.simplify_marks md mmd env m (Synthesis.empty_marks)//Formula.simplify_marks infos md.Implications decls env m
-            let um = Simplification.simplify_marks md mmd env um (Synthesis.empty_marks) //Formula.simplify_marks infos md.Implications decls env um
+            let m = Solver.simplify_marks md mmd env m (Marking.empty_marks)//Formula.simplify_marks infos md.Implications decls env m
+            let um = Solver.simplify_marks md mmd env um (Marking.empty_marks) //Formula.simplify_marks infos md.Implications decls env um
             let f = Formula.formula_from_marks env m [] false
             let f = Formula.simplify_value f
             printfn "%s" (Printer.value_to_string decls f 0)
@@ -280,10 +280,10 @@ let main argv =
                         if b_al
                         then
                             let (m_al,_,ad_al) =
-                                Synthesis.marks_before_statement mmd infos_allowed finished_exec true tr_allowed (m_al,um_al,ad_al)
+                                Marking.marks_before_statement mmd infos_allowed finished_exec true tr_allowed (m_al,um_al,ad_al)
                             if ad_al.md
                             then printfn "Warning: Some marks still are model-dependent! Generated invariant could be weaker than expected."
-                            let m_al = Simplification.simplify_marks md mmd env m_al m
+                            let m_al = Solver.simplify_marks md mmd env m_al m
                             allowed_paths := (m_al,env_allowed)::(!allowed_paths)
                         else printfn "ERROR: Illegal execution!"
                     | None ->
@@ -301,7 +301,7 @@ let main argv =
             printfn "Proceed to hard simplification? (y/n)"
             let m' =
                 if Console.ReadLine () = "y"
-                then Simplification.simplify_marks_hard md mmd env name formula m (!allowed_paths)
+                then Solver.simplify_marks_hard md mmd env name formula m (!allowed_paths)
                 else m
 
             let f = Formula.formula_from_marks env m' (!allowed_paths) false

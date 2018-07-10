@@ -21,11 +21,11 @@
     <Compile Include="Interpreter.fs" />
     <Compile Include="Trace.fs" />
     <Compile Include="TInterpreter.fs" />
-    <Compile Include="Synthesis.fs" />
+    <Compile Include="Marking.fs" />
     <Compile Include="Formula.fs" />
     <Compile Include="WPR.fs" />
     <Compile Include="Z3Utils.fs" />
-    <Compile Include="Simplification.fs" />
+    <Compile Include="Solver.fs" />
     <Compile Include="ConstraintsParser.fs" />
     <Compile Include="ParserAST.fs" />
     <Compile Include="TestModule.fs" />

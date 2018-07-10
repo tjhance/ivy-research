@@ -1,6 +1,6 @@
-﻿module Simplification
+﻿module Solver
 
-    let z3_formula_for_constraints (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) (m:Synthesis.Marks) =
+    let z3_formula_for_constraints (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) (m:Marking.Marks) =
         let add_var_constraint cs str = // Constraints on the arguments
             let cv = Map.find str env.v
             AST.ValueAnd (cs, AST.ValueEqual (AST.ValueVar str, AST.ValueConst cv))
@@ -32,7 +32,7 @@
             match action with
             | None -> []
             | Some action -> (MinimalAST.find_action mmd action).Args
-        let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars mmd args_decl z3ctx f
+        let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars args_decl z3ctx f
         let z3e = Z3Utils.build_value z3ctx z3lvars f
         match Z3Utils.check z3ctx z3e timeout with
         | None -> None
@@ -44,7 +44,7 @@
             match action with
             | None -> []
             | Some action -> (MinimalAST.find_action mmd action).Args
-        let (z3lvars, _) = Z3Utils.declare_lvars mmd args_decl z3ctx f
+        let (z3lvars, _) = Z3Utils.declare_lvars args_decl z3ctx f
         let z3e = Z3Utils.build_value z3ctx z3lvars f
         Z3Utils.check_ext z3ctx z3e timeout
 
@@ -74,7 +74,7 @@
         !counterexample
 
     let generate_allowed_path_formula (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) formula
-        action (m:Synthesis.Marks) prev_allowed only_terminating_run =
+        action (m:Marking.Marks) prev_allowed only_terminating_run =
 
         // 1. Marked constraints
         let cs = z3_formula_for_constraints md mmd env m
@@ -102,50 +102,50 @@
         // All together
         WPR.Z3And (WPR.Z3And(cs, trc), WPR.Z3And(f,valid_run))
 
-    let simplify_marks (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) (m:Synthesis.Marks) (additional_marks:Synthesis.Marks) =
+    let simplify_marks (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) (m:Marking.Marks) (additional_marks:Marking.Marks) =
         // We remove local vars
         let m = { m with v = Set.empty }
         // We simplify functions
-        let are_marks_necessary (m:Synthesis.Marks) (m':Synthesis.Marks) =
-            let m = Synthesis.marks_diff m m'
+        let are_marks_necessary (m:Marking.Marks) (m':Marking.Marks) =
+            let m = Marking.marks_diff m m'
             let axioms_conjs = z3_formula_for_axioms_and_conjectures mmd
-            let constraints = z3_formula_for_constraints md mmd env (Synthesis.marks_union m additional_marks)
+            let constraints = z3_formula_for_constraints md mmd env (Marking.marks_union m additional_marks)
             let funmark_constraint = z3_formula_for_constraints md mmd env m'
 
             let f = WPR.Z3And (WPR.Z3And (axioms_conjs, constraints), WPR.Z3Not funmark_constraint)
             match check_z3_formula_ext mmd None f 1000 with
             | Microsoft.Z3.Status.UNSATISFIABLE -> false
             | _ -> true
-        let keep_funmark_if_necessary (m:Synthesis.Marks) (str, cvs) =
-            let m' = { Synthesis.empty_marks with f=Set.singleton (str, cvs) }
+        let keep_funmark_if_necessary (m:Marking.Marks) (str, cvs) =
+            let m' = { Marking.empty_marks with f=Set.singleton (str, cvs) }
             if are_marks_necessary m m'
-            then m else Synthesis.marks_diff m m'
+            then m else Marking.marks_diff m m'
         let m = Set.fold keep_funmark_if_necessary m m.f
         // We simplify disequalities
-        let keep_diff_if_necessary (m:Synthesis.Marks) (cv1, cv2) =
-            let m' = { Synthesis.empty_marks with d=Set.singleton (cv1, cv2) }
+        let keep_diff_if_necessary (m:Marking.Marks) (cv1, cv2) =
+            let m' = { Marking.empty_marks with d=Set.singleton (cv1, cv2) }
             if are_marks_necessary m m'
-            then m else Synthesis.marks_diff m m'
+            then m else Marking.marks_diff m m'
         Set.fold keep_diff_if_necessary m m.d
 
-    let simplify_marks_hard (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) action formula (m:Synthesis.Marks) (alt_exec:List<Synthesis.Marks*Model.Environment>) =
+    let simplify_marks_hard (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) action formula (m:Marking.Marks) (alt_exec:List<Marking.Marks*Model.Environment>) =
          // We remove local vars
         let m = { m with v = Set.empty }
         // We simplify functions
-        let are_marks_necessary (m:Synthesis.Marks) (m':Synthesis.Marks) =
-            let m = Synthesis.marks_diff m m'
+        let are_marks_necessary (m:Marking.Marks) (m':Marking.Marks) =
+            let m = Marking.marks_diff m m'
             let f = generate_allowed_path_formula md mmd env formula action m alt_exec true
             match check_z3_formula_ext mmd (Some action) f 1000 with
             | Microsoft.Z3.Status.UNSATISFIABLE -> false
             | _ -> true
-        let keep_funmark_if_necessary (m:Synthesis.Marks) (str, cvs) =
-            let m' = { Synthesis.empty_marks with f=Set.singleton (str, cvs) }
+        let keep_funmark_if_necessary (m:Marking.Marks) (str, cvs) =
+            let m' = { Marking.empty_marks with f=Set.singleton (str, cvs) }
             if are_marks_necessary m m'
-            then m else Synthesis.marks_diff m m'
+            then m else Marking.marks_diff m m'
         let m = Set.fold keep_funmark_if_necessary m m.f
         // We simplify disequalities
-        let keep_diff_if_necessary (m:Synthesis.Marks) (cv1, cv2) =
-            let m' = { Synthesis.empty_marks with d=Set.singleton (cv1, cv2) }
+        let keep_diff_if_necessary (m:Marking.Marks) (cv1, cv2) =
+            let m' = { Marking.empty_marks with d=Set.singleton (cv1, cv2) }
             if are_marks_necessary m m'
-            then m else Synthesis.marks_diff m m'
+            then m else Marking.marks_diff m m'
         Set.fold keep_diff_if_necessary m m.d

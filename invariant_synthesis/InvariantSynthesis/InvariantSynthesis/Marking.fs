@@ -1,4 +1,4 @@
-﻿module Synthesis
+﻿module Marking
 
     open MinimalAST
     open Trace
