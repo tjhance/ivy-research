@@ -139,27 +139,21 @@ let auto_counterexample (md:ModuleDecl) decls action verbose =
         match formula with
         | None -> finished := true
         | Some formulas ->
-            let all_invariants = MinimalAST.invariants_to_formulas mmd.Invariants
-            let conjectures = WPR.conjunction_of (WPR.conjectures_to_z3values mmd all_invariants)
-            let axioms = WPR.conjunction_of (WPR.conjectures_to_z3values mmd mmd.Axioms)
+            let axioms_conjectures = Simplification.z3_formula_for_axioms_and_conjectures mmd
 
             let treat_formula (i,formula) =
-                let z3formula = WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd formula) false
-                let wpr = WPR.wpr_for_action mmd z3formula action false
+                let wpr = Simplification.z3_formula_for_wpr mmd action formula false
                 if verbose then printfn "%A" wpr
 
-                let is_inductive_v = WPR.Z3And (WPR.Z3And (conjectures, axioms), WPR.Z3Not wpr)
-                let z3ctx = Z3Utils.build_context mmd
-                let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars mmd action z3ctx is_inductive_v
-                let z3e = Z3Utils.build_value z3ctx z3lvars is_inductive_v
+                let f = WPR.Z3And (axioms_conjectures, WPR.Z3Not wpr)
+                let res = Simplification.check_z3_formula mmd action f 3000
         
                 counterexample :=
-                    match Z3Utils.check z3ctx z3e 3000 with
+                    match res with
                     | None ->
                         printfn "%i: No counterexample found!" i
                         !counterexample
-                    | Some m ->
-                        let (infos, env) = Z3Utils.z3model_to_ast_model mmd z3ctx action_args z3lvars z3concrete_map m
+                    | Some (infos, env) ->
                         finished := true
                         let former_cardinal = match !counterexample with None -> Int32.MaxValue | Some (_,_,infos,_) -> Model.cardinal infos
                         if Model.cardinal infos < former_cardinal
@@ -179,20 +173,7 @@ let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) 
     action (m:Synthesis.Marks) prev_allowed only_terminating_run =
 
     // 1. Marked constraints
-    let add_var_constraint cs str = // Constraints on the arguments
-        let cv = Map.find str env.v
-        ValueAnd (cs, ValueEqual (ValueVar str, ValueConst cv))
-    let cs = Set.fold add_var_constraint (ValueConst (ConstBool true)) m.v
-    let add_fun_constraint cs (str, cvs) =
-        let cv = Map.find (str, cvs) env.f
-        let vs = List.map (fun cv -> ValueConst cv) cvs
-        ValueAnd (cs, ValueEqual (ValueFun (str, vs), ValueConst cv))
-    let cs = Set.fold add_fun_constraint cs m.f
-    let add_diff_constraint cs (cv1, cv2) =
-        ValueAnd (cs, ValueNot (ValueEqual (ValueConst cv1, ValueConst cv2)))
-    let cs = Set.fold add_diff_constraint cs m.d
-    let cs = MinimalAST.value2minimal md cs
-    let cs = WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd cs) false
+    let cs = Simplification.z3_formula_for_constraints md mmd env m
 
     // 2. NOT Previous semi-generalized allowed examples
     let f = Formula.formula_from_marks env m prev_allowed true
@@ -201,12 +182,8 @@ let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) 
     let f = WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd f) false
 
     // 3. Possibly valid run: WPR & conjectures & axioms
-    let z3formula = WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd formula) false
-    let wpr = WPR.wpr_for_action mmd z3formula action true
-    let all_invariants = MinimalAST.invariants_to_formulas mmd.Invariants
-    let conjectures = WPR.conjunction_of (WPR.conjectures_to_z3values mmd all_invariants)
-    let axioms = WPR.conjunction_of (WPR.conjectures_to_z3values mmd mmd.Axioms)
-    let valid_run = WPR.Z3And (axioms, WPR.Z3And(conjectures, wpr))
+    let wpr = Simplification.z3_formula_for_wpr mmd action formula true
+    let valid_run = WPR.Z3And (Simplification.z3_formula_for_axioms_and_conjectures mmd, wpr)
 
     // 4. If we only want a terminating run...
     let trc =
@@ -220,17 +197,7 @@ let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) 
 
     // All together
     let f = WPR.Z3And (WPR.Z3And(cs, trc), WPR.Z3And(f,valid_run))
-    let z3ctx = Z3Utils.build_context mmd
-    let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars mmd action z3ctx f
-    let z3e = Z3Utils.build_value z3ctx z3lvars f
-
-    // Solve!
-    match Z3Utils.check z3ctx z3e 3000 with
-    | None -> None
-    | Some m ->
-        let args_decl = (MinimalAST.find_action mmd action).Args
-        let (infos, env) = Z3Utils.z3model_to_ast_model mmd z3ctx args_decl z3lvars z3concrete_map m
-        Some (infos, env)
+    Simplification.check_z3_formula mmd action f 3000
 
 // ----- MAIN -----
 
@@ -323,8 +290,8 @@ let main argv =
                 printfn "%A" um
                 printfn "%A" ad
 
-            let m' = Simplification.simplify_marks mmd env m (Synthesis.empty_marks)//Formula.simplify_marks infos md.Implications decls env m
-            let um' = Simplification.simplify_marks mmd env um (Synthesis.empty_marks) //Formula.simplify_marks infos md.Implications decls env um
+            let m' = Simplification.simplify_marks md mmd env m (Synthesis.empty_marks)//Formula.simplify_marks infos md.Implications decls env m
+            let um' = Simplification.simplify_marks md mmd env um (Synthesis.empty_marks) //Formula.simplify_marks infos md.Implications decls env um
             let f = Formula.formula_from_marks env m' [] false
             let f = Formula.simplify_value f
             printfn "%s" (Printer.value_to_string decls f 0)
@@ -362,7 +329,7 @@ let main argv =
                             (*let m_al' = Synthesis.marks_union m_al m'
                             let m_al' = Formula.simplify_marks infos_allowed md.Implications decls env_allowed m_al'
                             let m_al' = Synthesis.marks_diff m_al' m'*)
-                            let m_al' = Simplification.simplify_marks mmd env m_al m'
+                            let m_al' = Simplification.simplify_marks md mmd env m_al m'
                             allowed_paths := (m_al',env_allowed)::(!allowed_paths)
                         else printfn "ERROR: Illegal execution!"
                     | None ->
@@ -381,7 +348,7 @@ let main argv =
             let m' =
                 if Console.ReadLine () = "y"
                 then
-                    Simplification.simplify_marks_hard mmd env m (!allowed_paths)
+                    Simplification.simplify_marks_hard md mmd env m (!allowed_paths)
                 else m'
 
             let f =
