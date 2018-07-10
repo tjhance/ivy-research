@@ -28,39 +28,51 @@
 
     let check_z3_formula (mmd:MinimalAST.ModuleDecl<'a,'b>) action f timeout =
         let z3ctx = Z3Utils.build_context mmd
-        let (z3lvars, z3concrete_map) =
+        let args_decl =
             match action with
-            | None -> Z3Utils.empty_lvars
-            | Some action -> Z3Utils.declare_lvars mmd action z3ctx f
+            | None -> []
+            | Some action -> (MinimalAST.find_action mmd action).Args
+        let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars mmd args_decl z3ctx f
         let z3e = Z3Utils.build_value z3ctx z3lvars f
         match Z3Utils.check z3ctx z3e timeout with
         | None -> None
-        | Some m ->
-            let args_decl =
-                match action with
-                | None -> []
-                | Some action -> (MinimalAST.find_action mmd action).Args
-            let (infos, env) = Z3Utils.z3model_to_ast_model mmd z3ctx args_decl z3lvars z3concrete_map m
-            Some (infos, env)
+        | Some m -> Some (Z3Utils.z3model_to_ast_model mmd z3ctx args_decl z3lvars z3concrete_map m)
+
+    let check_z3_formula_ext (mmd:MinimalAST.ModuleDecl<'a,'b>) action f timeout =
+        let z3ctx = Z3Utils.build_context mmd
+        let args_decl =
+            match action with
+            | None -> []
+            | Some action -> (MinimalAST.find_action mmd action).Args
+        let (z3lvars, _) = Z3Utils.declare_lvars mmd args_decl z3ctx f
+        let z3e = Z3Utils.build_value z3ctx z3lvars f
+        Z3Utils.check_ext z3ctx z3e timeout
 
     let simplify_marks (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) (m:Synthesis.Marks) (additional_marks:Synthesis.Marks) =
         // We remove local vars
         let m = { m with v = Set.empty }
         // We simplify functions
-        let is_funmark_necessary (m:Synthesis.Marks) (str, cvs) =
-            let m = { m with f = Set.remove (str, cvs) m.f }
+        let are_marks_necessary (m:Synthesis.Marks) (m':Synthesis.Marks) =
+            let m = Synthesis.marks_diff m m'
             let axioms_conjs = z3_formula_for_axioms_and_conjectures mmd
             let constraints = z3_formula_for_constraints md mmd env (Synthesis.marks_union m additional_marks)
-            let funmark_constraint = z3_formula_for_constraints md mmd env { Synthesis.empty_marks with f = Set.singleton (str, cvs) }
+            let funmark_constraint = z3_formula_for_constraints md mmd env m'
 
             let f = WPR.Z3And (WPR.Z3And (axioms_conjs, constraints), WPR.Z3Not funmark_constraint)
-            match check_z3_formula mmd None f 1000 with
-            | None -> true
-            | Some _ -> false
-
-        let m = Set.fold (fun acc k -> if is_funmark_necessary acc k then acc else { acc with f = Set.remove k acc.f }) m m.f
-        // TODO
-        m
+            match check_z3_formula_ext mmd None f 1000 with
+            | Microsoft.Z3.Status.UNSATISFIABLE -> false
+            | _ -> true
+        let keep_funmark_if_necessary (m:Synthesis.Marks) (str, cvs) =
+            let m' = { Synthesis.empty_marks with f=Set.singleton (str, cvs) }
+            if are_marks_necessary m m'
+            then m else Synthesis.marks_diff m m'
+        let m = Set.fold keep_funmark_if_necessary m m.f
+        // We simplify disequalities
+        let keep_diff_if_necessary (m:Synthesis.Marks) (cv1, cv2) =
+            let m' = { Synthesis.empty_marks with d=Set.singleton (cv1, cv2) }
+            if are_marks_necessary m m'
+            then m else Synthesis.marks_diff m m'
+        Set.fold keep_diff_if_necessary m m.d
 
     let simplify_marks_hard (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) action (m:Synthesis.Marks) (alt_exec:List<Synthesis.Marks*Model.Environment>) =
         // TODO

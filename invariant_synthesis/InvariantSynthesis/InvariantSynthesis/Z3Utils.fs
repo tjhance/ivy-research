@@ -37,12 +37,8 @@
     let name_of_constint (t,i) =
         sprintf "%s%c%i" t AST.name_separator i
 
-    let empty_lvars = (Map.empty,[])
-
-    let declare_lvars<'a,'b> (m:ModuleDecl<'a,'b>) action (ctx:ModuleContext) v =
+    let declare_lvars<'a,'b> (m:ModuleDecl<'a,'b>) args (ctx:ModuleContext) v =
         
-        let args = (find_action m action).Args
-
         let add_civ (lvars,z3concrete_map) (t,i) =
             let name = name_of_constint (t,i)
             let sort = Map.find t ctx.Sorts
@@ -138,6 +134,12 @@
         | Status.SATISFIABLE ->
             Some s.Model
         | _ -> failwith "Solver returned an unknown status..."
+
+    let check_ext (ctx:ModuleContext) (e:Expr) (timeout:int) =
+        let s = ctx.Context.MkSolver()
+        s.Set ("timeout", uint32(timeout))
+        s.Assert ([|e:?> BoolExpr|])
+        s.Check ()
 
     let cv_of_expr_str const_cv_map str =
         match str with

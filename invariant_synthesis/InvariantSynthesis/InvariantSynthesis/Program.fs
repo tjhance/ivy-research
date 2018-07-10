@@ -344,7 +344,7 @@ let main argv =
             else
                 printfn "These conditions are sufficient to break the invariant!"
 
-            printfn "Proceed to hard simplification?"
+            printfn "Proceed to hard simplification? (y/n)"
             let m' =
                 if Console.ReadLine () = "y"
                 then
