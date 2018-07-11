@@ -2,11 +2,11 @@
 
     (* A VERY BASIC AST FOR IVY *)
 
-    // IMPORTANT TODO: Optimize new marking system for values
-
-    // TODO: Not always guarantee value of assumptions? (espacially for abstract actions)
-    // TODO: Analyze & improve marks for new examples (verdi_lock, leader election...)
-    // TODO: Try to improve final generated invariants by removing/weakening constraints using model checking
+    // TODO: Test on new examples (verdi_lock, leader election...)
+    // TODO: Rewrite the program such that all actions of the module are checked in one Z3 request, and then the right one is retrieved
+    // TODO: Rewrite hard simplification with an unsat core
+    // TODO: Add an other simplification method that uses using symbolic bounded verification
+    // TODO: Also simplify existential parts using symbolic bounded verification
 
     // TODO: Enumerated types
     // TODO: "while" loops

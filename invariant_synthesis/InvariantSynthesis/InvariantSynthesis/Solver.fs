@@ -61,9 +61,7 @@
         
             counterexample :=
                 match res with
-                | None ->
-                    printfn "%i: No counterexample found!" i
-                    !counterexample
+                | None -> !counterexample
                 | Some (infos, env) ->
                     let former_cardinal = match !counterexample with None -> System.Int32.MaxValue | Some (_,_,infos,_) -> Model.cardinal infos
                     if Model.cardinal infos < former_cardinal
