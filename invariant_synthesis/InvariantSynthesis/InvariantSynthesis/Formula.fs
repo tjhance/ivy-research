@@ -394,7 +394,7 @@
         // Construct the formula with the quantifiers
         let constraints = Set.toList constraints
         match constraints with
-        | [] -> ValueConst (ConstBool true)
+        | [] -> ValueConst (ConstBool false)
         | h::constraints ->
             let formula = List.fold (fun acc c -> ValueAnd (acc,c)) h constraints
             let formula = ValueImply (formula, formulas)

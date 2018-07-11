@@ -4,6 +4,7 @@
 
     // IMPORTANT TODO: Optimize new marking system for values
 
+    // TODO: Not always guarantee value of assumptions? (espacially for abstract actions)
     // TODO: Analyze & improve marks for new examples (verdi_lock, leader election...)
     // TODO: Try to improve final generated invariants by removing/weakening constraints using model checking
 

@@ -128,13 +128,13 @@
             then m else Marking.marks_diff m m'
         Set.fold keep_diff_if_necessary m m.d
 
-    let simplify_marks_hard (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) action formula (m:Marking.Marks) (alt_exec:List<Marking.Marks*Model.Environment>) =
+    let simplify_marks_hard (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) action formula (m:Marking.Marks) (alt_exec:List<Marking.Marks*Model.Environment>) safe =
          // We remove local vars
         let m = { m with v = Set.empty }
         // We simplify functions
         let are_marks_necessary (m:Marking.Marks) (m':Marking.Marks) =
             let m = Marking.marks_diff m m'
-            let f = generate_allowed_path_formula md mmd env formula action m alt_exec true
+            let f = generate_allowed_path_formula md mmd env formula action m alt_exec (not safe)
             match check_z3_formula_ext mmd (Some action) f 1000 with
             | Microsoft.Z3.Status.UNSATISFIABLE -> false
             | _ -> true
