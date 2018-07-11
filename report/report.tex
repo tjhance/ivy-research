@@ -127,12 +127,12 @@ March-July 2018
     Several languages and tools already exist for that:
 
     \begin{itemize}
-        \item Proof-assistants (Coq, Agda, Why3, etc.):
-        The user has to manually write the proof in a interactive way (he can benefit from some help).
-        It is a long and complicated process, but once the proof is complete, the proof assistant will always accept it
-        if it is correct.
-        \item SMT-solver based tools (dafny, F*, Why3, etc.):
-        Specifications are automatically checked using a SMT-solver. This process is undecidable in the general case,
+        \item Proof-assistants (Coq, F*, etc.):
+        Powerful logics can be used for the specification,
+        however the user has to manually write the proof (in a interactive way).
+        \item SMT-solver based tools (dafny, F*, etc.):
+        Logics and constructions are often restricted, but specifications can automatically be checked using a SMT-solver.
+        Most of time, this process is undecidable,
         so there are 3 possible outputs:
         \begin{itemize}
             \item Yes, the program matches the specifications
@@ -150,11 +150,10 @@ March-July 2018
     This approach has many advantages:
     \begin{itemize}
         \item Once the program is written and specified in an accepted logic, it can be checked more easily:
-        the checker can always decide whether the program is correct or not, and give a counterexample if it is not.
-        \item Our code, specifications and proof indications are not dependent on some heuristics/specificities of the SMT-solver used,
-        and so we don't need any specific knowledge.
-        \item If a program has been checked using a certain version of IVy, it can also be checked with
-        any future version (because it does not depend on any heuristic).
+        the checker can always decide whether the program matches the invariants or not, and give a counterexample if it does not.
+        \item It does not rely on any heuristic/specificity of the SMT-solver used.
+        When a program cannot be checked, we always know the reason.
+        \item A program can be checked with any version of any SMT-solver (because it does not depend on any heuristic).
     \end{itemize}
     
     The main disadvantage is that the user is forced to specify its program in a decidable fragment of first order logic:
@@ -330,13 +329,13 @@ March-July 2018
     
     \section{Checking a RML program}
 
-    \begin{definition}[State]
-        A state of a RML program is a pair \(((D_s)_{s\in \text{sorts}}, (I_s)_{s\in \text{symbols}})\) where:
+    \begin{definition}[Structure \& State]
+        For a given RML program, a structure is a pair \(((D_s)_{s\in \text{sorts}}, (I_s)_{s\in \text{symbols}})\) where:
         \begin{itemize}
             \item For all \(s \in \text{sorts}\), \(D_s\) is a finite domain associated to the sort \(s\).
             \item For all \(s \in \text{symbols}\) (variable, function or relation), \(I_s\) is an interpretation (=valuation) for the symbol \(s\) over the corresponding domains of \((D_s)\).
         \end{itemize}
-        A state must satisfy every axiom defined in the RML program.
+        A state is a structure that satisfy every axiom defined in the RML program.
     \end{definition}
 
     In order to certify that a RML program never abort abnormally, we must provide IVy with an invariant \(I\) such that:
@@ -391,9 +390,9 @@ March-July 2018
         Then, if all function symbols are stratified, checking if \( P \rightarrow wp(S,Q) \) is decidable.
     \end{theorem}
 
-    In particular, checking whether a quantifier-alternation-free formula satisfies the two properties above is decidable.
+    In particular, checking whether a formula with no quantifier-alternation satisfies the two properties above is decidable.
     In practice, since satisfiability of some formulas with \( \forall\exists \) quantifier alternation can still be decidable,
-    not only quantifier-alternation-free invariants are allowed in IVy. However, if an invariant can't be checked in a decidable way, IVy will reject it
+    some invariants with quantifier alternation are allowed in IVy. However, if an invariant can't be checked in a decidable way, IVy will reject it
     and will indicate to the user the faulty functions or quantifier alternations.
 
     \section{Challenges and current research}
@@ -493,14 +492,43 @@ March-July 2018
     to understand.
 
     \section{Naive counterexample generalization}
-    % Finite model property for finding an invariant
-    % Model checking can also be used to detect when an invariant is incorrect.
+
+    In order to produce simpler invariants, we can focus our search on a concrete counterexample.
+
+    A counterexample is a pair \( (S,E) \) where \(S\) is a state that satisfies the invariant and \(E\) is an execution of one action starting from \(S\)
+    and leading to a new state \(S'\) that doesn't satisfy the invariant.
+    Thanks to the finite model property of EPR (section 1.3.2), we are always able to find a finite counterexample when an invariant is not inductive.
+    
+    Let \( (S,E) \) be a finite counterexample.
+    We can fully characterize the interpretations of \(S\) with a finite number of constraints of the form \(symbol(concrete\_value_1,\ldots,concrete\_value_n) = concrete\_value\)
+    (where concrete values are elements of the domains of \(S\)).
+    From these constraints, we will generate a formula as follows:
+    \begin{enumerate}
+        \item We associate a variable \( X_v \) to each concrete value \(v\)
+        \item In each constraint, we replace each concrete value \(v\) by \( X_v \)
+        \item For every pair of concrete values \( (v_1,v_2) \) in the same domain such that \( v_1 \neq v_2 \), we add the constraint \( X_{v_1} \neq X_{v_2} \)
+        \item We make the conjunction of all these constraints and we quantify existentially on each \(X_v\). Optionaly, we can simplify the resulting formula to get rid of some variables.
+    \end{enumerate}
+    
+    The resulting formula \(F\) is an existentially quantified formula that characterizes all structures containing a substructure isomorphic to the counterexample.
+    In order to avoid this counterexample, we just have to negate \(F\) (it will become universally quantified) and add it to the current invariant.
+
+    This technique always generate an universally-quantified invariant, and so there is no decidability issue.
+    However, there are three major issues:
+    \begin{itemize}
+        \item As we will see in the next section, the new invariant generated is not always valid.
+        \item The formula generated can be very long, because it contains all the constraints characterizing our counterexample.
+        \item The formula generated is very specific: it will not avoid other \textit{similar} counterexamples as long as
+        one constraint differs, even if this difference has no impact.
+    \end{itemize}
 
     \section{Limits: non-monotonic code}
 
     \section{A solution: using model checking}
 
+    % Model checking is used to detect when an invariant is incorrect AND to make a more general/simpler formula.
 
+    % Details the 3 points: correctness, decidability, simplicity
 
 \chapter{My contributions}
 
@@ -530,11 +558,9 @@ March-July 2018
 
     \section{Lessons from this internship}
 
-\chapter{Annexes}
-
-    \section{RML example: a leader election protocol}
-
-    \section{Comparison of results on different examples}
+%\chapter{Annexes}
+    %\section{RML example: a leader election protocol}
+    %\section{Comparison of results on different examples}
 
 \bibliographystyle{unsrt}
 \bibliography{sample}
