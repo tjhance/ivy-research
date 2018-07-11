@@ -522,7 +522,18 @@ March-July 2018
         one constraint differs, even if this difference has no impact.
     \end{itemize}
 
-    \section{Limits: non-monotonic code}
+    \section{Limits: non-monotonic counterexamples}
+
+    Let's try the naive counterexample generalization on this IVy code:\\
+
+    \includegraphics[width=15cm]{NonMonotonicExLarge}
+    \\
+    The keyword \textit{individual} is used to declare a variable, and the construction \textit{if some \(x\). \(\phi(x)\) \{ statement \}}
+    assign to the variable \(x\) a value \(v\) such that \(\phi(v)\) is true and executes \textit{statement}. If no such value \(v\) exists,
+    \textit{statement} is not executed.
+
+    Basically, this example does the following:
+    % TODO
 
     \section{A solution: symbolic bounded verification}
 
@@ -538,7 +549,7 @@ March-July 2018
 
     % Complementary to symbolic bounded verification
 
-    \section{Case of non-monotonic code}
+    \section{Case of non-monotonic counterexamples}
 
     \section{Weakening the conjecture}
 
