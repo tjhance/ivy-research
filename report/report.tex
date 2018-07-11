@@ -532,7 +532,17 @@ March-July 2018
     assign to the variable \(x\) a value \(v\) such that \(\phi(v)\) is true and executes \textit{statement}. If no such value \(v\) exists,
     \textit{statement} is not executed.
 
-    Basically, this example does the following:
+    Basically, this example defines the following:
+    \begin{itemize}
+        \item Two uninterpreted types \(a\) and \(b\).
+        \item A relation \(f\) from \(a\) to \(b\) that will represent a partial function, and \(dom\) its domain. It might look curious to not directly define a function instead,
+        but it is sometimes useful for the decidability because functions are subject to stratification constraints.
+        \item A variable \(elt\) in \(a\) and a variable \(img\) in \(b\). If \(elt\) is in the domain of \(f\), then \(b\) should always
+        correspond to the image of \(elt\) by \(f\) (this specification is defined at the end with the keyword \textit{conjecture}).
+        \item The init action, and some other actions to set/unset a value of \(f\) and to change the value of \(elt\).
+    \end{itemize}
+
+    This code satisfies the conjecture, however the conjecture is not inductive. Here is a counterexample:
     % TODO
 
     \section{A solution: symbolic bounded verification}
