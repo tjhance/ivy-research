@@ -19,7 +19,7 @@ let parser_error_path = "parser.err"
 
 // ----- MANUAL MODE -----
 
-let manual_counterexample (md:ModuleDecl) decls action verbose =
+let manual_counterexample (md:ModuleDecl) decls possible_actions mmds verbose =
     printfn "Please enter constraints:"
     let str = read_until_line_jump ()
     printfn "Loading constraints..."
@@ -30,6 +30,11 @@ let manual_counterexample (md:ModuleDecl) decls action verbose =
     then
         printfn "%A" infos
         printfn "%A" env
+
+    printfn "Which action do you want to analyze?"
+    List.iteri (fun i str -> printfn "%i. %s" i str) possible_actions
+    let nb = Convert.ToInt32 (Console.ReadLine())
+    let action = List.item nb possible_actions
 
     let args_decl = (find_action md action "").Args
     let env =
@@ -46,7 +51,7 @@ let manual_counterexample (md:ModuleDecl) decls action verbose =
             )
             env args_decl
     
-    let mmd = MinimalAST.module2minimal md action
+    let mmd = Map.find action mmds
 
     printfn "Executing..."
     let tr = TInterpreter.trace_action mmd infos env action (List.map (fun (d:VarDecl) -> MinimalAST.ValueVar d.Name) args_decl) AST.impossible_var_factor
@@ -75,9 +80,9 @@ let manual_counterexample (md:ModuleDecl) decls action verbose =
         let nb = Convert.ToInt32 (Console.ReadLine())
         let formula = List.item nb (AST.invariants_to_formulas invs)
         let formula = MinimalAST.value2minimal md formula
-        Some (mmd, action, infos, env, cs, formula, tr)
+        Some (action, infos, env, cs, formula, tr)
     else
-        Some (mmd, action, infos, env, cs, MinimalAST.ValueConst (ConstBool true), tr)
+        Some (action, infos, env, cs, MinimalAST.ValueConst (ConstBool true), tr)
     
 let manual_allowed_path (md:ModuleDecl) decls env cs m um' =
     printfn "Please modify some constraints on the environment to change the final formula value."
@@ -99,17 +104,14 @@ let manual_allowed_path (md:ModuleDecl) decls env cs m um' =
 
 // ----- AUTO MODE -----
 
-let auto_counterexample (md:ModuleDecl) decls action =
+let auto_counterexample (md:ModuleDecl) decls main_module possible_actions mmds =
 
-    let mmd = MinimalAST.module2minimal md action
-    let mmd = Determinization.determinize_action mmd action
-    let action_args = (MinimalAST.find_action mmd action).Args
+    //let action_args = (MinimalAST.find_action mmd action).Args
 
     let counterexample = ref None
     let first_loop = ref true
     let finished = ref false
 
-    let (main_module,_) = AST.decompose_name action
     let invs = AST.find_invariants md main_module
 
     while not (!finished) do
@@ -121,7 +123,7 @@ let auto_counterexample (md:ModuleDecl) decls action =
                 printfn "Searching assertions fail..."
                 Some [(-1,MinimalAST.ValueConst (ConstBool true))]
             else
-                printfn "Select the conjecture(s) to test (separate by space, '*' for all):"
+                printfn "Select the conjecture(s) to test (separated by space, '*' for all):"
                 List.iteri (fun i (d:AST.InvariantDecl) -> printfn "%i. [%s] %s" i d.Module (Printer.value_to_string decls d.Formula 0)) invs
                 let line = Console.ReadLine()
                 let nbs =
@@ -139,22 +141,26 @@ let auto_counterexample (md:ModuleDecl) decls action =
         match formulas with
         | None -> finished := true
         | Some formulas ->
-            match Solver.find_counterexample mmd action formulas with
+            match Solver.find_counterexample md mmds formulas with
             | None -> counterexample := None
             | Some c -> finished := true ; counterexample := Some c
 
     match !counterexample with
     | None -> None
-    | Some (i, formula, infos, env) ->
-        printfn "Invariant n°%i." i
+    | Some (i, action, formula, infos, env) ->
+        let mmd = Map.find action mmds
+        let action_args = (MinimalAST.find_action mmd action).Args
+        printfn "Invariant n°%i: %s" i action
         let tr = TInterpreter.trace_action mmd infos env action (List.map (fun (d:VarDecl) -> MinimalAST.ValueVar d.Name) action_args) AST.impossible_var_factor
-        Some (mmd, action, infos, env, [], formula, tr)
+        Some (action, infos, env, [], formula, tr)
 
 let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) formula
-    action (m:Marking.Marks) prev_allowed only_terminating_run =
+    action (m:Marking.Marks) other_actions prev_allowed only_terminating_run =
 
-    let f = Solver.generate_allowed_path_formula md mmd env formula action m prev_allowed only_terminating_run
-    Solver.check_z3_formula mmd (Some action) f 3000
+    let f = Solver.generate_allowed_path_formula md mmd env formula action m other_actions prev_allowed only_terminating_run
+    match Solver.check_z3_formula md mmd (Some action) f 3000 with
+    | Solver.UNSAT | Solver.UNKNOWN -> None
+    | Solver.SAT (i,e) -> Some (i,e)
 
 // ----- MAIN -----
 
@@ -218,23 +224,28 @@ let main argv =
     while true do
         // Choose the action to analyze
 
+        printfn "Please enter the name of the module containing the actions to analyze (exports are not supported yet):"
+        let main_module = Console.ReadLine ()
         let possible_actions = List.map (fun (d:ActionDecl) -> d.Name) md.Actions
         let possible_actions = List.filter (fun str -> let (_,v) = AST.decompose_action_name str in v = "") possible_actions
-        printfn "Which action do you want to analyze?"
-        List.iteri (fun i str -> printfn "%i. %s" i str) possible_actions
-        let nb = Convert.ToInt32 (Console.ReadLine())
-        let name = List.item nb possible_actions
+        let possible_actions = List.filter (fun str -> let (m,_) = AST.decompose_name str in m = main_module) possible_actions
+
+        // Build minimal ASTs
+        let build_mmd action =
+            Determinization.determinize_action (MinimalAST.module2minimal md action) action
+        let mmds = List.fold (fun acc action -> Map.add action (build_mmd action) acc) Map.empty possible_actions
 
         // Let's go!
 
         let counterexample =
             if manual
-            then manual_counterexample md decls name verbose
-            else auto_counterexample md decls name
+            then manual_counterexample md decls possible_actions mmds verbose
+            else auto_counterexample md decls main_module possible_actions mmds
 
         match counterexample with
         | None -> ()
-        | Some (mmd, name, infos, env, cs, formula, tr) ->
+        | Some (name, infos, env, cs, formula, tr) ->
+            let mmd = Map.find name mmds
             let (b,finished_exec,(m,um,ad)) =
                 analyse_example_ending mmd infos tr formula
             if b then failwith "Invalid counterexample!"
@@ -267,7 +278,7 @@ let main argv =
                     let allowed_path_opt =
                         if manual
                         then manual_allowed_path md decls env cs m um
-                        else auto_allowed_path md mmd env formula name m (!allowed_paths) (!only_terminating_exec)
+                        else auto_allowed_path md mmd env formula name m (Map.toList mmds) (!allowed_paths) (!only_terminating_exec)
 
                     match allowed_path_opt with
                     | Some (infos_allowed, env_allowed) ->

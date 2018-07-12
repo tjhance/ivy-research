@@ -18,7 +18,7 @@
             Funs: Map<string, FuncDecl>
         }
 
-    let build_context<'a,'b> (m:ModuleDecl<'a,'b>) =
+    let build_context<'a,'b> (m:AST.ModuleDecl<'a,'b>) =
         let ctx = new Context()
         let sorts = ref Map.empty 
         let funs = ref Map.empty
@@ -37,7 +37,7 @@
     let name_of_constint (t,i) =
         sprintf "%s%c%i" t AST.name_separator i
 
-    let declare_lvars<'a,'b> args (ctx:ModuleContext) v =
+    let declare_lvars_ext<'a,'b> args (ctx:ModuleContext) v (lvars,z3concrete_map) =
         
         let add_civ (lvars,z3concrete_map) (t,i) =
             let name = name_of_constint (t,i)
@@ -57,9 +57,12 @@
                 let sort = sort_of_type ctx.Context ctx.Sorts decl.Type
                 Map.add name (ctx.Context.MkConstDecl(name,sort)) acc
         
-        let (lvars,z3concrete_map) = Set.fold add_civ (Map.empty,[]) (const_int_in_value v)
+        let (lvars,z3concrete_map) = Set.fold add_civ (lvars,z3concrete_map) (const_int_in_value v)
         let lvars = Set.fold add_fv lvars (free_vars_of_value v)
         (lvars,z3concrete_map)
+
+    let declare_lvars<'a,'b> args (ctx:ModuleContext) v =
+        declare_lvars_ext args ctx v (Map.empty, [])
 
     let expr_of_cv (ctx:Context) lvars cv =
         match cv with
@@ -121,25 +124,75 @@
             | Z3Hole -> failwith "Can't convert a context to a Z3 formula!"
         aux Map.empty v
 
+    [<NoComparison>]
+    type SolverResult = UNSAT | UNKNOWN | SAT of Model
+
     let check (ctx:ModuleContext) (e:Expr) (timeout:int) =
         let s = ctx.Context.MkSolver()
         s.Set ("timeout", uint32(timeout))
         s.Assert ([|e:?> BoolExpr|])
         match s.Check () with
         | Status.UNKNOWN ->
-            printfn "ERROR: Satisfiability can't be decided! Assuming unSAT."
-            None
+            printfn "ERROR: Satisfiability can't be decided!"
+            UNKNOWN
         | Status.UNSATISFIABLE ->
-            None
+            UNSAT
         | Status.SATISFIABLE ->
-            Some s.Model
+            SAT s.Model
         | _ -> failwith "Solver returned an unknown status..."
 
-    let check_ext (ctx:ModuleContext) (e:Expr) (timeout:int) =
+    let is_true (e:Expr) =
+        e.FuncDecl.Name.ToString() = "true"
+
+    let is_false (e:Expr) =
+        e.FuncDecl.Name.ToString() = "false"
+
+    let check_disjunction (ctx:ModuleContext) (e:Expr) (es:List<string*Expr>) (timeout:int) =
+        let e' = ctx.Context.MkOr(List.toArray (List.map (fun (_,e:Expr) -> e :?> BoolExpr) es))
+
         let s = ctx.Context.MkSolver()
         s.Set ("timeout", uint32(timeout))
         s.Assert ([|e:?> BoolExpr|])
-        s.Check ()
+        s.Assert ([|e'|])
+       
+        match s.Check () with
+        | Status.UNKNOWN ->
+            printfn "ERROR: Satisfiability can't be decided!"
+            (UNKNOWN, [])
+        | Status.UNSATISFIABLE ->
+            (UNSAT, [])
+        | Status.SATISFIABLE ->
+            let model = s.Model
+            let es = List.filter (fun (_,e) -> is_true (model.Eval e)) es
+            let es = List.map (fun (str,_) -> str) es
+            (SAT model, es)
+        | _ -> failwith "Solver returned an unknown status..."
+
+    let check_conjunction (ctx:ModuleContext) (e:Expr) (es:List<string*Expr>) (timeout:int) =
+        let normalize_name str =
+            AST.generated_name (sprintf "__unsatcore__%s" str)
+
+        let s = ctx.Context.MkSolver()
+        s.Set ("timeout", uint32(timeout))
+        s.Assert ([|e:?> BoolExpr|])
+        let assert_and_track (str, e:Expr) =
+            let p = ctx.Context.MkBoolConst(normalize_name str);
+            s.AssertAndTrack (e :?> BoolExpr, p)
+        List.iter assert_and_track es
+       
+        match s.Check () with
+        | Status.UNKNOWN ->
+            printfn "ERROR: Satisfiability can't be decided!"
+            (UNKNOWN, [])
+        | Status.UNSATISFIABLE ->
+            let core = List.ofArray s.UnsatCore
+            let core = List.map (fun (e:BoolExpr) -> e.FuncDecl.Name.ToString()) core
+            let res = List.map (fun (str,_) -> str) es
+            let res = List.filter (fun str -> List.contains (normalize_name str) core) res
+            (UNSAT, res)
+        | Status.SATISFIABLE ->
+            (SAT s.Model, [])
+        | _ -> failwith "Solver returned an unknown status..."
 
     let cv_of_expr_str const_cv_map str =
         match str with
@@ -151,7 +204,7 @@
         let univs = List.map (fun s -> model.SortUniverse s) sorts
         Helper.all_choices_combination univs
 
-    let z3model_to_ast_model<'a,'b> (m:ModuleDecl<'a,'b>) (ctx:ModuleContext) args lvars 
+    let z3model_to_ast_model<'a,'b> (m:AST.ModuleDecl<'a,'b>) (ctx:ModuleContext) args lvars 
         z3concrete_map (model:Model)
         : (Model.TypeInfos * Model.Environment) =
 
