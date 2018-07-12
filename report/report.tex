@@ -372,8 +372,8 @@ March-July 2018
     \\
     We can now rewrite the properties above using weakest preconditions:
     \begin{enumerate}
-        \item \(A \rightarrow wpr(\text{init},I)\)
-        \item For every action \(S\), \(A \land I \rightarrow wpr(\text{S},I)\)
+        \item \(A \Rightarrow wpr(\text{init},I)\)
+        \item For every action \(S\), \(A \land I \Rightarrow wpr(\text{S},I)\)
     \end{enumerate}
 
     \begin{lemma}
@@ -387,7 +387,7 @@ March-July 2018
 
     \begin{theorem}[]
         Let \(S\) be a RML statement, \(P\) a \(\exists^*\forall^*\) formula and \(Q\) a \(\forall^*\exists^*\) formula.
-        Then, if all function symbols are stratified, checking if \( P \rightarrow wp(S,Q) \) is decidable.
+        Then, if all function symbols are stratified, checking if \( P \Rightarrow wp(S,Q) \) is decidable.
     \end{theorem}
 
     In particular, checking whether a formula with no quantifier-alternation satisfies the two properties above is decidable.
@@ -580,7 +580,7 @@ March-July 2018
     \end{minipage}\\
 
     We say that the execution of change_elt(\(a_1\)) is non-monotonic because its result can be changed just by adding a new element
-    to \(b\) (without changing anything else). Actually, it is due to the use of the \textit{if some} statement.
+    to \(b\) (without changing anything else). In this example, it is due to the use of the \textit{if some} statement.
 
     \begin{definition}[Monotonicity]
         An execution \(E\) from a state \(S\) is monotonic iff adding new elements to the domains of \(S\)
@@ -595,9 +595,29 @@ March-July 2018
 
     \section{A solution: symbolic bounded verification}
 
-    % Symbolic bounded verification is used to detect when an invariant is incorrect AND to make a more general/simpler formula.
+    The results of the naive counterexample generalization method can be improved by using symbolic bounded verification [REF].
+    We says that a formula is a k-invariant if is satisfied by any execution starting from the init action and followed by at most k
+    other actions. More formally, a formula \(Q\) is a k-invariant iff:
 
+    \( A \Rightarrow \bigwedge\limits_{j=0}^k wp(\text{init}; (\text{action}_1|\ldots|\text{action}_n)^j, Q) \)\\
+    where \(A\) refers to the axioms and `\(\text{statement}^j\)' represents the sequential composition of \(j\) copies of `statement'.
+
+    According to section 1.4, checking the validity of this formula (for a given \(k\)) is decidable (for \(A\) of the form \(\exists^*\forall^*\) and \(Q\) of the form \(\forall^*\exists^*\)).
+
+    This concept of k-invariant can improve the naive counterexample generalization method in two points:
+    \begin{itemize}
+        \item It could allow us to know when a generated invariant is not valid.
+        Actually, we cannot be sure that an invariant is valid using this method (because it is bounded to executions of length \(k\)),
+        but in practice taking \(k=5\) is sufficient to detect invalid invariants.
+        \item It allows us to generate simpler and more general invariants. Indeed, instead of generating a formula that
+        aggregates all constraints of the initial state of the counterexample, we are able to only keep a minimal number of constraints
+        such that the resulting invariant is still valid. It can be done quite efficiently by computing an unSAT core using a SMT-solver.
+    \end{itemize}
+
+    % Used by the current implementation of IVy
     % Details the 3 points: correctness, decidability, simplicity
+
+    % TODO: 'valid' invariant / 'validity' / 'invalid' -> 'correct' invariant / corectness' / 'not correct'
 
 \chapter{My contributions}
 
