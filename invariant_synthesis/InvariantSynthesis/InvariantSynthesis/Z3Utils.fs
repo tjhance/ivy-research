@@ -148,26 +148,34 @@
         e.FuncDecl.Name.ToString() = "false"
 
     let check_disjunction (ctx:ModuleContext) (e:Expr) (es:List<string*Expr>) (timeout:int) =
-        let e' = ctx.Context.MkOr(List.toArray (List.map (fun (_,e:Expr) -> e :?> BoolExpr) es))
 
         let s = ctx.Context.MkSolver()
         s.Set ("timeout", uint32(timeout))
         s.Assert ([|e:?> BoolExpr|])
-        s.Assert ([|e'|])
-       
-        match s.Check () with
-        | Status.UNKNOWN ->
-            printfn "ERROR: Satisfiability can't be decided!"
-            (UNKNOWN, [])
-        | Status.UNSATISFIABLE ->
-            (UNSAT, [])
-        | Status.SATISFIABLE ->
-            let model = s.Model
-            let es = List.filter (fun (_,e) -> is_true (model.Eval e)) es
-            let es = List.map (fun (str,_) -> str) es
-            (SAT model, es)
-        | _ -> failwith "Solver returned an unknown status..."
+        s.Push ()
 
+        let rec treat_exprs unknown (es:List<string*Expr>) =
+            match es with
+            | [] -> if unknown then (UNKNOWN, None) else (UNSAT, None)
+            | (str,e)::es ->
+                s.Assert ([|e :?> BoolExpr|])
+                match s.Check () with
+                | Status.UNKNOWN ->
+                    printfn "ERROR: Satisfiability can't be decided!"
+                    s.Pop (uint32(1))
+                    s.Push ()
+                    treat_exprs true es
+                | Status.UNSATISFIABLE ->
+                    s.Pop (uint32(1))
+                    s.Push ()
+                    treat_exprs false es
+                | Status.SATISFIABLE ->
+                    (SAT s.Model, Some str)
+                | _ -> failwith "Solver returned an unknown status..."
+
+        treat_exprs false es
+        // TODO: Eventually, choose the one with the smallest model.
+       
     let check_conjunction (ctx:ModuleContext) (e:Expr) (es:List<string*Expr>) (timeout:int) =
         let normalize_name str =
             AST.generated_name (sprintf "__unsatcore__%s" str)

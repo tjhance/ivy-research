@@ -58,9 +58,8 @@
         match Z3Utils.check_disjunction z3ctx z3e es timeout with
         | (Z3Utils.UNSAT, _) -> (UNSAT, None)
         | (Z3Utils.UNKNOWN, _) -> (UNKNOWN, None)
-        | (Z3Utils.SAT m, lst) ->
-            if List.length lst > 1 then printfn "Multiple actions match this counterexample. Taking the first one."
-            let action = List.head lst
+        | (Z3Utils.SAT _, None) -> failwith "Can't retrieve action of counterexample..."
+        | (Z3Utils.SAT m, Some action) ->
             let (mmd, _, _, (z3lvars, z3concrete_map)) = List.find (fun (_,action',_,_) -> action' = action) fs
             let args_decl = (MinimalAST.find_action mmd action).Args
             (SAT (Z3Utils.z3model_to_ast_model md z3ctx args_decl z3lvars z3concrete_map m), Some action)

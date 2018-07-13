@@ -230,100 +230,102 @@ let main argv =
         let possible_actions = List.filter (fun str -> let (_,v) = AST.decompose_action_name str in v = "") possible_actions
         let possible_actions = List.filter (fun str -> let (m,_) = AST.decompose_name str in m = main_module) possible_actions
 
-        // Build minimal ASTs
-        let build_mmd action =
-            Determinization.determinize_action (MinimalAST.module2minimal md action) action
-        let mmds = List.fold (fun acc action -> Map.add action (build_mmd action) acc) Map.empty possible_actions
+        if not (List.isEmpty possible_actions)
+        then
+            // Build minimal ASTs
+            let build_mmd action =
+                Determinization.determinize_action (MinimalAST.module2minimal md action) action
+            let mmds = List.fold (fun acc action -> Map.add action (build_mmd action) acc) Map.empty possible_actions
 
-        // Let's go!
+            // Let's go!
 
-        let counterexample =
-            if manual
-            then manual_counterexample md decls possible_actions mmds verbose
-            else auto_counterexample md decls main_module possible_actions mmds
+            let counterexample =
+                if manual
+                then manual_counterexample md decls possible_actions mmds verbose
+                else auto_counterexample md decls main_module possible_actions mmds
 
-        match counterexample with
-        | None -> ()
-        | Some (name, infos, env, cs, formula, tr) ->
-            let mmd = Map.find name mmds
-            let (b,finished_exec,(m,um,ad)) =
-                analyse_example_ending mmd infos tr formula
-            if b then failwith "Invalid counterexample!"
+            match counterexample with
+            | None -> ()
+            | Some (name, infos, env, cs, formula, tr) ->
+                let mmd = Map.find name mmds
+                let (b,finished_exec,(m,um,ad)) =
+                    analyse_example_ending mmd infos tr formula
+                if b then failwith "Invalid counterexample!"
 
-            printfn "Going back through the action..."
-            let (m,um,ad) = Marking.marks_before_statement mmd infos true false tr (m,um,ad)
-            if verbose
-            then
-                printfn "%A" m
-                printfn "%A" um
-                printfn "%A" ad
+                printfn "Going back through the action..."
+                let (m,um,ad) = Marking.marks_before_statement mmd infos true false tr (m,um,ad)
+                if verbose
+                then
+                    printfn "%A" m
+                    printfn "%A" um
+                    printfn "%A" ad
 
-            let m = Solver.simplify_marks md mmd env m (Marking.empty_marks)//Formula.simplify_marks infos md.Implications decls env m
-            let um = Solver.simplify_marks md mmd env um (Marking.empty_marks) //Formula.simplify_marks infos md.Implications decls env um
-            let f = Formula.formula_from_marks env m [] false
-            let f = Formula.simplify_value f
-            printfn "%s" (Printer.value_to_string decls f 0)
-            printfn ""
+                let m = Solver.simplify_marks md mmd env m (Marking.empty_marks)//Formula.simplify_marks infos md.Implications decls env m
+                let um = Solver.simplify_marks md mmd env um (Marking.empty_marks) //Formula.simplify_marks infos md.Implications decls env um
+                let f = Formula.formula_from_marks env m [] false
+                let f = Formula.simplify_value f
+                printfn "%s" (Printer.value_to_string decls f 0)
+                printfn ""
 
-            let allowed_paths = ref []
-            if ad.md
-            then
-                printfn "This invariant may be too strong!"
-                printfn "(Some model-dependent marks have been ignored)"
-                printfn "Would you like to add an allowed path to the invariant? (y/n)"
-                let answer = ref (Console.ReadLine())
-                let only_terminating_exec = ref true
-                while !answer = "y" do
-
-                    let allowed_path_opt =
-                        if manual
-                        then manual_allowed_path md decls env cs m um
-                        else auto_allowed_path md mmd env formula name m (Map.toList mmds) (!allowed_paths) (!only_terminating_exec)
-
-                    match allowed_path_opt with
-                    | Some (infos_allowed, env_allowed) ->
-                        let args_decl = (MinimalAST.find_action mmd name).Args
-                        let tr_allowed = TInterpreter.trace_action mmd infos_allowed env_allowed name (List.map (fun (d:VarDecl) -> MinimalAST.ValueVar d.Name) args_decl) AST.impossible_var_factor
-
-                        let (b_al,_,(m_al,um_al,ad_al)) =
-                            analyse_example_ending mmd infos_allowed tr_allowed formula
-
-                        if b_al
-                        then
-                            let (m_al,_,ad_al) =
-                                Marking.marks_before_statement mmd infos_allowed finished_exec true tr_allowed (m_al,um_al,ad_al)
-                            if ad_al.md
-                            then printfn "Warning: Some marks still are model-dependent! Generated invariant could be weaker than expected."
-                            let m_al = Solver.simplify_marks md mmd env m_al m
-                            allowed_paths := (m_al,env_allowed)::(!allowed_paths)
-                        else printfn "ERROR: Illegal execution!"
-                    | None ->
-                        printfn "No more allowed path found!"
-                        if !only_terminating_exec = true
-                        then
-                            printfn "Extending the search domain to non-terminating runs..."
-                            only_terminating_exec := false
-            
+                let allowed_paths = ref []
+                if ad.md
+                then
+                    printfn "This invariant may be too strong!"
+                    printfn "(Some model-dependent marks have been ignored)"
                     printfn "Would you like to add an allowed path to the invariant? (y/n)"
-                    answer := Console.ReadLine()
-            else
-                printfn "These conditions are sufficient to break the invariant!"
+                    let answer = ref (Console.ReadLine())
+                    let only_terminating_exec = ref true
+                    while !answer = "y" do
 
-            printfn "Proceed to more simplification? (n:no/s:safe/h:hard)"
-            let m' =
-                let line = Console.ReadLine ()
-                if line = "h"
-                then Solver.simplify_marks_hard md mmd env name formula m (!allowed_paths) false
-                else if line = "s"
-                then Solver.simplify_marks_hard md mmd env name formula m (!allowed_paths) true
-                else m
+                        let allowed_path_opt =
+                            if manual
+                            then manual_allowed_path md decls env cs m um
+                            else auto_allowed_path md mmd env formula name m (Map.toList mmds) (!allowed_paths) (!only_terminating_exec)
 
-            let f = Formula.formula_from_marks env m' (!allowed_paths) false
-            let f = Formula.simplify_value f
+                        match allowed_path_opt with
+                        | Some (infos_allowed, env_allowed) ->
+                            let args_decl = (MinimalAST.find_action mmd name).Args
+                            let tr_allowed = TInterpreter.trace_action mmd infos_allowed env_allowed name (List.map (fun (d:VarDecl) -> MinimalAST.ValueVar d.Name) args_decl) AST.impossible_var_factor
 
-            printfn ""
-            printfn "Invariant to add:"
-            printfn "%s" (Printer.value_to_string decls f 0)
-            ignore (Console.ReadLine())
+                            let (b_al,_,(m_al,um_al,ad_al)) =
+                                analyse_example_ending mmd infos_allowed tr_allowed formula
+
+                            if b_al
+                            then
+                                let (m_al,_,ad_al) =
+                                    Marking.marks_before_statement mmd infos_allowed finished_exec true tr_allowed (m_al,um_al,ad_al)
+                                if ad_al.md
+                                then printfn "Warning: Some marks still are model-dependent! Generated invariant could be weaker than expected."
+                                let m_al = Solver.simplify_marks md mmd env m_al m
+                                allowed_paths := (m_al,env_allowed)::(!allowed_paths)
+                            else printfn "ERROR: Illegal execution!"
+                        | None ->
+                            printfn "No more allowed path found!"
+                            if !only_terminating_exec = true
+                            then
+                                printfn "Extending the search domain to non-terminating runs..."
+                                only_terminating_exec := false
+            
+                        printfn "Would you like to add an allowed path to the invariant? (y/n)"
+                        answer := Console.ReadLine()
+                else
+                    printfn "These conditions are sufficient to break the invariant!"
+
+                printfn "Proceed to more simplification? (n:no/s:safe/h:hard)"
+                let m' =
+                    let line = Console.ReadLine ()
+                    if line = "h"
+                    then Solver.simplify_marks_hard md mmd env name formula m (!allowed_paths) false
+                    else if line = "s"
+                    then Solver.simplify_marks_hard md mmd env name formula m (!allowed_paths) true
+                    else m
+
+                let f = Formula.formula_from_marks env m' (!allowed_paths) false
+                let f = Formula.simplify_value f
+
+                printfn ""
+                printfn "Invariant to add:"
+                printfn "%s" (Printer.value_to_string decls f 0)
+                ignore (Console.ReadLine())
     
     0
