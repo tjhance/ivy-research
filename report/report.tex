@@ -1,4 +1,4 @@
-\documentclass[11pt,a4paper,oldfontcommands]{memoir}
+\documentclass[11pt,a4paper,oldfontcommands,openany]{memoir}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage{microtype}
@@ -24,7 +24,7 @@ bookmarks=true,bookmarksopenlevel=2]{hyperref}
 % PRINT
 \geometry{total={210mm,297mm},
 left=20mm,right=20mm,
-bindingoffset=10mm, top=25mm,bottom=25mm}
+bindingoffset=10mm, top=24mm,bottom=24mm} %top=25mm,bottom=25mm
 
 \OnehalfSpacing
 %\linespread{1.3}
@@ -442,10 +442,10 @@ March-July 2018
     If this conjecture is simple enough, the user can analyze it and adjust it as he wants, and we repeat this process.
 
     Thus, the problem we want to solve is as follows:
-    given an invariant that is not inductive, we want to sthrengthen it (as much as possible) by respecting these conditions:
+    given an invariant that is not inductive, we want to sthrengthen it (as much as possible) by respecting these criteria:
     \begin{enumerate}
-        \item \textbf{Correctness}: The new invariant must still be valid, in the sense that it must be satisfied by every state obtained
-        after executing the `init' action followed by as many other actions as we want.
+        \item \textbf{Correctness}: The new invariant must still be correct, in the sense that it must be satisfied by every state obtained
+        after a valid execution (that is, after executing the `init' action followed by as many other actions as we want).
         \item \textbf{Decidability}: The new invariant should still be checkable in a decidable way (in our case it should be in EPR).
         \item \textbf{Simplicity}: The new invariant should be easily understandable by the user in order to be adjusted if needed.
     \end{enumerate}
@@ -455,9 +455,9 @@ March-July 2018
     One possible way to sthrengthen an invariant is to make the conjunction with its weakest precondition.
     If the initial invariant is not inductive, the result will be stricltly stronger.
 
-    Let's see if this method respect the conditions.\\
+    Let's see if this method respect our criteria.\\
     
-    \textbf{Correctness:} We assume that the initial invariant \(I\) is valid. From that, we deduce that its weakest precondition \(P\) is also valid:
+    \textbf{Correctness:} We assume that the initial invariant \(I\) is correct. From that, we deduce that its weakest precondition \(P\) is also correct:
     \\
 
     By contradiction, let's suppose that we have a state \(S\), issued from a valid execution \(E\), that doesn't satisfy \(P\).
@@ -471,7 +471,7 @@ March-July 2018
         then \(P \lor F\) is still a precondition for \(I\) and is strictly weaker than \(P\): contradiction. 
     \end{itemize}
 
-    So \(P\) is valid and thus \(P \land I\) is valid.\\
+    So \(P\) is correct and thus \(P \land I\) is correct.\\
 
     \textbf{Decidability:} Even if the initial invariant is EPR, the weakest precondition is not guaranteed to be EPR.
     Indeed, stratification can be broken in several cases: assumptions, non-deterministic operations, etc.
@@ -517,7 +517,7 @@ March-July 2018
     This technique always generate an universally-quantified invariant, and so there is no decidability issue.
     However, there are three major issues:
     \begin{itemize}
-        \item As we will see in the next section, the new invariant generated is not always valid.
+        \item As we will see in the next section, the new invariant generated is not always correct.
         \item The formula generated can be very long, because it contains all the constraints characterizing our counterexample.
         \item The formula generated is very specific: it will not avoid other \textit{similar} counterexamples as long as
         one constraint differs, even if this difference has no impact.
@@ -565,7 +565,7 @@ March-July 2018
     Applying the method described in the previous section will give the following invariant:
     \(\forall A:a. \neg(\neg dom(elt) \land dom(A) \land A \neq elt \land \neg f(elt,res) \land \neg f(A,res))\)
 
-    This invariant is not valid: for instance, the following state doesn't satisfy it and can be obtained through a valid execution.
+    This invariant is not correct: for instance, the following state doesn't satisfy it and can be obtained through a valid execution.
 
     \begin{minipage}{0.45\textwidth}
         \includegraphics[width=8cm]{NonMonotonicExValid}
@@ -589,8 +589,8 @@ March-July 2018
     \end{definition}
 
     \begin{property}
-        For monotonic counterexamples, the naive counterexample generalization method generates valid invariants.
-        However, it can generate invalid invariants for non-monotonic counterexamples.
+        For monotonic counterexamples, the naive counterexample generalization method generates correct invariants.
+        However, it can generate incorrect invariants for non-monotonic counterexamples.
     \end{property}
 
     \section{A solution: symbolic bounded verification}
@@ -604,20 +604,32 @@ March-July 2018
 
     According to section 1.4, checking the validity of this formula (for a given \(k\)) is decidable (for \(A\) of the form \(\exists^*\forall^*\) and \(Q\) of the form \(\forall^*\exists^*\)).
 
-    This concept of k-invariant can improve the naive counterexample generalization method in two points:
+    This concept of k-invariant can improve the naive counterexample generalization in three points:
     \begin{itemize}
-        \item It could allow us to know when a generated invariant is not valid.
-        Actually, we cannot be sure that an invariant is valid using this method (because it is bounded to executions of length \(k\)),
-        but in practice taking \(k=5\) is sufficient to detect invalid invariants.
+        \item It could allow us to know when a generated invariant is not correct.
+        Actually, we cannot be sure that an invariant is correct using this method (because it is bounded to executions of length \(k\)),
+        but in practice taking \(k=5\) is sufficient to detect incorrect invariants.
         \item It allows us to generate simpler and more general invariants. Indeed, instead of generating a formula that
         aggregates all constraints of the initial state of the counterexample, we are able to only keep a minimal number of constraints
-        such that the resulting invariant is still valid. It can be done quite efficiently by computing an unSAT core using a SMT-solver.
+        such that the resulting invariant is still correct. It can be done quite efficiently by computing an unSAT core using a SMT-solver.
+        \item If the program that we want to check is not correct (it doesn't match the specification), symbolic bounded verification
+        allows us to find it out, while a naive counterexample generalization would just generate incorrect invariants.
     \end{itemize}
 
-    % Used by the current implementation of IVy
-    % Details the 3 points: correctness, decidability, simplicity
+    This method of counterexample generalization using symbolic bounded verification is the method currently implemented by IVy in order to
+    help the user to synthesize inductive invariants interactively.\\
 
-    % TODO: 'valid' invariant / 'validity' / 'invalid' -> 'correct' invariant / corectness' / 'not correct'
+    \textbf{Correctness:} Can sometimes generate incorrect invariants, but most of times the symbolic bounded verification prevents it from
+    happening (in this case, this method is not able to propose a new invariant).\\
+
+    \textbf{Decidability:} All invariants generated are universal, so it never causes any decidability issue.\\
+
+    \textbf{Simplicity:} Invariants generated are very simple. They are more focused than weakest preconditions
+    (because they are issued from one precise counterexample) and do not contain any useless litteral.\\
+
+    Almost all our criteria are fullfilled. However, it can sometimes generate incorrect invariants if the boundary \(k\) for
+    symbolic verification is too low (sometimes we can't go beyond \(k=3\) in a reasonable time).
+    Moreover, it can only generate universal invariants. Thus, in the case of non-monotonic counterexamples, it can fail to propose an invariant.
 
 \chapter{My contributions}
 
