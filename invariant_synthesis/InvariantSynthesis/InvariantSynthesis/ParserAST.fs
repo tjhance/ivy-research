@@ -72,6 +72,7 @@ open Prime
         | Module of module_decl
         | Object of string * parsed_element list
         | ObjectFromModule of string * string * string list
+        | Export of string
 
     type parsed_elements = parsed_element list
 
@@ -197,6 +198,10 @@ open Prime
             | ObjectFromModule (str, module_name, args) ->
                 test dico str
                 ObjectFromModule (str, rewrite dico module_name, List.map (rewrite dico) args)
+            | Export str ->
+                test dico str
+                Export str
+
 
         List.map (rewrite_element dico) elts
 
@@ -789,6 +794,10 @@ open Prime
                     let dico = List.fold2 (fun acc p n -> Map.add p n acc) Map.empty prev_args args
                     let elts = rewrite_elements elts dico
                     aux m (add_initializer name tmp_elements) name elts
+                | Export name ->
+                    let candidates = List.map (fun (d:AST.ActionDecl) -> d.Name) m.Actions
+                    let name = resolve_reference (Set.ofList candidates) base_name name
+                    ({ m with AST.Exports=(base_name,name)::m.Exports }, tmp_elements)
 
             List.fold treat (m,tmp_elements) elements
 

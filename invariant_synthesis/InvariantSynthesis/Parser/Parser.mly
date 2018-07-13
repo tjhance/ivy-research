@@ -8,7 +8,7 @@
 %}
 
 %token CONJECTURE TYPE ACTION RETURNS INDIVIDUAL FUNCTION RELATION MODULE OBJECT INSTANCE
-%token AFTER BEFORE AXIOM DEFINITION INSTANTIATE IMPLEMENT INTERPRET RULE
+%token AFTER BEFORE AXIOM DEFINITION INSTANTIATE IMPLEMENT INTERPRET RULE EXPORT
 
 %token SEMI_COLON LEFT_BRACE RIGHT_BRACE
 %token ASSIGN CALL IF VAR ASSERT ASSUME REQUIRE ENSURE
@@ -99,6 +99,7 @@ element:
   | OBJECT ; name = ID ; EQUAL ; list(EOL) ; els = block_of_elements { Object (name, els) }
   | INSTANCE ; name = ID ; COLON ; mod_name = ID ; args = module_args_with_infix { ObjectFromModule (name, mod_name, args) }
   | INSTANTIATE ; mod_name = ID ; args = module_args_with_infix { ObjectFromModule ("", mod_name, args) }
+  | EXPORT ; name = ID { Export name }
   ;
 
 qvar_decls_ne:

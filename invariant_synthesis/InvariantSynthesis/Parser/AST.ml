@@ -79,6 +79,7 @@ and parsed_element =
     | Module of module_decl
     | Object of string * parsed_element list
     | ObjectFromModule of string * string * string list
+    | Export of string
     [@@deriving sexp]
 
 type parsed_elements = parsed_element list [@@deriving sexp]

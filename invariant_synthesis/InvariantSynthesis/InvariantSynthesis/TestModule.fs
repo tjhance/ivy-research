@@ -3,6 +3,7 @@
     open AST
 
     module Queue =
+        open Prime
 
         type ModuleDecl = ModuleDecl<Model.TypeInfos,Model.Environment>
 
@@ -129,12 +130,14 @@
                 }
             ]
 
+        let exports = [("q","q.pop");("q","q.push")]
+
         let queue_module : ModuleDecl =
             {
                 Name=name; Types=types; Funs=funs;
                 Actions=actions; Macros=[]; Implications=impl;
                 Invariants=invariants; InterpretedActions=[];
-                Axioms = []
+                Axioms = []; Exports=exports
             }
 
 (*

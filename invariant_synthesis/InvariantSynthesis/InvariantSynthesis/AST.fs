@@ -3,7 +3,6 @@
     (* A VERY BASIC AST FOR IVY *)
 
     // TODO: Test on new examples (verdi_lock, leader election...)
-    // TODO: Rewrite the program such that all actions of the module are checked in one Z3 request, and then the right one is retrieved
     // TODO: Rewrite hard simplification with an unsat core
     // TODO: Add an other simplification method that uses using symbolic bounded verification
     // TODO: Also simplify existential parts using symbolic bounded verification
@@ -17,7 +16,7 @@
     // TODO: Handle functions with an object as return value (case of instance a(X):b(Y))
     // For that, we can consider those functions an instance of the corresponding module,
     // with an additionals first parameters for every var/fun/action/etc (that corresponds the parameters of the initial function)
-    // TODO: isolate, inductive, export, extract, interpret...
+    // TODO: isolate, inductive, extract, interpret...
     // TODO: Infer types for macro args (currently, type annotations is required)
 
     // Refactor:
@@ -118,7 +117,7 @@
 
     [<NoEquality;NoComparison>]
     type ModuleDecl<'a,'b> =
-        { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; InterpretedActions: List<InterpretedActionDecl<'a,'b>>;
+        { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; InterpretedActions: List<InterpretedActionDecl<'a,'b>>; Exports: List<string*string>;
             Actions: List<ActionDecl>; Macros: List<MacroDecl>; Invariants: List<InvariantDecl>; Implications: List<ImplicationRule> ; Axioms: List<Value> }
 
 
@@ -132,7 +131,8 @@
             Invariants=[];
             Implications=[];
             InterpretedActions=[];
-            Axioms=[]
+            Axioms=[];
+            Exports=[]
         }
 
     let default_var_decl name t =
@@ -334,13 +334,16 @@
             not (is_provenance_excluded bn)
         let filter_invariants (i:InvariantDecl) =
             not (is_provenance_excluded i.Module)
+        let filter_exports (prov,_) =
+            not (is_provenance_excluded prov)
         // TODO: filter implications & axioms
         let t = List.filter filter_types m.Types
         let f = List.filter filter_funs m.Funs
         let a = List.filter filter_actions m.Actions
         let ma = List.filter filter_macros m.Macros
         let i = List.filter filter_invariants m.Invariants
-        { ModuleDecl.Name=m.Name ; Types=t; Funs=f; Actions=a; Macros=ma; Invariants=i;
+        let e = List.filter filter_exports m.Exports
+        { ModuleDecl.Name=m.Name ; Types=t; Funs=f; Actions=a; Macros=ma; Invariants=i; Exports=e;
             Implications=m.Implications; InterpretedActions=m.InterpretedActions; Axioms=m.Axioms }
 
     // Functions on types

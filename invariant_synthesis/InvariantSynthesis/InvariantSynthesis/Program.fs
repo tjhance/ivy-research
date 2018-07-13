@@ -104,7 +104,7 @@ let manual_allowed_path (md:ModuleDecl) decls env cs m um' =
 
 // ----- AUTO MODE -----
 
-let auto_counterexample (md:ModuleDecl) decls main_module possible_actions mmds =
+let auto_counterexample (md:ModuleDecl) decls main_module mmds =
 
     //let action_args = (MinimalAST.find_action mmd action).Args
 
@@ -223,6 +223,7 @@ let main argv =
 
     while true do
         // Choose the action to analyze
+        // TODO: use exports
 
         printfn "Please enter the name of the module containing the actions to analyze (exports are not supported yet):"
         let main_module = Console.ReadLine ()
@@ -242,7 +243,7 @@ let main argv =
             let counterexample =
                 if manual
                 then manual_counterexample md decls possible_actions mmds verbose
-                else auto_counterexample md decls main_module possible_actions mmds
+                else auto_counterexample md decls main_module mmds
 
             match counterexample with
             | None -> ()
