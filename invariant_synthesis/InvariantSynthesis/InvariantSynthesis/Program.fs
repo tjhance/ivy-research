@@ -223,13 +223,10 @@ let main argv =
 
     while true do
         // Choose the action to analyze
-        // TODO: use exports
-
         printfn "Please enter the name of the module containing the actions to analyze (exports are not supported yet):"
         let main_module = Console.ReadLine ()
-        let possible_actions = List.map (fun (d:ActionDecl) -> d.Name) md.Actions
-        let possible_actions = List.filter (fun str -> let (_,v) = AST.decompose_action_name str in v = "") possible_actions
-        let possible_actions = List.filter (fun str -> let (m,_) = AST.decompose_name str in m = main_module) possible_actions
+        let possible_actions = List.filter (fun (prov,_) -> prov = main_module) md.Exports
+        let possible_actions = List.map (fun (_,str) -> str) possible_actions
 
         if not (List.isEmpty possible_actions)
         then
