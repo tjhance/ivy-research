@@ -157,7 +157,7 @@ let auto_counterexample (md:ModuleDecl) decls main_module mmds =
 let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) formula
     action (m:Marking.Marks) other_actions prev_allowed only_terminating_run =
 
-    let f = Solver.generate_allowed_path_formula md mmd env formula action m other_actions prev_allowed only_terminating_run
+    let f = Solver.generate_allowed_path_formula md mmd env formula action m other_actions prev_allowed only_terminating_run true
     match Solver.check_z3_formula md mmd (Some action) f 3000 with
     | Solver.UNSAT | Solver.UNKNOWN -> None
     | Solver.SAT (i,e) -> Some (i,e)
@@ -223,7 +223,7 @@ let main argv =
 
     while true do
         // Choose the action to analyze
-        printfn "Please enter the name of the module containing the actions to analyze (exports are not supported yet):"
+        printfn "Please enter the name of the module containing the actions to analyze:"
         let main_module = Console.ReadLine ()
         let possible_actions = List.filter (fun (prov,_) -> prov = main_module) md.Exports
         let possible_actions = List.map (fun (_,str) -> str) possible_actions

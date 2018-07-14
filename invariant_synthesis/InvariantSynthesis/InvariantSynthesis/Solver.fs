@@ -1,20 +1,36 @@
 ﻿module Solver
 
-    let z3_formula_for_constraints (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) (m:Marking.Marks) =
-        let add_var_constraint cs str = // Constraints on the arguments
+    let decompose_marks (m:Marking.Marks) =
+        let var_mark_singleton str =
+            {Marking.empty_marks with v=Set.singleton str}
+        let fun_mark_singleton (str, cvs) =
+            {Marking.empty_marks with f=Set.singleton (str, cvs)}
+        let diff_mark_singleton (cv1,cv2) =
+            {Marking.empty_marks with d=Set.singleton (cv1, cv2)}
+        let vms = List.map var_mark_singleton (m.v |> Set.toList)
+        let fms = List.map fun_mark_singleton (m.f |> Set.toList)
+        let dms = List.map diff_mark_singleton (m.d |> Set.toList)
+        vms@fms@dms
+
+    let z3_formulas_for_constraints (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) (m:Marking.Marks) =
+        let var_constraint str = // Constraints on the arguments
             let cv = Map.find str env.v
-            AST.ValueAnd (cs, AST.ValueEqual (AST.ValueVar str, AST.ValueConst cv))
-        let cs = Set.fold add_var_constraint (AST.ValueConst (AST.ConstBool true)) m.v
-        let add_fun_constraint cs (str, cvs) =
+            AST.ValueEqual (AST.ValueVar str, AST.ValueConst cv)
+        let vcs = List.map var_constraint (m.v |> Set.toList)
+        let fun_constraint (str, cvs) =
             let cv = Map.find (str, cvs) env.f
             let vs = List.map (fun cv -> AST.ValueConst cv) cvs
-            AST.ValueAnd (cs, AST.ValueEqual (AST.ValueFun (str, vs), AST.ValueConst cv))
-        let cs = Set.fold add_fun_constraint cs m.f
-        let add_diff_constraint cs (cv1, cv2) =
-            AST.ValueAnd (cs, AST.ValueNot (AST.ValueEqual (AST.ValueConst cv1, AST.ValueConst cv2)))
-        let cs = Set.fold add_diff_constraint cs m.d
-        let cs = MinimalAST.value2minimal md cs
-        WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd cs) false
+            AST.ValueEqual (AST.ValueFun (str, vs), AST.ValueConst cv)
+        let fcs = List.map fun_constraint (m.f |> Set.toList)
+        let diff_constraint (cv1, cv2) =
+            AST.ValueNot (AST.ValueEqual (AST.ValueConst cv1, AST.ValueConst cv2))
+        let dcs = List.map diff_constraint (m.d |> Set.toList)
+        let cs = vcs@fcs@dcs
+        let cs = List.map (MinimalAST.value2minimal md) cs
+        List.map (fun c -> WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd c) false) cs
+
+    let z3_formula_for_constraints (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) (m:Marking.Marks) =
+        WPR.conjunction_of (z3_formulas_for_constraints md mmd env m)
 
     let z3_formula_for_axioms_and_conjectures (mmd:MinimalAST.ModuleDecl<'a,'b>) =
         let all_invariants = MinimalAST.invariants_to_formulas mmd.Invariants
@@ -63,6 +79,20 @@
             let (mmd, _, _, (z3lvars, z3concrete_map)) = List.find (fun (_,action',_,_) -> action' = action) fs
             let args_decl = (MinimalAST.find_action mmd action).Args
             (SAT (Z3Utils.z3model_to_ast_model md z3ctx args_decl z3lvars z3concrete_map m), Some action)
+
+    let z3_unsat_core (md:AST.ModuleDecl<'a,'b>) f fs timeout =
+        let z3ctx = Z3Utils.build_context md
+
+        let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars [] z3ctx f
+        let z3e = Z3Utils.build_value z3ctx z3lvars f
+
+        let add_constraint ((z3lvars, z3concrete_map),acc) (str,f) =
+            let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars_ext [] z3ctx f (z3lvars, z3concrete_map)
+            let z3e = Z3Utils.build_value z3ctx z3lvars f
+            ((z3lvars, z3concrete_map),(str,z3e)::acc)
+        let (_,z3_es) = List.fold add_constraint ((z3lvars, z3concrete_map),[]) fs
+        
+        Z3Utils.check_conjunction z3ctx z3e z3_es timeout
     
     let find_counterexample_action md mmd action formulas =
         let axioms_conjectures = z3_formula_for_axioms_and_conjectures mmd
@@ -108,11 +138,14 @@
         !counterexample
 
     let generate_allowed_path_formula (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) formula
-        action (m:Marking.Marks) other_actions prev_allowed only_terminating_run =
+        action (m:Marking.Marks) other_actions prev_allowed only_terminating_run add_marked_constraints =
 
         // 1. Marked constraints
-        let cs = z3_formula_for_constraints md mmd env m
-
+        let cs =
+            if add_marked_constraints
+            then z3_formula_for_constraints md mmd env m
+            else WPR.Z3Const (AST.ConstBool true)
+            
         // 2. NOT Previous semi-generalized allowed examples
         let f = Formula.formula_from_marks env m prev_allowed true
         let f = AST.ValueNot f
@@ -167,8 +200,22 @@
         Set.fold keep_diff_if_necessary m m.d
 
     let simplify_marks_hard (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) action formula (m:Marking.Marks) (alt_exec:List<Marking.Marks*Model.Environment>) safe =
-        // TODO
-        // We remove local vars
+        // TODO: Fix it!
+        let f = generate_allowed_path_formula md mmd env formula action m [] alt_exec (not safe) false
+        let ms = decompose_marks m
+        let labeled_ms = List.mapi (fun i m -> (sprintf "%i" i, m)) ms
+        let labeled_cs = List.map (fun (i,m) -> (i, List.head (z3_formulas_for_constraints md mmd env m))) labeled_ms
+
+        match z3_unsat_core md f labeled_cs 5000 with
+        | (Z3Utils.SolverResult.UNSAT, lst) ->
+            let labeled_ms = List.filter (fun (str,_) -> List.contains str lst) labeled_ms
+            let ms = List.map (fun (_,m) -> m) labeled_ms
+            Marking.marks_union_many ms
+        | _ ->
+            printfn "Can't resolve unSAT core!"
+            m
+        //match check_z3_
+        (*// We remove local vars
         let m = { m with v = Set.empty }
         // We simplify functions
         let are_marks_necessary (m:Marking.Marks) (m':Marking.Marks) =
@@ -187,4 +234,4 @@
             let m' = { Marking.empty_marks with d=Set.singleton (cv1, cv2) }
             if are_marks_necessary m m'
             then m else Marking.marks_diff m m'
-        Set.fold keep_diff_if_necessary m m.d
+        Set.fold keep_diff_if_necessary m m.d*)
