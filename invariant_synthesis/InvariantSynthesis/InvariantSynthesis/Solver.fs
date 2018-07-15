@@ -80,10 +80,11 @@
             let args_decl = (MinimalAST.find_action mmd action).Args
             (SAT (Z3Utils.z3model_to_ast_model md z3ctx args_decl z3lvars z3concrete_map m), Some action)
 
-    let z3_unsat_core (md:AST.ModuleDecl<'a,'b>) f fs timeout =
+    let z3_unsat_core (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) action f fs timeout =
         let z3ctx = Z3Utils.build_context md
 
-        let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars [] z3ctx f
+        let args_decl = (MinimalAST.find_action mmd action).Args
+        let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars args_decl z3ctx f
         let z3e = Z3Utils.build_value z3ctx z3lvars f
 
         let add_constraint ((z3lvars, z3concrete_map),acc) (str,f) =
@@ -154,9 +155,12 @@
 
         // 3. Possibly valid run: WPRs & conjectures & axioms
         let wpr = z3_formula_for_wpr mmd action formula true
-        let add_wpr acc (action,mmd) =
-            let wpr = z3_formula_for_wpr mmd action formula true
-            WPR.Z3And (acc, wpr)
+        let add_wpr acc (action',mmd') =
+            if action' <> action
+            then
+                let wpr = z3_formula_for_wpr mmd' action' formula true
+                WPR.Z3And (acc, wpr)
+            else acc
         let wpr = List.fold add_wpr wpr other_actions
         let valid_run = WPR.Z3And (z3_formula_for_axioms_and_conjectures mmd, wpr)
 
@@ -200,13 +204,17 @@
         Set.fold keep_diff_if_necessary m m.d
 
     let simplify_marks_hard (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) action formula (m:Marking.Marks) (alt_exec:List<Marking.Marks*Model.Environment>) safe =
-        // TODO: Fix it!
+        // We remove local vars
+        let m = { m with v = Set.empty }
+        // We expand marks!
+        // TODO
+        // Unsat core!
         let f = generate_allowed_path_formula md mmd env formula action m [] alt_exec (not safe) false
         let ms = decompose_marks m
         let labeled_ms = List.mapi (fun i m -> (sprintf "%i" i, m)) ms
         let labeled_cs = List.map (fun (i,m) -> (i, List.head (z3_formulas_for_constraints md mmd env m))) labeled_ms
 
-        match z3_unsat_core md f labeled_cs 5000 with
+        match z3_unsat_core md mmd action f labeled_cs 5000 with
         | (Z3Utils.SolverResult.UNSAT, lst) ->
             let labeled_ms = List.filter (fun (str,_) -> List.contains str lst) labeled_ms
             let ms = List.map (fun (_,m) -> m) labeled_ms
@@ -214,24 +222,3 @@
         | _ ->
             printfn "Can't resolve unSAT core!"
             m
-        //match check_z3_
-        (*// We remove local vars
-        let m = { m with v = Set.empty }
-        // We simplify functions
-        let are_marks_necessary (m:Marking.Marks) (m':Marking.Marks) =
-            let m = Marking.marks_diff m m'
-            let f = generate_allowed_path_formula md mmd env formula action m [] alt_exec (not safe)
-            match check_z3_formula md mmd (Some action) f 1000 with
-            | UNSAT -> false
-            | _ -> true
-        let keep_funmark_if_necessary (m:Marking.Marks) (str, cvs) =
-            let m' = { Marking.empty_marks with f=Set.singleton (str, cvs) }
-            if are_marks_necessary m m'
-            then m else Marking.marks_diff m m'
-        let m = Set.fold keep_funmark_if_necessary m m.f
-        // We simplify disequalities
-        let keep_diff_if_necessary (m:Marking.Marks) (cv1, cv2) =
-            let m' = { Marking.empty_marks with d=Set.singleton (cv1, cv2) }
-            if are_marks_necessary m m'
-            then m else Marking.marks_diff m m'
-        Set.fold keep_diff_if_necessary m m.d*)

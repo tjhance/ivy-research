@@ -238,7 +238,7 @@
         | ExistingFun of string * List<ConstValue>
 
     let formula_from_marks (env:Model.Environment) (m:Marking.Marks)
-        (alt_exec:List<Marking.Marks*Model.Environment>) semi_generalization =
+        (alt_exec:List<Marking.Marks*Model.Environment>) only_alt_exec =
       
         // Associate a var to each value
         let next_name_nb = ref 0
@@ -360,7 +360,7 @@
             let constraints = Set.union constraints ineq_constraints
             constraints
 
-        let constraints = constraints_for (m, env) semi_generalization
+        let constraints = constraints_for (m, env) only_alt_exec
         let vars = all_new_vars_decl_assigned ()
 
         let alt_constraints =
@@ -379,26 +379,31 @@
                 let formula = List.fold (fun acc c -> ValueAnd (acc,c)) h constraints
                 Set.fold (fun acc vd -> ValueExists (vd, acc)) formula vars
 
+        // Alt parts
         let (formulas, _) =
             List.fold
                 (fun (formulas, declared_vars) (c, vars) ->
                     let f = formula_for c (Set.difference vars declared_vars)
                     (f::formulas, vars)
                 ) ([], vars) alt_constraints
-
+        
         let formulas =
             match formulas with
             | [] ->  ValueConst (ConstBool false)
             | h::formulas -> List.fold (fun acc c -> ValueOr (acc,c)) h formulas
 
-        // Construct the formula with the quantifiers
-        let constraints = Set.toList constraints
-        match constraints with
-        | [] -> ValueConst (ConstBool false)
-        | h::constraints ->
-            let formula = List.fold (fun acc c -> ValueAnd (acc,c)) h constraints
-            let formula = ValueImply (formula, formulas)
-            Set.fold (fun acc vd -> ValueForall (vd, acc)) formula vars
+        // Main part
+        let formula =
+            match Set.toList constraints with
+            | [] -> ValueConst (ConstBool true)
+            | h::constraints -> List.fold (fun acc c -> ValueAnd (acc,c)) h constraints
+
+        // Whole formula
+        let formula =
+            if only_alt_exec
+            then formulas
+            else ValueImply (formula, formulas)
+        Set.fold (fun acc vd -> ValueForall (vd, acc)) formula vars
 
     let rec simplify_value f =
         match f with
