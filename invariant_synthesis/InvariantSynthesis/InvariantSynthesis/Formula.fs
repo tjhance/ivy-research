@@ -54,6 +54,14 @@
     exception DoesntMatch
     exception EndCondition
 
+    let all_diffs_for_type infos t =
+        if Marking.is_model_dependent_type t then Set.empty
+        else
+            let couples = Model.all_values_ext infos [t;t]
+            let couples = Seq.map Helper.lst_to_couple couples
+            let couples = Seq.filter (fun (a,b) -> not (value_equal a b)) couples
+            Set.ofSeq couples
+
     let simplify_marks infos (impls:List<AST.ImplicationRule>) (decls:Model.Declarations) (env:Model.Environment) (m:Marking.Marks) =
 
         let value_equal cv1 cv2 = AST.value_equal cv1 cv2
@@ -117,14 +125,7 @@
                             Set.add (update_dico dico pv2 cv2) acc
                         with :? DoesntMatch -> acc
                // We add disequalities for non model-dependent types
-                let diffs_for_nmd_type t =
-                    if Marking.is_model_dependent_type t then Set.empty
-                    else
-                        let couples = Model.all_values_ext infos [t;t]
-                        let couples = Seq.map Helper.lst_to_couple couples
-                        let couples = Seq.filter (fun (a,b) -> not (value_equal a b)) couples
-                        Set.ofSeq couples
-                let nmd_diffs = diffs_for_nmd_type Bool
+                let nmd_diffs = all_diffs_for_type infos Bool
                 Set.fold aux Set.empty (Set.union diffs nmd_diffs)
 
         let all_dicos_matching_free_var vars prev_dico =

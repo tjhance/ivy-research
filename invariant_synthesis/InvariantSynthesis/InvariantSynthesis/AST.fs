@@ -3,9 +3,8 @@
     (* A VERY BASIC AST FOR IVY *)
 
     // TODO: Test on new examples (verdi_lock, leader election...)
-    // TODO: Expand marks before doing hard simplifications
     // TODO: Add an other simplification method that uses using symbolic bounded verification
-    // TODO: Also simplify existential parts using symbolic bounded verification
+    // TODO: Also simplify existential parts
 
     // TODO: Enumerated types
     // TODO: "while" loops

@@ -313,9 +313,9 @@ let main argv =
                 let m' =
                     let line = Console.ReadLine ()
                     if line = "h"
-                    then Solver.simplify_marks_hard md mmd env name formula m (!allowed_paths) false
+                    then Solver.simplify_marks_hard md mmd infos env name formula m (!allowed_paths) false
                     else if line = "s"
-                    then Solver.simplify_marks_hard md mmd env name formula m (!allowed_paths) true
+                    then Solver.simplify_marks_hard md mmd infos env name formula m (!allowed_paths) true
                     else m
 
                 let f = Formula.formula_from_marks env m' (!allowed_paths) false

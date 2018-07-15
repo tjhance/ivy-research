@@ -181,13 +181,12 @@
         // We remove local vars
         let m = { m with v = Set.empty }
         // We simplify functions
+        let axioms_conjs = z3_formula_for_axioms_and_conjectures mmd
         let are_marks_necessary (m:Marking.Marks) (m':Marking.Marks) =
             let m = Marking.marks_diff m m'
-            let axioms_conjs = z3_formula_for_axioms_and_conjectures mmd
             let constraints = z3_formula_for_constraints md mmd env (Marking.marks_union m additional_marks)
-            let funmark_constraint = z3_formula_for_constraints md mmd env m'
-
-            let f = WPR.Z3And (WPR.Z3And (axioms_conjs, constraints), WPR.Z3Not funmark_constraint)
+            let tested_constraint = z3_formula_for_constraints md mmd env m'
+            let f = WPR.Z3And (WPR.Z3And (axioms_conjs, constraints), WPR.Z3Not tested_constraint)
             match check_z3_formula md mmd None f 1000 with
             | UNSAT -> false
             | _ -> true
@@ -203,11 +202,38 @@
             then m else Marking.marks_diff m m'
         Set.fold keep_diff_if_necessary m m.d
 
-    let simplify_marks_hard (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) action formula (m:Marking.Marks) (alt_exec:List<Marking.Marks*Model.Environment>) safe =
+    let expand_marks (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) infos (env:Model.Environment) (m:Marking.Marks) =
+        // We remove local vars
+        let m = { m with v = Set.empty }
+        // We add every valid fun/diff constraint!
+        let cs = z3_formula_for_constraints md mmd env m
+        let axioms_conjs = z3_formula_for_axioms_and_conjectures mmd
+        let f = WPR.Z3And (cs, axioms_conjs)
+        let is_formula_valid f' =
+            let f = WPR.Z3And (f, WPR.Z3Not f')
+            match check_z3_formula md mmd None f 1000 with
+            | UNSAT -> true
+            | _ -> false
+        let is_funmark_valid (str, cvs) =
+            let m = { Marking.empty_marks with f=Set.singleton (str, cvs) }
+            let f = z3_formula_for_constraints md mmd env m
+            is_formula_valid f
+        let is_diff_valid (cv1, cv2) =
+            let m = { Marking.empty_marks with d=Set.singleton (cv1, cv2) }
+            let f = z3_formula_for_constraints md mmd env m
+            is_formula_valid f
+
+        let fm = List.map (fun (k,_) -> k) (Map.toList env.f)
+        let fm = List.filter is_funmark_valid fm
+        let diffs = Set.unionMany (List.map (fun (d:AST.TypeDecl) -> Formula.all_diffs_for_type infos (AST.Uninterpreted d.Name)) md.Types)
+        let diffs = Set.filter is_diff_valid diffs
+        { Marking.empty_marks with f = fm |> Set.ofList ; d = diffs }
+
+    let simplify_marks_hard (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) infos (env:Model.Environment) action formula (m:Marking.Marks) (alt_exec:List<Marking.Marks*Model.Environment>) safe =
         // We remove local vars
         let m = { m with v = Set.empty }
         // We expand marks!
-        // TODO
+        let m = expand_marks md mmd infos env m
         // Unsat core!
         let f = generate_allowed_path_formula md mmd env formula action m [] alt_exec (not safe) false
         let ms = decompose_marks m
@@ -222,3 +248,4 @@
         | _ ->
             printfn "Can't resolve unSAT core!"
             m
+        // TODO: run unsat core only for constraintd on functions, and then run unsat core for disequalities on the result?
