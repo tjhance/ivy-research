@@ -9,6 +9,8 @@
 \usepackage{amsthm}
 \usepackage{syntax}
 \usepackage{multicol}
+\usepackage[]{algorithm2e}
+%\usepackage{algorithm}
 
 \usepackage[
 breaklinks=true,colorlinks=true,
@@ -672,7 +674,54 @@ March-July 2018
         of \(E\) (at the state \(S\)).
     \end{enumerate}
 
-    To performs the step 2, we can follow these inductive rules:% TODO
+    To performs the step 2, we can use the following algorithm (a `value' is a term or a formula):
+
+    \begin{algorithm}[H]
+        \SetKwFunction{MFV}{Marks_for_value}%
+        \SetKwProg{Fn}{Function}{}{end}
+        \SetKwSwitch{Match}{Case}{Other}{match}{}{case}{otherwise}{endcase}{end}
+        \Fn{\MFV{E,V}}{
+            \KwData{an environment \(E\), a value \(V\)}
+            \KwResult{a set of marks \(M\) such that every state concurring with \(E\) on \(M\)
+            evaluates \(V\) to the same concrete value}
+
+            \Match{V}{
+                \uCase{symbol(\(V_1,\ldots,V_n\))}{
+                    Compute \(M_1,\ldots,M_n\) the marks for values \(V_1,\ldots,V_n\)\;
+                    Compute \(v_1,\ldots,v_n\) the evaluation of \(V_1,\ldots,V_n\) in \(E\)\;
+                    \KwRet{\(\{symbol(v_1,\ldots,v_n)\} \cup \bigcup M_k\)}
+                }
+                \uCase{\(F_1 \lor F_2\)}{
+                    Compute \(b_1,b_2\) the evaluation of \(F_1,F_2\) in \(E\)\;
+                    \uIf {\(b_1\)} {
+                        \KwRet{\MFV{\(F_1\)}}
+                    }
+                    \uElseIf{\(b_2\)}{
+                        \KwRet{\MFV{\(F_2\)}}
+                    }
+                    \uElse {
+                        \KwRet{\MFV{\(F_1\)} \(\cup\) \MFV{\(F_2\)}}
+                    }
+                }
+                \uCase{\(\forall x. F(x)\)}{
+                }
+                %\uCase{a value}{
+                %do this\;
+                %do that\;
+                %}
+                %\lCase{another value}{one line}
+                %\Case{last value}{
+                %do this\;
+                %break\;
+                %}
+                %\Other{
+                %for the other values\;
+                %do that\;
+                %}
+            }
+        }
+        \caption{Computing marks for a value}
+    \end{algorithm}
 
     For instance, for the formula ...% TODO
 
