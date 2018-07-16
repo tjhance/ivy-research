@@ -169,7 +169,7 @@ March-July 2018
         \item Some variables, relations and functions over these types (a variable can be considered like a function of arity 0, and a relation can be considered as a function
         which returns a boolean). These elements are mutable (their valuation can be modified by the transitions described below).
         \item Some axioms over these variables, functions and relations. Axioms are \(\exists^*\forall^*\) formulas (\( \phi_{EA} \) in the grammar below).
-        \item Some transitions that we call `actions'. An action is a \(statement\) (see the grammar below).
+        \item Some transitions that we call `actions'. An action is a \(statement\) (see the grammar below) with potentially some parameters.
         \item A special `init' action that is only executed once at the beginning (before any other action).
     \end{itemize}
 
@@ -495,10 +495,10 @@ March-July 2018
 
     In order to produce simpler invariants, we can focus our search on a concrete counterexample.
 
-    A counterexample is a pair \( (S,E) \) where \(S\) is a state that satisfies the invariant and \(E\) is an execution of one action starting from \(S\)
-    and leading to a new state \(S'\) that doesn't satisfy the invariant. \(E\) contains information that characterizes the execution of an action, that is:
-    the name of the action, concrete values for its parameters and conrete values for every potential non-deterministic choice in the action.
-    Thanks to the finite model property of EPR (section 1.3.2), we are always able to find a finite counterexample when an invariant is not inductive.
+    A counterexample is a pair \( (S,E) \) where \(S\) is a state that satisfies the current invariant and \(E\) describes the execution of an action, starting from \(S\)
+    and leading to a new state \(S'\) that doesn't satisfy the current invariant. In practice, \(E\) is composed of:
+    the name of the action to execute, concrete values for its parameters and conrete values for every potential non-deterministic choice in the action.
+    Thanks to the finite model property of EPR (section 1.3.2), we are always able to find a finite counterexample when the current invariant is not inductive.
     
     Let \( (S,E) \) be a finite counterexample.
     We can fully characterize the interpretations of \(S\) with a finite number of constraints of the form \(symbol(concrete\_value_1,\ldots,concrete\_value_n) = concrete\_value\)
@@ -638,9 +638,47 @@ March-July 2018
 
 \chapter{My contributions}
 
-    % First contribution: formalism and proofs above.
+    \section{Course of my internship}
 
-    \section{Filtering constraints using code analysis}
+    I spent the first half of my 5-months internship to study the differents aspects of IVy. I wrote some basic protocols in IVy in order to get
+    familiar with it, I read many articles in order to be aware of the state-of-the-art, etc.
+
+    Finally, I decided to work on the invariant synthesis, and more specifically the counterexammple generalization:
+    \begin{itemize}
+        \item I have proposed a new method to select the important constraints of the counterexample, based on the analysis of the execution of the counterexample.
+        This approach is quite complementary with the current IVy approach (symbolic bounded verification): both approaches can be combinated. 
+        \item I have extended this new approach with an additional process that is (sometimes) able to generate valid invariants of the form \(\forall^*\exists^*\)
+        when no universal invariant exists (for instance for the example of the section 2.4).
+        \item I have implemented a proof of concept for these methods, using the language F\# and the SMT-Solver Z3 [REF].        
+        \item I have analyzed and compared the guarantees of all these different approaches.
+    \end{itemize}
+
+    \section{Filtering constraints by analyzing the execution}
+
+    The problem we want to solve is as follows: given a counterexample (\(S,E\)) (\(S\) being the initial state and \(E\) describing the execution of an action),
+    we want to highlight a subset of constraints as small as possible, among the constraints characterizing the interpretations of \(S\) (see section 2.3), such that there is no state satisfying these constraints
+    that can be obtained through a valid execution (for non-monotonic counterexamples it is not always possible, but it will be treated in section 3.3).
+
+    To solve this problem, the IVy approach is to compute an unSAT core, by using symbolic bounded verification to characterize valid runs.
+    My approach is very different:
+    \begin{enumerate}
+        \item We compute the state \(S'\) of the counterexample after the execution of \(E\). We call `environment' the set of all constraints
+        of the form \(symbol(concrete\_value_1,\ldots,concrete\_value_n) = concrete\_value\) characterizing the interpretations of a state.
+        Let \(E'\) be the environment of \(S'\).
+        \item We try to compute a subset of constraints of \(E'\) that is sufficient to guarantee that the invariant is broken.
+        More concretely, we compute a set of `marks', a `mark' being something of the form \(symbol(concrete\_value_1,\ldots,concrete\_value_n)\)
+        that is used to point to an important constraint.
+        \item We retropopagate these marks through the execution \(E\) in order to obtain a subset of important constraints \textbf{before} the execution
+        of \(E\) (at the state \(S\)).
+    \end{enumerate}
+
+    To performs the step 2, we can follow these inductive rules:% TODO
+
+    For instance, for the formula ...% TODO
+
+    The step 3 can be performed with the inductive rules:% TODO
+
+
 
     % Complementary to symbolic bounded verification
 
