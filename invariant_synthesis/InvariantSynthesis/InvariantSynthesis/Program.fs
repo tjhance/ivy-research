@@ -295,6 +295,21 @@ let main argv =
                                 if ad_al.md
                                 then printfn "Warning: Some marks still are model-dependent! Generated invariant could be weaker than expected."
                                 let m_al = Solver.simplify_marks md mmd env m_al m
+
+                                // Printing & Minimization
+                                let f_al = Formula.formula_from_marks env m [(m_al,env_allowed)] true
+                                let f_al = Formula.simplify_value f_al
+                                printfn "%s" (Printer.value_to_string decls f_al 0)
+                                printfn "Proceed to minimization? (n:no/y:yes)"
+                                let m_al =
+                                    let line = Console.ReadLine ()
+                                    if line = "y"
+                                    then Solver.wpr_based_minimization md mmd infos env name (Map.toList mmds) formula m [(m_al, env_allowed)] (Solver.MinimizeAltExec)
+                                    else m_al
+                                let f_al = Formula.formula_from_marks env m [(m_al,env_allowed)] true
+                                let f_al = Formula.simplify_value f_al
+                                printfn "%s" (Printer.value_to_string decls f_al 0)
+
                                 allowed_paths := (m_al,env_allowed)::(!allowed_paths)
                             else printfn "ERROR: Illegal execution!"
                         | None ->
@@ -309,16 +324,16 @@ let main argv =
                 else
                     printfn "These conditions are sufficient to break the invariant!"
 
-                printfn "Proceed to more simplification? (n:no/s:safe/h:hard)"
-                let m' =
+                printfn "Proceed to minimization? (n:no/s:safe/h:hard)"
+                let m =
                     let line = Console.ReadLine ()
                     if line = "h"
-                    then Solver.simplify_marks_hard md mmd infos env name formula m (!allowed_paths) false
+                    then Solver.wpr_based_minimization md mmd infos env name (Map.toList mmds) formula m (!allowed_paths) (Solver.Hard)
                     else if line = "s"
-                    then Solver.simplify_marks_hard md mmd infos env name formula m (!allowed_paths) true
+                    then Solver.wpr_based_minimization md mmd infos env name (Map.toList mmds) formula m (!allowed_paths) (Solver.Safe)
                     else m
 
-                let f = Formula.formula_from_marks env m' (!allowed_paths) false
+                let f = Formula.formula_from_marks env m (!allowed_paths) false
                 let f = Formula.simplify_value f
 
                 printfn ""

@@ -229,13 +229,30 @@
         let diffs = Set.filter is_diff_valid diffs
         { Marking.empty_marks with f = fm |> Set.ofList ; d = diffs }
 
-    let simplify_marks_hard (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) infos (env:Model.Environment) action formula (m:Marking.Marks) (alt_exec:List<Marking.Marks*Model.Environment>) safe =
-        // We remove local vars
-        let m = { m with v = Set.empty }
-        // We expand marks!
-        let m = expand_marks md mmd infos env m
+    type MinimizationMode = Safe | Hard | MinimizeAltExec
+    let wpr_based_minimization (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) infos (env:Model.Environment) action other_actions formula (m:Marking.Marks) (alt_exec:List<Marking.Marks*Model.Environment>) (mode:MinimizationMode) =
+        let m = { m with v = Set.empty } // We remove local vars
+        let m = expand_marks md mmd infos env m // We expand marks!
+        
         // Unsat core!
-        let f = generate_allowed_path_formula md mmd env formula action m [] alt_exec (not safe) false
+        let f =
+            match mode with
+            | Safe -> generate_allowed_path_formula md mmd env formula action m other_actions alt_exec false false
+            | Hard -> generate_allowed_path_formula md mmd env formula action m other_actions alt_exec true false
+            | MinimizeAltExec ->
+                let not_valid_run = WPR.Z3Not (generate_allowed_path_formula md mmd env formula action m other_actions [] false false)
+                let f = z3_formula_for_constraints md mmd env m
+                WPR.Z3And (f, not_valid_run)
+
+        let (m, env) =
+            if mode = MinimizeAltExec then
+                assert (List.length alt_exec = 1)
+                let (m', env) = List.head alt_exec
+                let m' = { m' with v = Set.empty } // We remove local vars
+                let m' = expand_marks md mmd infos env (Marking.marks_union m m') // We expand marks!
+                (Marking.marks_diff m' m, env)
+            else (m, env)
+
         let ms = decompose_marks m
         let labeled_ms = List.mapi (fun i m -> (sprintf "%i" i, m)) ms
         let labeled_cs = List.map (fun (i,m) -> (i, List.head (z3_formulas_for_constraints md mmd env m))) labeled_ms
