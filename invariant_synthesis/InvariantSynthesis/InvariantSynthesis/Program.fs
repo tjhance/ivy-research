@@ -156,11 +156,8 @@ let auto_counterexample (md:ModuleDecl) decls main_module mmds =
 
 let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) formula
     action (m:Marking.Marks) other_actions prev_allowed only_terminating_run =
+    Solver.find_allowed_execution md mmd env formula action m other_actions prev_allowed only_terminating_run
 
-    let f = Solver.generate_allowed_path_formula md mmd env formula action m other_actions prev_allowed only_terminating_run true
-    match Solver.check_z3_formula md (Solver.args_decl_for_action mmd action) f 3000 with
-    | Solver.UNSAT | Solver.UNKNOWN -> None
-    | Solver.SAT (i,e) -> Some (i,e)
 
 // ----- MAIN -----
 
@@ -286,7 +283,7 @@ let main argv =
                 then
                     printfn "This invariant may be too strong!"
                     printfn "(Some model-dependent marks have been ignored)"
-                    printfn "Would you like to add an allowed path to the invariant? (y/n)"
+                    printfn "Would you like to weaken the invariant with an allowed execution? (y/n)"
                     let answer = ref (Console.ReadLine())
                     let only_terminating_exec = ref true
                     while !answer = "y" do
@@ -335,7 +332,7 @@ let main argv =
                                 printfn "Extending the search domain to non-terminating runs..."
                                 only_terminating_exec := false
             
-                        printfn "Would you like to add an allowed path to the invariant? (y/n)"
+                        printfn "Would you like to weaken the invariant with an allowed execution? (y/n)"
                         answer := Console.ReadLine()
                 else
                     printfn "These conditions are sufficient to break the invariant!"

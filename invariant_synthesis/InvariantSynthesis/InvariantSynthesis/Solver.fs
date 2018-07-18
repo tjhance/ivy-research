@@ -139,22 +139,13 @@
         List.iter treat_formula formulas
         !counterexample
 
-    let generate_allowed_path_formula (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) formula
-        action (m:Marking.Marks) other_actions prev_allowed only_terminating_run add_marked_constraints =
-
-        // 1. Marked constraints
-        let cs =
-            if add_marked_constraints
-            then z3_formula_for_constraints md mmd env m
-            else WPR.Z3Const (AST.ConstBool true)
-            
-        // 2. NOT Previous semi-generalized allowed examples
-        let f = Formula.formula_from_marks env m prev_allowed true
+    let not_already_allowed_state_formula (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) (m:Marking.Marks) allowed_execs =
+        let f = Formula.formula_from_marks env m allowed_execs true
         let f = AST.ValueNot f
         let f = MinimalAST.value2minimal md f
-        let f = WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd f) false
+        WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd f) false
 
-        // 3. Possibly valid run: WPRs & conjectures & axioms
+    let wpr_based_valid_state_formula (mmd:MinimalAST.ModuleDecl<'a,'b>) action other_actions formula =
         let wpr = z3_formula_for_wpr mmd action formula true
         let add_wpr acc (action',mmd') =
             if action' <> action
@@ -163,20 +154,33 @@
                 WPR.Z3And (acc, wpr)
             else acc
         let wpr = List.fold add_wpr wpr other_actions
-        let valid_run = WPR.Z3And (z3_formula_for_axioms_and_conjectures mmd, wpr)
+        WPR.Z3And (z3_formula_for_axioms_and_conjectures mmd, wpr)
 
+    let terminating_or_failing_run_formula (mmd:MinimalAST.ModuleDecl<'a,'b>) action =
+        WPR.Z3Not (WPR.wpr_for_action mmd (WPR.Z3Const (AST.ConstBool false)) action false)
+
+    let find_allowed_execution (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) formula
+        action (m:Marking.Marks) other_actions prev_allowed only_terminating_run =
+
+        // 1. Marked constraints
+        let cs = z3_formula_for_constraints md mmd env m
+        // 2. NOT previous allowed state
+        let f = not_already_allowed_state_formula md mmd env m prev_allowed
+        // 3. Possibly valid state
+        let valid_run = wpr_based_valid_state_formula mmd action other_actions formula
         // 4. If we only want a terminating run...
         let trc =
             if only_terminating_run
             then
-                // We know that the run will be valid for every argument value,
-                // so we can just search arguments such that the run does not satisfy the weakest precondition of 'false'
-                WPR.Z3Not (WPR.wpr_for_action mmd (WPR.Z3Const (AST.ConstBool false)) action false)
+                terminating_or_failing_run_formula mmd action
             else
                 WPR.Z3Const (AST.ConstBool true)
-
         // All together
-        WPR.Z3And (WPR.Z3And(cs, trc), WPR.Z3And(f,valid_run))
+        let f = WPR.Z3And (WPR.Z3And(cs, trc), WPR.Z3And(f,valid_run))
+        // Solve!
+        match check_z3_formula md (args_decl_for_action mmd action) f 3000 with
+        | UNSAT | UNKNOWN -> None
+        | SAT (i,e) -> Some (i,e)
 
     let simplify_marks (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) (m:Marking.Marks) (additional_marks:Marking.Marks) =
         // We remove local vars
@@ -238,11 +242,14 @@
         // Unsat core!
         let f =
             match mode with
-            | Safe -> generate_allowed_path_formula md mmd env formula action m other_actions alt_exec false false
-            | Hard -> generate_allowed_path_formula md mmd env formula action m other_actions alt_exec true false
+            | Safe | Hard ->
+                let f = not_already_allowed_state_formula md mmd env m alt_exec
+                let f = WPR.Z3And (f, wpr_based_valid_state_formula mmd action other_actions formula)
+                if mode = Hard
+                then WPR.Z3And (f, terminating_or_failing_run_formula mmd action)
+                else f
             | MinimizeAltExec ->
-                // TODO: fix: don't use generate_allowed_path_formula because taking the negation will quantify existentially on args. 
-                let not_valid_run = WPR.Z3Not (generate_allowed_path_formula md mmd env formula action m other_actions [] false false)
+                let not_valid_run = WPR.Z3Not (wpr_based_valid_state_formula mmd action other_actions formula)
                 let f = z3_formula_for_constraints md mmd env m
                 WPR.Z3And (f, not_valid_run)
 
