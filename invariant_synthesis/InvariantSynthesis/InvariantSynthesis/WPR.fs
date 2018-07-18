@@ -110,6 +110,11 @@
         | [] -> Z3Const (AST.ConstBool true)
         | h::tl -> List.fold (fun acc f -> Z3And (acc, f)) h tl
 
+    let disjunction_of fs =
+        match fs with
+        | [] -> Z3Const (AST.ConstBool false)
+        | h::tl -> List.fold (fun acc f -> Z3Or (acc, f)) h tl
+
     let rename_value renaming v =
         let dico = Map.map (fun _ str -> ValueVar str) renaming
         map_vars_in_value v dico
@@ -121,6 +126,35 @@
         if Set.isEmpty (Set.intersect (free_vars_of_value ctx) dependances)
         then ()
         else failwith "Can't convert value to a FO Z3 value..."
+
+    let rec map_vars_in_z3value v dico =
+        match v with
+        | Z3Const c -> Z3Const c
+        | Z3Var str ->
+            if Map.containsKey str dico
+            then Map.find str dico
+            else Z3Var str
+        | Z3Fun (str, vs) ->
+            Z3Fun (str, List.map (fun v -> map_vars_in_z3value v dico) vs)
+        | Z3Equal (v1, v2) ->
+            Z3Equal (map_vars_in_z3value v1 dico, map_vars_in_z3value v2 dico)
+        | Z3Or (v1, v2) ->
+            Z3Or (map_vars_in_z3value v1 dico, map_vars_in_z3value v2 dico)
+        | Z3And (v1, v2) ->
+            Z3And (map_vars_in_z3value v1 dico, map_vars_in_z3value v2 dico)
+        | Z3Imply (v1, v2) ->
+            Z3Imply (map_vars_in_z3value v1 dico, map_vars_in_z3value v2 dico)
+        | Z3Not v ->
+            Z3Not (map_vars_in_z3value v dico)
+        | Z3IfElse (f, v1, v2) ->
+            Z3IfElse (map_vars_in_z3value f dico, map_vars_in_z3value v1 dico, map_vars_in_z3value v2 dico)
+        | Z3Forall (d,v) ->
+            let dico = Map.remove d.Name dico
+            Z3Forall (d, map_vars_in_z3value v dico)
+        | Z3Exists (d,v) ->
+            let dico = Map.remove d.Name dico
+            Z3Exists (d, map_vars_in_z3value v dico)
+        | Z3Hole -> Z3Hole
 
     // We convert the AST to a simpler one & we rename each local variable in order for them to be unique
     let minimal_val2z3_val (m:ModuleDecl<'a,'b>) v =

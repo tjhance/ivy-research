@@ -276,7 +276,7 @@
             m
         // TODO: run unsat core only for constraintd on functions, and then run unsat core for disequalities on the result?
 
-    let is_k_invariant_formula formula actions init_actions boundary = // TODO: rename in 'has_valid_k_exec_formula'
+    let has_valid_k_execution_formula formula actions init_actions boundary =
 
         let rec compute_next_iterations acc n =
             match n with
@@ -285,17 +285,17 @@
                 //printfn "Computing level %i..." n
                 let prev = List.head acc
                 let add_wpr acc (action,mmd) =
-                    let wpr = WPR.wpr_for_action mmd prev action true // TODO: fix: don't quantify on args, but rename them so that args from different levels have different names
-                    WPR.Z3And (acc, wpr) // TODO: fix: Z3Or & add new vars to impose a unique action selection for each level
+                    let wpr = WPR.wpr_for_action mmd prev action false // TODO: fix: rename args them so that args from different levels have different names
+                    WPR.Z3Or (acc, wpr) // TODO: fix: add new vars to impose a unique action selection for each level
                 let wpr = List.fold add_wpr (WPR.Z3Const (AST.ConstBool true)) actions
                 compute_next_iterations (wpr::acc) (n-1)
 
         let paths = compute_next_iterations [formula] boundary
-        let f = WPR.conjunction_of paths // TODO: fix: Z3Or & add new vars to impose a unique action selection for each level
+        let f = WPR.disjunction_of paths // TODO: fix: add new vars to impose a unique action selection for each level
 
         // Add initializations
         let add_init acc (action,mmd) =
-            WPR.wpr_for_action mmd acc action true // TODO: fix: don't quantify on args, but rename them so that args from different levels have different names
+            WPR.wpr_for_action mmd acc action false // TODO: fix: rename them so that args from different levels have different names
         List.fold add_init f init_actions
         
     let sbv_based_minimization (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) infos (env:Model.Environment) actions init_actions (m:Marking.Marks) (alt_exec:List<Marking.Marks*Model.Environment>) boundary =
@@ -313,7 +313,7 @@
         // UnSAT core
         let formula_for_marks m =
             let f = z3_formula_for_constraints md mmd env m
-            is_k_invariant_formula f actions init_actions boundary
+            has_valid_k_execution_formula f actions init_actions boundary
 
         let ms = decompose_marks m
         let labeled_ms = List.mapi (fun i m -> (sprintf "%i" i, m)) ms
