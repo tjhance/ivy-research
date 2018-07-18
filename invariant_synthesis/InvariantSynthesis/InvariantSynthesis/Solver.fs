@@ -282,10 +282,12 @@
         // Action enum
         let actions_enum = AST.generated_name (sprintf "__action_enum")
         let actions_enum_vals = List.init (List.length actions) (fun i -> AST.compose_name actions_enum (sprintf "%i" i))
-        let action_enum_map = List.fold2 (fun acc (str,_) e_str -> Map.add str e_str acc) Map.empty actions actions_enum_vals
-        let new_enums = [(actions_enum, actions_enum_vals)]
+        let actions_enum_map = List.fold2 (fun acc (str,_) e_str -> Map.add str e_str acc) Map.empty actions actions_enum_vals
         // Level enum
-        // TODO
+        let levels_enum = AST.generated_name (sprintf "__level_enum")
+        let levels_enum_vals = List.init boundary (fun i -> AST.compose_name levels_enum (sprintf "%i" (i+1)))
+        let (levels_enum_map,_) = List.fold (fun (acc,i) e_str -> (Map.add i e_str acc, i+1)) (Map.empty,1) levels_enum_vals
+        let new_enums = [(actions_enum, actions_enum_vals);(levels_enum, levels_enum_vals)]
 
         let rename_vars mmd action suffix f =
             let args_decl = args_decl_for_action mmd action
@@ -303,12 +305,20 @@
                     let wpr = WPR.wpr_for_action mmd prev action false
                     let (wpr, new_vars') = rename_vars mmd action (sprintf "lev_%i" n) wpr
                     let new_vars = Set.union new_vars new_vars'
-                    (WPR.Z3Or (f, wpr), new_vars) // TODO: fix: add new vars to impose a unique action selection for each level
+                    let action_selection_var = AST.default_var_decl (AST.generated_name (sprintf "__action_selection_%i" n)) (AST.Enumerated actions_enum)
+                    let new_vars = Set.add action_selection_var new_vars
+                    (WPR.Z3Or (f, WPR.Z3And (wpr, WPR.Z3Equal(WPR.Z3Var action_selection_var.Name, WPR.Z3Const (AST.ConstEnumerated (actions_enum, Map.find action actions_enum_map))))), new_vars)
                 let (wpr, new_vars) = List.fold add_wpr (WPR.Z3Const (AST.ConstBool false),new_vars) actions
                 compute_next_iterations (wpr::fs,new_vars) (n-1)
 
         let (paths, new_vars) = compute_next_iterations ([formula], Set.empty) boundary
-        let f = WPR.disjunction_of paths // TODO: fix: add new vars to impose a unique action selection for each level
+        let add_length_constr (paths, new_vars, i) f =
+            let length_selection_var = AST.default_var_decl (AST.generated_name "__length_selection") (AST.Enumerated levels_enum)
+            let new_vars = Set.add length_selection_var new_vars
+            let f = WPR.Z3And (f, WPR.Z3Equal(WPR.Z3Var length_selection_var.Name, WPR.Z3Const (AST.ConstEnumerated (levels_enum, Map.find i levels_enum_map))))
+            (f::paths, new_vars, i+1)
+        let (paths, new_vars, _) = List.fold add_length_constr ([],new_vars, 1) paths
+        let f = WPR.disjunction_of paths
 
         // Add initializations
         let add_init (f, new_vars) (action,mmd) =
