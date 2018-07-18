@@ -666,9 +666,9 @@ March-July 2018
     To solve this problem, the IVy approach is to compute an unSAT core, by using symbolic bounded verification to characterize valid runs.
     My approach is very different:
     \begin{enumerate}
-        \item We compute the state \(S'\) of the counterexample after the execution of \(E\). We call `environment' the set of all constraints
+        \item We call `environment' the set of all constraints
         of the form \(symbol(concrete\_value_1,\ldots,concrete\_value_n) = concrete\_value\) characterizing the interpretations of a state.
-        Let \(E'\) be the environment of \(S'\).
+        We compute \(E'\) the environment of the state \(S'\) obtained after the execution of \(E\) on \(S\).
         \item We try to compute a subset of constraints of \(E'\) that is sufficient to guarantee that the invariant is broken.
         More concretely, we compute a set of `marks', a `mark' being something of the form \(symbol(concrete\_value_1,\ldots,concrete\_value_n)\)
         that is used to point to an important constraint.
@@ -691,41 +691,40 @@ March-July 2018
                 \uCase{symbol(\(V_1,\ldots,V_n\))}{
                     Compute \(M_1,\ldots,M_n\) the marks for \(V_1,\ldots,V_n\)\;
                     Compute \(v_1,\ldots,v_n\) the evaluation of \(V_1,\ldots,V_n\) in \(E\)\;
-                    \KwRet{\(\{symbol(v_1,\ldots,v_n)\} \cup \bigcup M_k\)}
+                    \KwRet{\(\{symbol(v_1,\ldots,v_n)\} \cup \bigcup M_k\)}\;
+                }
+                \uCase{\(\neg F\)}{
+                    \KwRet{\MFV{\(F\)}}\;
                 }
                 \uCase{\(F_1 \lor F_2\)}{
                     Compute \(b_1,b_2\) the evaluation of \(F_1,F_2\) in \(E\)\;
                     \uIf {\(b_1\)} {
-                        \KwRet{\MFV{\(F_1\)}}
+                        \KwRet{\MFV{\(F_1\)}}\;
                     }
                     \uElseIf{\(b_2\)}{
-                        \KwRet{\MFV{\(F_2\)}}
+                        \KwRet{\MFV{\(F_2\)}}\;
                     }
                     \uElse {
-                        \KwRet{\MFV{\(F_1\)} \(\cup\) \MFV{\(F_2\)}}
+                        \KwRet{\MFV{\(F_1\)} \(\cup\) \MFV{\(F_2\)}}\;
                     }
                 }
                 \uCase{\(\forall x. F(x)\)}{
+                    \uIf {there exists \(x_F\) such that \(\neg F(x_F)\)} {
+                        \KwRet{\MFV{\(F(x_F)\)}}\;
+                    }
+                    \uElse {
+                        \tcc{potential non-monotonicity, see section 3.3}
+                    }
                 }
-                %\uCase{a value}{
-                %do this\;
-                %do that\;
-                %}
-                %\lCase{another value}{one line}
-                %\Case{last value}{
-                %do this\;
-                %break\;
-                %}
-                %\Other{
-                %for the other values\;
-                %do that\;
-                %}
+                \uCase{\(\ldots\)}{}
             }
         }
         \caption{Computing marks for a term or a formula}
     \end{algorithm}
 
-    For instance, for the formula ...% TODO
+    For instance, at the end of the counterexample of the section 2.4,
+    the formula \(dom(elt) \rightarrow f(elt,img)\) is not satisfied and the constraints that ensure it are:\\
+    \( \{ elt=a_1\ ;\ dom(a_1)=true\ ;\ img=b_0\ ;\ f(a_1,b_0)=false \} \)
 
     The step 3 can be performed with the inductive rules:% TODO
 
