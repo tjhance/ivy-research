@@ -7,12 +7,14 @@
         | ConstVoid -> "()"
         | ConstBool b -> sprintf "%b" b
         | ConstInt (_,i) -> sprintf "%i" i
+        | ConstEnumerated (_,str) -> sprintf "%s" str
 
     let type_to_string t =
         match t with
         | Void -> "void"
         | Bool -> "bool"
         | Uninterpreted str -> str
+        | Enumerated str -> str
 
     let var_decl_to_string (vd:VarDecl) =
         match vd.Representation.DisplayName with

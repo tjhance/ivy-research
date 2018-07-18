@@ -11,10 +11,10 @@
             let trs = trace_statements m infos env sts
             TrAtomicGroup((env, final_env_of_trs trs env, are_fully_executed trs), trs)
         | NewBlock (decls, ss) ->
-            let env' = Interpreter.enter_new_block infos env decls (List.map (fun _ -> None) decls)
+            let env' = Interpreter.enter_new_block m env decls (List.map (fun _ -> None) decls)
             let trs = trace_statements m infos env' ss
             let env' = final_env_of_trs trs env'
-            let env' = Interpreter.leave_block infos env' decls env
+            let env' = Interpreter.leave_block env' decls env
             let rd = (env, env', are_fully_executed trs)
             TrNewBlock (rd, decls, trs)
         | VarAssign (str, v) ->
@@ -39,10 +39,10 @@
         | IfSomeElse (decl, v, sif, selse) ->
             match Interpreter.if_some_value m infos env decl v with
             | Some value ->
-                let env' = Interpreter.enter_new_block infos env [decl] [Some value]
+                let env' = Interpreter.enter_new_block m env [decl] [Some value]
                 let tr = trace_statement m infos env' sif
                 let env' = final_env tr
-                let env' = Interpreter.leave_block infos env' [decl] env
+                let env' = Interpreter.leave_block env' [decl] env
                 let rd = (env, env', is_fully_executed tr)
                 TrIfSomeElse (rd, Some value, decl, v, tr)
             | None ->
@@ -72,7 +72,7 @@
 
     and trace_inline_action (m:ModuleDecl) infos (env:Model.Environment) input output (effect:Model.Environment->TrStatement) vs assigned_var_name =
         let cvs = Interpreter.evaluate_values m infos env vs
-        let env' = Interpreter.enter_new_block infos env (output::input) (None::(List.map (fun a -> Some a) cvs))
+        let env' = Interpreter.enter_new_block m env (output::input) (None::(List.map (fun a -> Some a) cvs))
         let tr = effect env'
         let env' = final_env tr
 
@@ -80,11 +80,11 @@
             if is_fully_executed tr
             then
                 match Map.tryFind output.Name env'.v with
-                | None -> Some (AST.type_default_value output.Type)
+                | None -> Some (AST.type_default_value m.Types output.Type)
                 | Some cv -> Some cv
             else None
 
-        let env' = Interpreter.leave_block infos env' (output::input) env
+        let env' = Interpreter.leave_block env' (output::input) env
 
         let rd =
             match res with

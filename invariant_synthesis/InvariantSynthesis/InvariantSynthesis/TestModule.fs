@@ -11,7 +11,7 @@
 
         let name = "Queue"
 
-        let types : List<TypeDecl> = [{Name="incrementable.t"} ; {Name="data"}]
+        let types : List<TypeDecl> = [{Name="incrementable.t" ; Infos=UninterpretedTypeDecl} ; {Name="data" ; Infos=UninterpretedTypeDecl}]
 
         let funs : List<FunDecl> =
             [

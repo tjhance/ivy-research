@@ -24,12 +24,14 @@
         | AST.Void -> false
         | AST.Bool -> false
         | AST.Uninterpreted _ -> true
+        | AST.Enumerated _ -> false
 
     let is_model_dependent_value cv =
         match cv with
         | AST.ConstVoid -> false
         | AST.ConstBool _ -> false
         | AST.ConstInt _ -> true
+        | AST.ConstEnumerated _ -> false
 
     let marks_count m =
         (Set.count m.f) + (Set.count m.v) + (Set.count m.d)
@@ -136,7 +138,7 @@
         let (v, cfgs) =
             match v with
             | ValueConst c -> (c, Set.singleton empty_config)
-            | ValueStar t -> (AST.type_default_value t, Set.singleton empty_config)
+            | ValueStar t -> (AST.type_default_value mdecl.Types t, Set.singleton empty_config)
             | ValueVar str ->
                 let eval = evaluate_value mdecl infos env (ValueVar str)
                 if Set.contains str uvar
@@ -216,7 +218,7 @@
                     is_model_dependent_type decl.Type && 
                     (not (Set.isEmpty uvar) || evaluate_value mdecl infos env (ValueForall (decl, v)) = AST.ConstBool true)
                 let uvar = if is_uvar then Set.add decl.Name uvar else uvar
-                let values = List.ofSeq (Model.all_values infos decl.Type)
+                let values = List.ofSeq (Model.all_values mdecl.Types infos decl.Type)
                 let all_possibilities = List.map (fun cv -> marks_for_value_with mdecl infos env uvar v [decl.Name] [cv]) values
                 if Seq.forall (fun (b,_) -> b = AST.ConstBool true) all_possibilities
                 then

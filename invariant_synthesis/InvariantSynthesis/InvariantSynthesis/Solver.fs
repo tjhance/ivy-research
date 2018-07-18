@@ -230,7 +230,7 @@
 
         let fm = List.map (fun (k,_) -> k) (Map.toList env.f)
         let fm = List.filter is_funmark_valid fm
-        let diffs = Set.unionMany (List.map (fun (d:AST.TypeDecl) -> Formula.all_diffs_for_type infos (AST.Uninterpreted d.Name)) md.Types)
+        let diffs = Set.unionMany (List.map (fun (d:AST.TypeDecl) -> Formula.all_diffs_for_type md.Types infos (AST.Uninterpreted d.Name)) md.Types)
         let diffs = Set.filter is_diff_valid diffs
         { Marking.empty_marks with f = fm |> Set.ofList ; d = diffs }
 

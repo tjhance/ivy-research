@@ -9,12 +9,13 @@
         | AST.Void -> failwith "Void type has no sort!"
         | AST.Bool -> ctx.BoolSort :> Sort
         | AST.Uninterpreted str -> Map.find str sorts :> Sort
+        | AST.Enumerated str -> Map.find str sorts :> Sort
 
     [<NoComparison>]
     type ModuleContext =
         {
             Context: Context ;
-            Sorts: Map<string, UninterpretedSort> ;
+            Sorts: Map<string, Sort> ;
             Funs: Map<string, FuncDecl>
         }
 
@@ -24,7 +25,9 @@
         let funs = ref Map.empty
 
         for d in m.Types do
-            sorts := Map.add d.Name (ctx.MkUninterpretedSort(d.Name)) (!sorts)
+            match d.Infos with
+            | AST.UninterpretedTypeDecl -> sorts := Map.add d.Name (ctx.MkUninterpretedSort(d.Name) :> Sort) (!sorts)
+            | AST.EnumeratedTypeDecl strs -> sorts := Map.add d.Name (ctx.MkEnumSort(d.Name, List.toArray strs) :> Sort) (!sorts)
         for d in m.Funs do
             let domain = List.map (sort_of_type ctx (!sorts)) d.Input
             let range = sort_of_type ctx (!sorts) d.Output
@@ -64,21 +67,24 @@
     let declare_lvars<'a,'b> args (ctx:ModuleContext) v =
         declare_lvars_ext args ctx v (Map.empty, [])
 
-    let expr_of_cv (ctx:Context) lvars cv =
+    let expr_of_cv (ctx:ModuleContext) lvars cv =
         match cv with
         | AST.ConstVoid -> failwith "Void value is not a valid expression!"
-        | AST.ConstBool true -> ctx.MkTrue() :> Expr
-        | AST.ConstBool false -> ctx.MkFalse() :> Expr
+        | AST.ConstBool true -> ctx.Context.MkTrue() :> Expr
+        | AST.ConstBool false -> ctx.Context.MkFalse() :> Expr
         | AST.ConstInt (t, i) ->
             let name = name_of_constint (t,i)
             let fd = Map.find name lvars
-            ctx.MkConst(fd)
+            ctx.Context.MkConst(fd)
+        | AST.ConstEnumerated (t, str) ->
+            let esort = Map.find t ctx.Sorts :?> EnumSort
+            ctx.Context.MkConst (Array.find (fun (fd:FuncDecl) -> fd.Name.ToString() = str) esort.ConstDecls)
 
     let build_value<'a,'b> (ctx:ModuleContext) lvars (v:Z3Value) =
 
         let rec aux qvars v =
             match v with
-            | Z3Const cv -> expr_of_cv ctx.Context lvars cv
+            | Z3Const cv -> expr_of_cv ctx lvars cv
             | Z3Var str ->
                 if Map.containsKey str lvars
                 then ctx.Context.MkConst (Map.find str lvars)
@@ -202,11 +208,17 @@
             (SAT s.Model, [])
         | _ -> failwith "Solver returned an unknown status..."
 
-    let cv_of_expr_str const_cv_map str =
+    let cv_of_expr_str (m:AST.ModuleDecl<'a,'b>) const_cv_map str =
         match str with
         | "true" -> AST.ConstBool true
         | "false" -> AST.ConstBool false
-        | str -> AST.ConstInt (Map.find str const_cv_map)
+        | str ->
+            if Map.containsKey str const_cv_map
+            then AST.ConstInt (Map.find str const_cv_map)
+            else
+                let etypes = AST.all_enumerated_values m.Types |> Set.toList
+                let (t,str) = List.find (fun (_,str') -> str'=str) etypes
+                AST.ConstEnumerated (t, str)
 
     let universe_for_sorts (model:Model) (sorts:List<Sort>) =
         let univs = List.map (fun s -> model.SortUniverse s) sorts
@@ -260,7 +272,7 @@
 
         // Environment
         let cv_of_expr (e:Expr) =
-            cv_of_expr_str const_cv_map (e.FuncDecl.Name.ToString())
+            cv_of_expr_str m const_cv_map (e.FuncDecl.Name.ToString())
 
         let treat_var acc (decl:VarDecl) =
             if Map.containsKey decl.Name lvars // For action args, the symbol sometimes does not exists (if useless)
@@ -272,16 +284,16 @@
                     let cv = cv_of_expr expr
                     Map.add decl.Name cv acc
                 else
-                    Map.add decl.Name (AST.type_default_value decl.Type) acc
+                    Map.add decl.Name (AST.type_default_value m.Types decl.Type) acc
             else
-                Map.add decl.Name (AST.type_default_value decl.Type) acc
+                Map.add decl.Name (AST.type_default_value m.Types decl.Type) acc
 
         let vars_env = List.fold treat_var Map.empty args
 
         let treat_fun acc (d:FunDecl) =
             // Default vals
-            let all_entries = Model.all_values_ext type_infos d.Input
-            let default_val = AST.type_default_value d.Output
+            let all_entries = Model.all_values_ext m.Types type_infos d.Input
+            let default_val = AST.type_default_value m.Types d.Output
             let acc = Seq.fold (fun acc cvs -> Map.add (d.Name, cvs) default_val acc) acc all_entries
             // Z3 Entries
             let fd = Map.find d.Name ctx.Funs

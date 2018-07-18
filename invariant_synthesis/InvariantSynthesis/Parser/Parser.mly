@@ -75,7 +75,8 @@ elements:
   list (EOL) ; obj = list(elements_aux) { obj } ;
 
 element:
-  | TYPE ; name = ID { Type name }
+  | TYPE ; name = ID { Type (name, None) }
+  | TYPE ; name = ID ; EQUAL ; LEFT_BRACE ; ds = enum_decls ; RIGHT_BRACE { Type (name, Some ds) }
   | INTERPRET ; t = ID ; RIGHT_ARROW ; str = ID { Interpret (t, str) }
   | INDIVIDUAL ; d = decl { Variable d }
   | FUNCTION ; name = ID ; LEFT_PARENTHESIS ; ds = qvar_decls; RIGHT_PARENTHESIS ; COLON ; t = ivy_type { Function(name, type_of_decls(ds), t, false) }
@@ -127,6 +128,9 @@ action_ret:
   | RETURNS ; LEFT_PARENTHESIS ; d = decl; RIGHT_PARENTHESIS { Some d }
   | { None }
   ;
+
+enum_decls:
+  obj = separated_list(COMMA, ID) { obj } ;
 
 module_decls:
   obj = separated_list(COMMA, ID) { obj } ;

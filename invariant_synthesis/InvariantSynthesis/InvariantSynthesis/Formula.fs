@@ -54,15 +54,15 @@
     exception DoesntMatch
     exception EndCondition
 
-    let all_diffs_for_type infos t =
+    let all_diffs_for_type types infos t =
         if Marking.is_model_dependent_type t then Set.empty
         else
-            let couples = Model.all_values_ext infos [t;t]
+            let couples = Model.all_values_ext types infos [t;t]
             let couples = Seq.map Helper.lst_to_couple couples
             let couples = Seq.filter (fun (a,b) -> not (value_equal a b)) couples
             Set.ofSeq couples
 
-    let simplify_marks infos (impls:List<AST.ImplicationRule>) (decls:Model.Declarations) (env:Model.Environment) (m:Marking.Marks) =
+    let simplify_marks types infos (impls:List<AST.ImplicationRule>) (decls:Model.Declarations) (env:Model.Environment) (m:Marking.Marks) =
 
         let value_equal cv1 cv2 = AST.value_equal cv1 cv2
 
@@ -124,8 +124,9 @@
                             let dico = update_dico prev_dico pv1 cv1
                             Set.add (update_dico dico pv2 cv2) acc
                         with :? DoesntMatch -> acc
-               // We add disequalities for non model-dependent types
-                let nmd_diffs = all_diffs_for_type infos Bool
+                // We add disequalities for non model-dependent types
+                let nmd_diffs = all_diffs_for_type types infos Bool
+                let nmd_diffs = Set.unionMany (nmd_diffs::(List.map (all_diffs_for_type types infos) (AST.all_enumerated_types types)))
                 Set.fold aux Set.empty (Set.union diffs nmd_diffs)
 
         let all_dicos_matching_free_var vars prev_dico =
@@ -134,7 +135,7 @@
                 else true
             let free_vars = Set.toList (Set.filter is_free_var vars)
             let free_types = List.map (fun (v:VarDecl) -> v.Type) free_vars
-            let all_values = Model.all_values_ext infos free_types
+            let all_values = Model.all_values_ext types infos free_types
             let aux dico free_vars cvs =
                 List.fold2 (fun acc (v:VarDecl) cv -> Map.add v.Name cv acc) dico free_vars cvs
             Seq.map (aux prev_dico free_vars) all_values

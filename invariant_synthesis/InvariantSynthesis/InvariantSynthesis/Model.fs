@@ -49,16 +49,20 @@
     let add_var_declaration (d:VarDecl) (ds:Declarations) =
         { ds with v=Map.add d.Name d ds.v }
 
-    let all_values infos data_type =
+    let all_values types infos data_type =
         match data_type with
         | Void -> Seq.singleton ConstVoid
         | Bool -> [ConstBool false; ConstBool true] |> Seq.ofList
         | Uninterpreted s ->
             let max = Map.find s infos
             seq { for x in 0..max -> ConstInt (s, x) }
+        | Enumerated s ->
+            match (find_type types s).Infos with
+            | EnumeratedTypeDecl lst -> List.toSeq (List.map (fun str -> ConstEnumerated (s,str)) lst)
+            | _ -> failwith "Not an enumerated type!"
 
-    let all_values_ext infos lst =
-        let lst = List.map (all_values infos) lst
+    let all_values_ext types infos lst =
+        let lst = List.map (all_values types infos) lst
         Helper.all_choices_combination lst
 
     let cardinal infos =
@@ -86,8 +90,8 @@
             List.fold
                 (fun acc (fdecl:FunDecl) ->
                     Seq.fold (fun acc input ->
-                        Map.add (fdecl.Name, input) (AST.type_default_value fdecl.Output) acc)
-                        acc (all_values_ext type_infos fdecl.Input)
+                        Map.add (fdecl.Name, input) (AST.type_default_value m.Types fdecl.Output) acc)
+                        acc (all_values_ext m.Types type_infos fdecl.Input)
                 ) Map.empty m.Funs
         // Apply constraints
         let fun_env =

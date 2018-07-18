@@ -16,7 +16,7 @@ type ivy_type =
     | Uninterpreted of string
     [@@deriving sexp]
 
-type type_decl = string [@@deriving sexp]
+type type_decl = string * string list opt [@@deriving sexp]
 type fun_decl = string * ivy_type list * ivy_type * bool (* Infix? *) [@@deriving sexp]
 type var_decl = string * ivy_type [@@deriving sexp]
 

@@ -12,7 +12,7 @@ open Prime
         | Bool
         | Uninterpreted of string
 
-    type type_decl = string
+    type type_decl = string * string list option
     type fun_decl = string * ivy_type list * ivy_type * bool (* Infix? *)
     type var_decl = string * ivy_type
 
@@ -162,7 +162,7 @@ open Prime
 
         let rec rewrite_element dico elt =
             match elt with
-            | Type str -> test dico str ; Type str
+            | Type (str,strs_opt) -> test dico str ; Option.iter (List.iter (test dico)) strs_opt ; Type (str, strs_opt)
             | Interpret (t,str) -> Interpret (rewrite dico t, str)
             | Function (str, args, ret_t, b) ->
                 test dico str
@@ -362,19 +362,24 @@ open Prime
                     if not (types_match ret_val (Some (Map.find str st_local_vars))) then raise (NoMatch (sprintf "Local var %s has wrong return type!" str))
                     (local_vars_types, AST.ExprVar str)
                 else
+                    let candidates_et = Set.map (fun (t,str) -> (str, [], AST.Enumerated t, "et")) (AST.all_enumerated_values m.Types)
                     let candidates_f = Set.map (fun (d:AST.FunDecl) -> (d.Name, d.Input, d.Output, "f")) (Set.ofList m.Funs)
                     let candidates_m = Set.map (fun (d:AST.MacroDecl) -> (d.Name, List.map (fun (d:AST.VarDecl) -> d.Type) d.Args, d.Output, "m")) (Set.ofList m.Macros)
                     let candidates_a = Set.map (fun (d:AST.ActionDecl) -> (d.Name, List.map (fun (d:AST.VarDecl) -> d.Type) d.Args, d.Output.Type, "a")) (Set.ofList m.Actions)
                     let candidates_i = Set.ofList (List.map (fun (d:InterpretedActionDecl) -> (d.Name, d.Args, d.Output, "i")) m.InterpretedActions)
-                    let candidates = Set.unionMany [candidates_f;candidates_m;candidates_a;candidates_i]
+                    let candidates = Set.unionMany [candidates_et;candidates_f;candidates_m;candidates_a;candidates_i]
                     let candidates = Set.filter (fun (name,_,_,_) -> has_reference_name name str) candidates
                     let candidates = Set.filter (fun (_,_,ret,_) -> types_match ret_val (Some ret)) candidates
-                    let results = Set.fold (fun acc (str,args,_,descr) -> match proceed_if_possible local_vars_types args es with None -> acc | Some r -> (descr,str,r)::acc) [] candidates
+                    let results = Set.fold (fun acc (str,args,o,descr) -> match proceed_if_possible local_vars_types args es with None -> acc | Some r -> (descr,str,o,r)::acc) [] candidates
 
                     if List.length results = 1
                     then
-                        let (descr,str,(local_vars_types, res_es)) = List.head results
+                        let (descr,str,o,(local_vars_types, res_es)) = List.head results
                         match descr with
+                        | "et" ->
+                            match o with
+                            | AST.Enumerated type_str -> (local_vars_types, AST.ExprConst (AST.ConstEnumerated (type_str,str)))
+                            | _ -> failwith "Internal error..."
                         | "f" -> (local_vars_types, AST.ExprFun (str,res_es))
                         | "m" -> (local_vars_types, AST.ExprMacro (str,List.map AST.expr_to_value res_es))
                         | "a" -> (local_vars_types, AST.ExprAction (str, res_es))
@@ -683,10 +688,16 @@ open Prime
 
             let rec treat (m,tmp_elements) e =
                 match e with
-                | Type name ->
+                | Type (name, elts_opt) ->
                     let name = compose_name base_name name
-                    let m = { m with AST.Types=({ AST.Name = name }::m.Types) }
-                    (add_predefined_functions_and_macros name m, tmp_elements)
+                    match elts_opt with
+                    | None -> 
+                        let m = { m with AST.Types=({ AST.Name = name ; AST.Infos = AST.UninterpretedTypeDecl }::m.Types) }
+                        (add_predefined_functions_and_macros name m, tmp_elements)
+                    | Some elts ->
+                        let elts = List.map (fun str -> compose_name name str) elts
+                        let m = { m with AST.Types=({ AST.Name = name ; AST.Infos = AST.EnumeratedTypeDecl elts }::m.Types) }
+                        (m, tmp_elements)
                 | Interpret (t, str) ->
                     match str with
                     | "int" ->

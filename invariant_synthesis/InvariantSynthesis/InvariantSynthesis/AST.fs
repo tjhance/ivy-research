@@ -4,7 +4,6 @@
 
     // TODO: Test on new examples (verdi_lock, leader election...)
 
-    // TODO: Enumerated types
     // TODO: "while" loops
     // TODO: "if some" with multiple var decls
     // TODO: Allow multiple return values for actions.
@@ -24,11 +23,13 @@
         | Void
         | Bool
         | Uninterpreted of string
+        | Enumerated of string
 
     type RepresentationFlags = Infix
     type RepresentationInfos = { DisplayName: string option; Flags: Set<RepresentationFlags> }
 
-    type TypeDecl = { Name: string }
+    type TypeDeclInfo = UninterpretedTypeDecl | EnumeratedTypeDecl of List<string>
+    type TypeDecl = { Name: string; Infos: TypeDeclInfo }
     type FunDecl = { Name: string; Input: List<Type>; Output: Type; Representation: RepresentationInfos }
     type VarDecl = { Name: string; Type: Type; Representation: RepresentationInfos }
 
@@ -48,6 +49,7 @@
         | ConstVoid // Only used for actions that return nothing
         | ConstBool of bool // Type name, value
         | ConstInt of string * int // Type name, value
+        | ConstEnumerated of string * string
 
     (* No side effects *)
     type Value =
@@ -189,6 +191,22 @@
         name = reference_name || name.EndsWith(sprintf "%c%s" name_separator reference_name)
 
     // Utility functions
+
+    let find_type types str =
+        List.find (fun (decl:TypeDecl) -> decl.Name = str) types
+
+    let all_enumerated_types types =
+        let et = List.filter (fun (t:TypeDecl) -> match t.Infos with EnumeratedTypeDecl _ -> true | _ -> false) types
+        List.map (fun (t:TypeDecl) -> Enumerated t.Name) et
+
+    let all_enumerated_values types =
+        let add_values acc (t:TypeDecl) =
+            match t.Infos with
+            | UninterpretedTypeDecl -> acc
+            | EnumeratedTypeDecl strs ->
+                let strs = List.map (fun str -> (t.Name,str)) strs
+                Set.union (Set.ofList strs) acc
+        List.fold add_values Set.empty types
 
     let find_function (m:ModuleDecl<'a,'b>) str =
         List.find (fun (decl:FunDecl) -> decl.Name = str) m.Funs
@@ -353,18 +371,23 @@
         | ConstVoid -> Void
         | ConstBool _ -> Bool
         | ConstInt (s,_) -> Uninterpreted s
+        | ConstEnumerated (s,_) -> Enumerated s
 
     // Note: In Marking.fs, operations like Set.contains or Set.remove doesn't take value_equal into account.
     let value_equal v1 v2 = v1=v2
 
     let type_equal t1 t2 = t1=t2
 
-    let type_default_value t =
+    let type_default_value types t =
         match t with
         | Void -> ConstVoid
         | Bool -> ConstBool false
         | Uninterpreted str -> ConstInt (str, 0)
-
+        | Enumerated str ->
+            match (find_type types str).Infos with
+            | EnumeratedTypeDecl (h::_) -> ConstEnumerated (str,h)
+            | _ -> failwith "No default value for this type!"
+            
     let rec type_of_value<'a,'b> (m:ModuleDecl<'a,'b>) value dico =
         match value with
         | ValueConst cv -> type_of_const_value cv

@@ -47,6 +47,7 @@ let manual_counterexample (md:ModuleDecl) decls possible_actions mmds verbose =
                         | Void -> ConstVoid
                         | Bool -> ConstBool (Convert.ToBoolean (Console.ReadLine()))
                         | Uninterpreted str -> ConstInt (str, Convert.ToInt32 (Console.ReadLine()))
+                        | Enumerated str -> ConstEnumerated (str, Console.ReadLine())
                     { acc with v = Map.add vd.Name cv acc.v }
             )
             env args_decl
@@ -271,8 +272,8 @@ let main argv =
                     printfn "%A" um
                     printfn "%A" ad
 
-                let m = Solver.simplify_marks md mmd env m (Marking.empty_marks)//Formula.simplify_marks infos md.Implications decls env m
-                let um = Solver.simplify_marks md mmd env um (Marking.empty_marks) //Formula.simplify_marks infos md.Implications decls env um
+                let m = Solver.simplify_marks md mmd env m (Marking.empty_marks)//Formula.simplify_marks m.Types infos md.Implications decls env m
+                let um = Solver.simplify_marks md mmd env um (Marking.empty_marks) //Formula.simplify_marks m.Types infos md.Implications decls env um
                 let f = Formula.formula_from_marks env m [] false
                 let f = Formula.simplify_value f
                 printfn "%s" (Printer.value_to_string decls f 0)
