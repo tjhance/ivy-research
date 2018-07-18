@@ -67,7 +67,11 @@
     let declare_lvars<'a,'b> args (ctx:ModuleContext) v =
         declare_lvars_ext args ctx v (Map.empty, [])
 
-    let expr_of_cv (ctx:ModuleContext) lvars cv =
+    let declare_new_enumerated_type_ext<'a,'b> (str:string, vs) (ctx:ModuleContext) lenums =
+        let sort = ctx.Context.MkEnumSort (str, List.toArray vs)
+        Map.add str sort lenums
+
+    let expr_of_cv (ctx:ModuleContext) lvars lenums cv =
         match cv with
         | AST.ConstVoid -> failwith "Void value is not a valid expression!"
         | AST.ConstBool true -> ctx.Context.MkTrue() :> Expr
@@ -77,14 +81,19 @@
             let fd = Map.find name lvars
             ctx.Context.MkConst(fd)
         | AST.ConstEnumerated (t, str) ->
-            let esort = Map.find t ctx.Sorts :?> EnumSort
+            let esort =
+                if Map.containsKey t lenums
+                then
+                    Map.find t lenums
+                else
+                    Map.find t ctx.Sorts :?> EnumSort
             ctx.Context.MkConst (Array.find (fun (fd:FuncDecl) -> fd.Name.ToString() = str) esort.ConstDecls)
 
-    let build_value<'a,'b> (ctx:ModuleContext) lvars (v:Z3Value) =
+    let build_value<'a,'b> (ctx:ModuleContext) lvars lenums (v:Z3Value) =
 
         let rec aux qvars v =
             match v with
-            | Z3Const cv -> expr_of_cv ctx lvars cv
+            | Z3Const cv -> expr_of_cv ctx lvars lenums cv
             | Z3Var str ->
                 if Map.containsKey str lvars
                 then ctx.Context.MkConst (Map.find str lvars)
@@ -216,6 +225,7 @@
             if Map.containsKey str const_cv_map
             then AST.ConstInt (Map.find str const_cv_map)
             else
+                // Note: local enumerated types are not supported for now
                 let etypes = AST.all_enumerated_values m.Types |> Set.toList
                 let (t,str) = List.find (fun (_,str') -> str'=str) etypes
                 AST.ConstEnumerated (t, str)
@@ -224,7 +234,7 @@
         let univs = List.map (fun s -> model.SortUniverse s) sorts
         Helper.all_choices_combination univs
 
-    let z3model_to_ast_model<'a,'b> (m:AST.ModuleDecl<'a,'b>) (ctx:ModuleContext) args lvars 
+    let z3model_to_ast_model<'a,'b> (m:AST.ModuleDecl<'a,'b>) (ctx:ModuleContext) args lvars
         z3concrete_map (model:Model)
         : (Model.TypeInfos * Model.Environment) =
 

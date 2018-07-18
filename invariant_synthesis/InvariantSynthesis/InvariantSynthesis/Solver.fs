@@ -54,7 +54,7 @@
     let check_z3_formula (md:AST.ModuleDecl<'a,'b>) args_decl f timeout =
         let z3ctx = Z3Utils.build_context md
         let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars args_decl z3ctx f
-        let z3e = Z3Utils.build_value z3ctx z3lvars f
+        let z3e = Z3Utils.build_value z3ctx z3lvars Map.empty f
         match Z3Utils.check z3ctx z3e timeout with
         | Z3Utils.UNSAT -> UNSAT
         | Z3Utils.UNKNOWN -> UNKNOWN
@@ -64,12 +64,12 @@
         let z3ctx = Z3Utils.build_context md
 
         let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars [] z3ctx f
-        let z3e = Z3Utils.build_value z3ctx z3lvars f
+        let z3e = Z3Utils.build_value z3ctx z3lvars Map.empty f
 
         let declare_lvars (mmd, action, f) =
             let args_decl = (MinimalAST.find_action mmd action).Args
             let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars_ext args_decl z3ctx f (z3lvars, z3concrete_map)
-            (mmd, action, Z3Utils.build_value z3ctx z3lvars f, (z3lvars, z3concrete_map))
+            (mmd, action, Z3Utils.build_value z3ctx z3lvars Map.empty f, (z3lvars, z3concrete_map))
         let fs = List.map declare_lvars fs
 
         let es = List.map (fun (_,action,es,_) -> (action, es)) fs
@@ -86,11 +86,11 @@
         let z3ctx = Z3Utils.build_context md
 
         let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars args_decl z3ctx f
-        let z3e = Z3Utils.build_value z3ctx z3lvars f
+        let z3e = Z3Utils.build_value z3ctx z3lvars Map.empty f
 
         let add_constraint ((z3lvars, z3concrete_map),acc) (str,f) =
             let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars_ext [] z3ctx f (z3lvars, z3concrete_map)
-            let z3e = Z3Utils.build_value z3ctx z3lvars f
+            let z3e = Z3Utils.build_value z3ctx z3lvars Map.empty f
             ((z3lvars, z3concrete_map),(str,z3e)::acc)
         let (_,z3_es) = List.fold add_constraint ((z3lvars, z3concrete_map),[]) fs
         
