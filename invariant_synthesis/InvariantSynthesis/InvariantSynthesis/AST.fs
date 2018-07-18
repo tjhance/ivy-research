@@ -3,7 +3,6 @@
     (* A VERY BASIC AST FOR IVY *)
 
     // TODO: Test on new examples (verdi_lock, leader election...)
-    // TODO: Add an other simplification method that uses using symbolic bounded verification
 
     // TODO: Enumerated types
     // TODO: "while" loops

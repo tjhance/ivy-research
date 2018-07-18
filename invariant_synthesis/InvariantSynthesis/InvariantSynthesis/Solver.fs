@@ -32,10 +32,13 @@
     let z3_formula_for_constraints (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) (m:Marking.Marks) =
         WPR.conjunction_of (z3_formulas_for_constraints md mmd env m)
 
+    let z3_fomula_for_axioms (mmd:MinimalAST.ModuleDecl<'a,'b>) =
+        WPR.conjunction_of (WPR.conjectures_to_z3values mmd mmd.Axioms)
+
     let z3_formula_for_axioms_and_conjectures (mmd:MinimalAST.ModuleDecl<'a,'b>) =
         let all_invariants = MinimalAST.invariants_to_formulas mmd.Invariants
         let conjectures = WPR.conjunction_of (WPR.conjectures_to_z3values mmd all_invariants)
-        let axioms = WPR.conjunction_of (WPR.conjectures_to_z3values mmd mmd.Axioms)
+        let axioms = z3_fomula_for_axioms mmd
         WPR.Z3And (axioms, conjectures)
 
     let z3_formula_for_wpr (mmd:MinimalAST.ModuleDecl<'a,'b>) action formula uq_args =
@@ -45,12 +48,11 @@
     [<NoComparison>]
     type SolverResult = UNSAT | UNKNOWN | SAT of Model.TypeInfos * Model.Environment
 
-    let check_z3_formula (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) action f timeout =
+    let args_decl_for_action mmd action =
+        (MinimalAST.find_action mmd action).Args
+
+    let check_z3_formula (md:AST.ModuleDecl<'a,'b>) args_decl f timeout =
         let z3ctx = Z3Utils.build_context md
-        let args_decl =
-            match action with
-            | None -> []
-            | Some action -> (MinimalAST.find_action mmd action).Args
         let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars args_decl z3ctx f
         let z3e = Z3Utils.build_value z3ctx z3lvars f
         match Z3Utils.check z3ctx z3e timeout with
@@ -80,10 +82,9 @@
             let args_decl = (MinimalAST.find_action mmd action).Args
             (SAT (Z3Utils.z3model_to_ast_model md z3ctx args_decl z3lvars z3concrete_map m), Some action)
 
-    let z3_unsat_core (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) action f fs timeout =
+    let z3_unsat_core (md:AST.ModuleDecl<'a,'b>) args_decl f fs timeout =
         let z3ctx = Z3Utils.build_context md
 
-        let args_decl = (MinimalAST.find_action mmd action).Args
         let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars args_decl z3ctx f
         let z3e = Z3Utils.build_value z3ctx z3lvars f
 
@@ -102,7 +103,7 @@
         let treat_formula (i,formula) =
             let wpr = z3_formula_for_wpr mmd action formula false
             let f = WPR.Z3And (axioms_conjectures, WPR.Z3Not wpr)
-            let res = check_z3_formula md mmd (Some action) f 3000
+            let res = check_z3_formula md (args_decl_for_action mmd action) f 3000
         
             counterexample :=
                 match res with
@@ -187,7 +188,7 @@
             let constraints = z3_formula_for_constraints md mmd env (Marking.marks_union m additional_marks)
             let tested_constraint = z3_formula_for_constraints md mmd env m'
             let f = WPR.Z3And (WPR.Z3And (axioms_conjs, constraints), WPR.Z3Not tested_constraint)
-            match check_z3_formula md mmd None f 1000 with
+            match check_z3_formula md [] f 1000 with
             | UNSAT -> false
             | _ -> true
         let keep_funmark_if_necessary (m:Marking.Marks) (str, cvs) =
@@ -211,7 +212,7 @@
         let f = WPR.Z3And (cs, axioms_conjs)
         let is_formula_valid f' =
             let f = WPR.Z3And (f, WPR.Z3Not f')
-            match check_z3_formula md mmd None f 1000 with
+            match check_z3_formula md [] f 1000 with
             | UNSAT -> true
             | _ -> false
         let is_funmark_valid (str, cvs) =
@@ -255,9 +256,9 @@
 
         let ms = decompose_marks m
         let labeled_ms = List.mapi (fun i m -> (sprintf "%i" i, m)) ms
-        let labeled_cs = List.map (fun (i,m) -> (i, List.head (z3_formulas_for_constraints md mmd env m))) labeled_ms
+        let labeled_cs = List.map (fun (i,m) -> (i, z3_formula_for_constraints md mmd env m)) labeled_ms
 
-        match z3_unsat_core md mmd action f labeled_cs 5000 with
+        match z3_unsat_core md (args_decl_for_action mmd action) f labeled_cs 5000 with
         | (Z3Utils.SolverResult.UNSAT, lst) ->
             let labeled_ms = List.filter (fun (str,_) -> List.contains str lst) labeled_ms
             let ms = List.map (fun (_,m) -> m) labeled_ms
@@ -266,3 +267,56 @@
             printfn "Can't resolve unSAT core!"
             m
         // TODO: run unsat core only for constraintd on functions, and then run unsat core for disequalities on the result?
+
+    let is_k_invariant_formula formula actions init_actions boundary =
+
+        let rec compute_next_iterations acc n =
+            match n with
+            | n when n <= 0 -> (*printfn "All paths have been computed!" ;*) acc
+            | n ->
+                //printfn "Computing level %i..." n
+                let prev = List.head acc
+                let add_wpr acc (action,mmd) =
+                    let wpr = WPR.wpr_for_action mmd prev action true
+                    WPR.Z3And (acc, wpr)
+                let wpr = List.fold add_wpr (WPR.Z3Const (AST.ConstBool true)) actions
+                compute_next_iterations (wpr::acc) (n-1)
+
+        let paths = compute_next_iterations [formula] boundary
+        let f = WPR.conjunction_of paths
+
+        // Add initializations
+        let add_init acc (action,mmd) =
+            WPR.wpr_for_action mmd acc action true
+        List.fold add_init f init_actions
+        
+    let sbv_based_minimization (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) infos (env:Model.Environment) actions init_actions (m:Marking.Marks) (alt_exec:List<Marking.Marks*Model.Environment>) boundary =
+        let m = { m with v = Set.empty } // We remove local vars
+        let m = expand_marks md mmd infos env m // We expand marks!
+
+        // Base assumptions
+        let axioms = z3_fomula_for_axioms mmd
+        let f = Formula.formula_from_marks env m alt_exec true
+        let f = AST.ValueNot f
+        let f = MinimalAST.value2minimal md f
+        let f = WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd f) false
+        let f = WPR.Z3And (axioms,f)
+
+        // UnSAT core
+        let formula_for_marks m =
+            let f = z3_formula_for_constraints md mmd env m
+            is_k_invariant_formula f actions init_actions boundary
+
+        let ms = decompose_marks m
+        let labeled_ms = List.mapi (fun i m -> (sprintf "%i" i, m)) ms
+        let labeled_cs = List.map (fun (i,m) -> (i, formula_for_marks m)) labeled_ms
+
+        match z3_unsat_core md [] f labeled_cs 5000 with
+        | (Z3Utils.SolverResult.UNSAT, lst) ->
+            let labeled_ms = List.filter (fun (str,_) -> List.contains str lst) labeled_ms
+            let ms = List.map (fun (_,m) -> m) labeled_ms
+            Marking.marks_union_many ms
+        | _ ->
+            printfn "Can't resolve unSAT core!"
+            m
+        

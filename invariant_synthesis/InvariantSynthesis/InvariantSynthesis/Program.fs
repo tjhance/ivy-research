@@ -158,7 +158,7 @@ let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) 
     action (m:Marking.Marks) other_actions prev_allowed only_terminating_run =
 
     let f = Solver.generate_allowed_path_formula md mmd env formula action m other_actions prev_allowed only_terminating_run true
-    match Solver.check_z3_formula md mmd (Some action) f 3000 with
+    match Solver.check_z3_formula md (Solver.args_decl_for_action mmd action) f 3000 with
     | Solver.UNSAT | Solver.UNKNOWN -> None
     | Solver.SAT (i,e) -> Some (i,e)
 
@@ -221,6 +221,24 @@ let main argv =
     let md = AST.exclude_from_module md (Seq.toList banned_modules)
     let decls = Model.declarations_of_module md
 
+    let build_mmd action =
+        Determinization.determinize_action (MinimalAST.module2minimal md action) action
+    // Compute `init` actions
+    let all_actions =
+        List.fold (fun acc (a:AST.ActionDecl) -> let (name,_) = AST.decompose_action_name a.Name in Set.add name acc) Set.empty md.Actions
+    let init_actions = Set.filter (fun str -> let (_,name) = AST.decompose_name str in name = "init") all_actions
+    let action_is_child str1 str2 =
+        let (mod1,_) = AST.decompose_name str1
+        let (mod2,_) = AST.decompose_name str2
+        AST.has_base_name mod1 mod2
+    let init_actions_cmp str1 str2 =
+        if str1=str2 then 0
+        else if action_is_child str1 str2 then -1
+        else if action_is_child str2 str1 then 1
+        else 0
+    let init_actions = List.sortWith init_actions_cmp (Set.toList init_actions)
+    let init_actions = List.map (fun str -> (str,build_mmd str)) init_actions
+
     while true do
         // Choose the action to analyze
         printfn "Please enter the name of the module containing the actions to analyze:"
@@ -231,8 +249,6 @@ let main argv =
         if not (List.isEmpty possible_actions)
         then
             // Build minimal ASTs
-            let build_mmd action =
-                Determinization.determinize_action (MinimalAST.module2minimal md action) action
             let mmds = List.fold (fun acc action -> Map.add action (build_mmd action) acc) Map.empty possible_actions
 
             // Let's go!
@@ -324,14 +340,18 @@ let main argv =
                 else
                     printfn "These conditions are sufficient to break the invariant!"
 
-                printfn "Proceed to minimization? (n:no/s:safe/h:hard)"
+                printfn "Proceed to minimization? (n:no/s:safe/h:hard/[0-9]:sbv)"
                 let m =
                     let line = Console.ReadLine ()
                     if line = "h"
                     then Solver.wpr_based_minimization md mmd infos env name (Map.toList mmds) formula m (!allowed_paths) (Solver.Hard)
                     else if line = "s"
                     then Solver.wpr_based_minimization md mmd infos env name (Map.toList mmds) formula m (!allowed_paths) (Solver.Safe)
-                    else m
+                    else if line = "n"
+                    then m
+                    else
+                        let boundary = int(Convert.ToUInt32 (line))
+                        Solver.sbv_based_minimization md mmd infos env (Map.toList mmds) init_actions m (!allowed_paths) boundary
 
                 let f = Formula.formula_from_marks env m (!allowed_paths) false
                 let f = Formula.simplify_value f

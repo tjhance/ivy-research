@@ -356,7 +356,7 @@
             let (st,spec_policy) =
                 if name = main_action
                 then
-                    if not (is_concrete) then failwith "Main action must have an implementation!"
+                    if not (is_concrete) && not (AST.has_reference_name name "init") then failwith "Main action must have an implementation!"
                     let st = AST.NewBlock([],before@concrete_impl@after)
                     (st, Normal)
                 else if is_concrete
