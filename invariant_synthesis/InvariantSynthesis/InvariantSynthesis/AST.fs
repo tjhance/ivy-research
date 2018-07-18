@@ -162,6 +162,9 @@
     let make_name_unique name id =
         sprintf "%s%s%i" name impossible_var_factor id
 
+    let make_name_unique_bis name id_str =
+        sprintf "%s%s%s%s" name impossible_var_factor impossible_var_factor id_str
+
     let local_name name =
         sprintf "%s%s" local_var_prefix name
 

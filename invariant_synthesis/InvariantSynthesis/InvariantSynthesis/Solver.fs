@@ -278,6 +278,11 @@
 
     let has_valid_k_execution_formula formula actions init_actions boundary =
 
+        let rename_vars mmd action suffix f =
+            let args_decl = args_decl_for_action mmd action
+            let renaming = List.fold (fun acc (v:AST.VarDecl) -> Map.add v.Name (WPR.Z3Var (AST.make_name_unique_bis v.Name suffix)) acc) Map.empty args_decl
+            WPR.map_vars_in_z3value f renaming
+
         let rec compute_next_iterations acc n =
             match n with
             | n when n <= 0 -> (*printfn "All paths have been computed!" ;*) acc
@@ -285,7 +290,8 @@
                 //printfn "Computing level %i..." n
                 let prev = List.head acc
                 let add_wpr acc (action,mmd) =
-                    let wpr = WPR.wpr_for_action mmd prev action false // TODO: fix: rename args them so that args from different levels have different names
+                    let wpr = WPR.wpr_for_action mmd prev action false
+                    let wpr = rename_vars mmd action (sprintf "l%i" n) wpr
                     WPR.Z3Or (acc, wpr) // TODO: fix: add new vars to impose a unique action selection for each level
                 let wpr = List.fold add_wpr (WPR.Z3Const (AST.ConstBool true)) actions
                 compute_next_iterations (wpr::acc) (n-1)
