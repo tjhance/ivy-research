@@ -82,15 +82,16 @@
             let args_decl = (MinimalAST.find_action mmd action).Args
             (SAT (Z3Utils.z3model_to_ast_model md z3ctx args_decl z3lvars z3concrete_map m), Some action)
 
-    let z3_unsat_core (md:AST.ModuleDecl<'a,'b>) args_decl f fs timeout =
+    let z3_unsat_core (md:AST.ModuleDecl<'a,'b>) args_decl local_enums f fs timeout =
         let z3ctx = Z3Utils.build_context md
 
         let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars args_decl z3ctx f
-        let z3e = Z3Utils.build_value z3ctx z3lvars Map.empty f
+        let lenums = List.fold (fun acc e -> Z3Utils.declare_new_enumerated_type_ext e z3ctx acc) Map.empty local_enums
+        let z3e = Z3Utils.build_value z3ctx z3lvars lenums f
 
         let add_constraint ((z3lvars, z3concrete_map),acc) (str,f) =
             let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars_ext [] z3ctx f (z3lvars, z3concrete_map)
-            let z3e = Z3Utils.build_value z3ctx z3lvars Map.empty f
+            let z3e = Z3Utils.build_value z3ctx z3lvars lenums f
             ((z3lvars, z3concrete_map),(str,z3e)::acc)
         let (_,z3_es) = List.fold add_constraint ((z3lvars, z3concrete_map),[]) fs
         
@@ -266,7 +267,7 @@
         let labeled_ms = List.mapi (fun i m -> (sprintf "%i" i, m)) ms
         let labeled_cs = List.map (fun (i,m) -> (i, z3_formula_for_constraints md mmd env m)) labeled_ms
 
-        match z3_unsat_core md (args_decl_for_action mmd action) f labeled_cs 5000 with
+        match z3_unsat_core md (args_decl_for_action mmd action) [] f labeled_cs 5000 with
         | (Z3Utils.SolverResult.UNSAT, lst) ->
             let labeled_ms = List.filter (fun (str,_) -> List.contains str lst) labeled_ms
             let ms = List.map (fun (_,m) -> m) labeled_ms
@@ -278,31 +279,46 @@
 
     let has_valid_k_execution_formula formula actions init_actions boundary =
 
+        // Action enum
+        let actions_enum = AST.generated_name (sprintf "__action_enum")
+        let actions_enum_vals = List.init (List.length actions) (fun i -> AST.compose_name actions_enum (sprintf "%i" i))
+        let action_enum_map = List.fold2 (fun acc (str,_) e_str -> Map.add str e_str acc) Map.empty actions actions_enum_vals
+        let new_enums = [(actions_enum, actions_enum_vals)]
+        // Level enum
+        // TODO
+
         let rename_vars mmd action suffix f =
             let args_decl = args_decl_for_action mmd action
-            let renaming = List.fold (fun acc (v:AST.VarDecl) -> Map.add v.Name (WPR.Z3Var (AST.make_name_unique_bis v.Name suffix)) acc) Map.empty args_decl
-            WPR.map_vars_in_z3value f renaming
+            let dico = List.fold (fun acc (v:AST.VarDecl) -> Map.add v.Name (AST.make_name_unique_bis v.Name suffix) acc) Map.empty args_decl
+            let renaming = Map.map (fun _ v -> WPR.Z3Var v) dico
+            (WPR.map_vars_in_z3value f renaming, List.map (fun (d:AST.VarDecl) -> AST.default_var_decl (Map.find d.Name dico) d.Type) (args_decl) |> Set.ofList)
 
-        let rec compute_next_iterations acc n =
+        let rec compute_next_iterations (fs,new_vars) n =
             match n with
-            | n when n <= 0 -> (*printfn "All paths have been computed!" ;*) acc
+            | n when n <= 0 -> (*printfn "All paths have been computed!" ;*) (fs, new_vars)
             | n ->
                 //printfn "Computing level %i..." n
-                let prev = List.head acc
-                let add_wpr acc (action,mmd) =
+                let prev = List.head fs
+                let add_wpr (f,new_vars) (action,mmd) =
                     let wpr = WPR.wpr_for_action mmd prev action false
-                    let wpr = rename_vars mmd action (sprintf "l%i" n) wpr
-                    WPR.Z3Or (acc, wpr) // TODO: fix: add new vars to impose a unique action selection for each level
-                let wpr = List.fold add_wpr (WPR.Z3Const (AST.ConstBool true)) actions
-                compute_next_iterations (wpr::acc) (n-1)
+                    let (wpr, new_vars') = rename_vars mmd action (sprintf "lev_%i" n) wpr
+                    let new_vars = Set.union new_vars new_vars'
+                    (WPR.Z3Or (f, wpr), new_vars) // TODO: fix: add new vars to impose a unique action selection for each level
+                let (wpr, new_vars) = List.fold add_wpr (WPR.Z3Const (AST.ConstBool false),new_vars) actions
+                compute_next_iterations (wpr::fs,new_vars) (n-1)
 
-        let paths = compute_next_iterations [formula] boundary
+        let (paths, new_vars) = compute_next_iterations ([formula], Set.empty) boundary
         let f = WPR.disjunction_of paths // TODO: fix: add new vars to impose a unique action selection for each level
 
         // Add initializations
-        let add_init acc (action,mmd) =
-            WPR.wpr_for_action mmd acc action false // TODO: fix: rename them so that args from different levels have different names
-        List.fold add_init f init_actions
+        let add_init (f, new_vars) (action,mmd) =
+            let f = WPR.wpr_for_action mmd f action false
+            let (f, new_vars') = rename_vars mmd action (sprintf "init_%s" action) f
+            let new_vars = Set.union new_vars new_vars'
+            (f, new_vars)
+        let (f, new_vars) = List.fold add_init (f, new_vars) init_actions
+
+        (f, new_vars, new_enums)
         
     let sbv_based_minimization (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) infos (env:Model.Environment) actions init_actions (m:Marking.Marks) (alt_exec:List<Marking.Marks*Model.Environment>) boundary =
         let m = { m with v = Set.empty } // We remove local vars
@@ -317,15 +333,17 @@
         let f = WPR.Z3And (axioms,f)
 
         // UnSAT core
+        let (_, new_vars, new_enums) = has_valid_k_execution_formula (WPR.Z3Const (AST.ConstBool true)) actions init_actions boundary // Just to get new_vars & new_enums
         let formula_for_marks m =
             let f = z3_formula_for_constraints md mmd env m
-            has_valid_k_execution_formula f actions init_actions boundary
+            let (f, _, _) = has_valid_k_execution_formula f actions init_actions boundary
+            f
 
         let ms = decompose_marks m
         let labeled_ms = List.mapi (fun i m -> (sprintf "%i" i, m)) ms
         let labeled_cs = List.map (fun (i,m) -> (i, formula_for_marks m)) labeled_ms
 
-        match z3_unsat_core md [] f labeled_cs 5000 with
+        match z3_unsat_core md (Set.toList new_vars) new_enums f labeled_cs 5000 with
         | (Z3Utils.SolverResult.UNSAT, lst) ->
             let labeled_ms = List.filter (fun (str,_) -> List.contains str lst) labeled_ms
             let ms = List.map (fun (_,m) -> m) labeled_ms
