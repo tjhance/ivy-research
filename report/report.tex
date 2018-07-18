@@ -345,7 +345,7 @@ March-July 2018
     In order to certify that a RML program never abort abnormally, we must provide IVy with an invariant \(I\) such that:
     \begin{enumerate}
         \item \(I\) is initially satisfied (after any execution of the `init' action from any state).
-        \item \(I\) is inductive, that is: for any state satisfying \(I\), the new state of the program after executing any action of the RML program must also satisfy \(I\).
+        \item \(I\) is \textbf{inductive}, that is: for any state satisfying \(I\), the new state of the program after executing any action of the RML program must also satisfy \(I\).
         This also implies that actions never abort abnormally from a state satisfying \(I\).
     \end{enumerate}
 
@@ -728,7 +728,24 @@ March-July 2018
 
     The step 3 can be performed with the inductive rules:% TODO
 
+    \begin{algorithm}[H]
+        \SetKwFunction{RPM}{Retropopagate_marks}%
+        \SetKwProg{Fn}{Function}{}{end}
+        \SetKwSwitch{Match}{Case}{Other}{match}{}{case}{otherwise}{endcase}{end}
+        \Fn{\RPM{M',S,E,E'}}{
+            \KwData{a set of marks \(M'\) after the execution of the statement \(S\), an environment \(E\) and \(E'\) respectively before and after the execution of \(S\)}
+            \KwResult{a new set of marks \(M\) such that every state concurring with \(E\) on \(M\)
+            will concur with \(E'\) on \(M'\)}
 
+            \Match{S}{
+                \uCase{}{
+                    
+                }
+                \uCase{\(\ldots\)}{}
+            }
+        }
+        \caption{Retropropagate marks through the execution of a statement}
+    \end{algorithm}
 
     % Complementary to symbolic bounded verification
 
