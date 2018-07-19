@@ -341,14 +341,12 @@
 
         // Base assumptions
         let axioms = z3_fomula_for_axioms mmd
-        let f = Formula.formula_from_marks env m alt_exec true
-        let f = AST.ValueNot f
-        let f = MinimalAST.value2minimal md f
-        let f = WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd f) false
+        let f = not_already_allowed_state_formula md mmd env m alt_exec
         let f = WPR.Z3And (axioms,f)
+        let (break_assumption, new_vars, new_enums) = has_valid_k_execution_formula (WPR.Z3Const (AST.ConstBool false)) actions init_actions boundary
+        let f = WPR.Z3And (f, WPR.Z3Not break_assumption) // We don't want the execution to be valid only because it breaks an assumption
 
         // UnSAT core
-        let (_, new_vars, new_enums) = has_valid_k_execution_formula (WPR.Z3Const (AST.ConstBool true)) actions init_actions boundary // Just to get new_vars & new_enums
         let formula_for_marks m =
             let f = z3_formula_for_constraints md mmd env m
             let (f, _, _) = has_valid_k_execution_formula f actions init_actions boundary
@@ -370,5 +368,4 @@
         | (Z3Utils.SolverResult.SAT _, _) ->
             printfn "Core is SAT :("
             save_m
-            // TODO: Fix issue (core is SAT)
         
