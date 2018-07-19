@@ -220,6 +220,26 @@
             (SAT s.Model, [])
         | _ -> failwith "Solver returned an unknown status..."
 
+    // TODO: Remove that function when a future (working) version of Z3 will take into account 'core.minimize'
+    let check_conjunction_fix (ctx:ModuleContext) (e:Expr) (es:List<string*Expr>) (timeout:int) =
+        
+        match check_conjunction ctx e es timeout with
+        | (UNSAT, res) ->
+            // We minimize by hand...
+            let es = List.filter (fun (str,_) -> List.contains str res) es
+            let try_remove_e es (str,_) =
+                let es' = List.filter (fun (str',_) -> str'<>str) es
+                if List.length es' = List.length es
+                then es
+                else
+                    match check_conjunction ctx e es' timeout with
+                    | (UNSAT, res) ->
+                        List.filter (fun (str,_) -> List.contains str res) es'
+                    | _ -> es
+            let es = List.fold try_remove_e es es
+            (UNSAT, List.map (fun (str,_) -> str) es)
+        | x -> x
+
     let cv_of_expr_str (m:AST.ModuleDecl<'a,'b>) const_cv_map str =
         match str with
         | "true" -> AST.ConstBool true

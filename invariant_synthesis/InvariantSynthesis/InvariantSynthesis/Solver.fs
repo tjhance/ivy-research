@@ -95,7 +95,7 @@
             ((z3lvars, z3concrete_map),(str,z3e)::acc)
         let (_,z3_es) = List.fold add_constraint ((z3lvars, z3concrete_map),[]) fs
         
-        Z3Utils.check_conjunction z3ctx z3e z3_es timeout
+        Z3Utils.check_conjunction_fix z3ctx z3e z3_es timeout
     
     let find_counterexample_action md mmd action formulas =
         let axioms_conjectures = z3_formula_for_axioms_and_conjectures mmd
@@ -364,14 +364,6 @@
 
         match z3_unsat_core md (Set.toList new_vars) new_enums f labeled_cs 25000 with
         | (Z3Utils.SolverResult.UNSAT, lst) ->
-            // TMP TODO: FIX UNSAT CORE (IT IS NOT MINIMAL)
-            let labeled_cs = List.filter (fun (str,_) -> List.contains str lst) labeled_cs
-            let try_without_cs (str,_) =
-                let labeled_cs = List.filter (fun (str',_) -> str'<>str) labeled_cs
-                match z3_unsat_core md (Set.toList new_vars) new_enums f labeled_cs 25000 with
-                | (Z3Utils.SolverResult.UNSAT, _) -> printfn "UNSAT!" | _ -> printfn "SAT!"
-            List.iter try_without_cs labeled_cs
-            // -----
             let labeled_ms = List.filter (fun (str,_) -> List.contains str lst) labeled_ms
             let ms = List.map (fun (_,m) -> m) labeled_ms
             Marking.marks_union_many ms

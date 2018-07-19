@@ -40,7 +40,7 @@
 
   <ItemGroup>
     <Reference Include="Microsoft.Z3">
-      <HintPath>..\z3-4.8.0-x64-win\bin\Microsoft.Z3.dll</HintPath>
+      <HintPath>..\z3-4.6.0-x64-win\bin\Microsoft.Z3.dll</HintPath>
     </Reference>
   </ItemGroup>
   
