@@ -199,6 +199,7 @@
         s.Set ("timeout", uint32(timeout))
         s.Set ("unsat_core", true)
         s.Set ("core.minimize", true)
+        s.Set ("core.validate", true)
         s.Assert ([|e:?> BoolExpr|])
         let assert_and_track (str, e:Expr) =
             let p = ctx.Context.MkBoolConst(normalize_name str);

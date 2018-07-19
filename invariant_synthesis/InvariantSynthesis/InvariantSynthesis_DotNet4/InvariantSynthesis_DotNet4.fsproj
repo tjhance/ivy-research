@@ -103,7 +103,7 @@
     <Compile Include="..\InvariantSynthesis\Z3Utils.fs">
       <Link>Z3Utils.fs</Link>
     </Compile>
-	<Compile Include="..\InvariantSynthesis\Solver.fs">
+    <Compile Include="..\InvariantSynthesis\Solver.fs">
       <Link>Solver.fs</Link>
     </Compile>
     <Compile Include="..\InvariantSynthesis\ConstraintsParser.fs">
@@ -139,7 +139,7 @@
       <HintPath>..\packages\FSharp.Core.4.3.4\lib\net45\FSharp.Core.dll</HintPath>
     </Reference>
     <Reference Include="Microsoft.Z3">
-      <HintPath>..\z3-4.6.0-x64-win\bin\Microsoft.Z3.dll</HintPath>
+      <HintPath>..\z3-4.8.0-x64-win\bin\Microsoft.Z3.dll</HintPath>
     </Reference>
     <Reference Include="mscorlib" />
     <Reference Include="Prime">

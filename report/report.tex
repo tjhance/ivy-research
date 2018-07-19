@@ -620,7 +620,7 @@ March-July 2018
         but in practice taking \(k=5\) is sufficient to detect incorrect invariants.
         \item It allows us to generate simpler and more general invariants. Indeed, instead of generating a formula that
         aggregates all constraints of the initial state of the counterexample, we are able to only keep a minimal number of constraints
-        such that the resulting invariant is still correct. It can be done quite efficiently by computing an unSAT core using a SMT-solver.
+        such that the resulting invariant is still correct. It can be done quite efficiently by computing a minimal unSAT core using a SMT-solver.
         \item If the program that we want to check is not correct (it doesn't match the specification), symbolic bounded verification
         allows us to find it out, while a naive counterexample generalization would just generate incorrect invariants.
     \end{itemize}
@@ -663,7 +663,7 @@ March-July 2018
     we want to highlight a subset of constraints as small as possible, among the constraints characterizing the interpretations of \(S\) (see section 2.3), such that there is no state satisfying these constraints
     that can be obtained through a valid execution (for non-monotonic counterexamples it is not always possible, but it will be treated in section 3.3).
 
-    To solve this problem, the IVy approach is to compute an unSAT core, by using symbolic bounded verification to characterize valid runs.
+    To solve this problem, the IVy approach is to compute a minimal unSAT core, by using symbolic bounded verification to characterize valid runs.
     My approach is very different:
     \begin{enumerate}
         \item We call `environment' the set of all constraints
@@ -747,9 +747,18 @@ March-July 2018
         \caption{Retropropagate marks through the execution of a statement}
     \end{algorithm}
 
-    % Complementary to symbolic bounded verification
+    This approach has some advantages compared to the current IVy method:
+    \begin{itemize}
+        \item It doesn't need to use symbolic bounded verification, which is an intensive process that can fail if the boundary is too small.
+        \item It can detect potential non-monotonicity in the code.
+        \item Even if the code is non-monotonic and no universal invariant exists, it can still gather some important constraints.
+        From them, a valid invariant of the form \(\forall^*\exists^*\) can sometimes be generated, as we will see in the section 3.3.
+    \end{itemize}
 
-    % Can also detect non-monotonicity! Give some inductive rules...
+    The major drawback is that, sometimes, some useless constraints are kept (because the computation of marks is not optimal).
+    As a consequence, resulting invariants can be more complicated and less general than invariants generated using symbolic bounded verification.
+    However, the two approaches can be used together: symbolic bounded verification can be used after having already filtered the constraints by using my approach.
+    In this way, the advantages of the two methods are cumulated. Moreover, the unSAT core to minimize will be smaller, so it will be done faster.
 
     \section{Case of non-monotonicity}
 
