@@ -357,13 +357,18 @@
         let ms = decompose_marks m
         let labeled_ms = List.mapi (fun i m -> (sprintf "%i" i, m)) ms
         let labeled_cs = List.map (fun (i,m) -> (i, formula_for_marks m)) labeled_ms
+        printfn "Solving unSAT core..."
 
-        match z3_unsat_core md (Set.toList new_vars) new_enums f labeled_cs 5000 with
+        match z3_unsat_core md (Set.toList new_vars) new_enums f labeled_cs 10000 with
         | (Z3Utils.SolverResult.UNSAT, lst) ->
             let labeled_ms = List.filter (fun (str,_) -> List.contains str lst) labeled_ms
             let ms = List.map (fun (_,m) -> m) labeled_ms
             Marking.marks_union_many ms
-        | _ ->
+        | (Z3Utils.SolverResult.UNKNOWN, _) ->
             printfn "Can't resolve unSAT core!"
             save_m
+        | (Z3Utils.SolverResult.SAT _, _) ->
+            printfn "Core is SAT :("
+            save_m
+            // TODO: Fix issue (core is SAT)
         
