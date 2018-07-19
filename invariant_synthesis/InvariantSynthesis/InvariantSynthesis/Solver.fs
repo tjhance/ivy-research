@@ -53,7 +53,7 @@
 
     let check_z3_formula (md:AST.ModuleDecl<'a,'b>) args_decl f timeout =
         let z3ctx = Z3Utils.build_context md
-        let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars args_decl z3ctx f
+        let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars args_decl z3ctx Map.empty f
         let z3e = Z3Utils.build_value z3ctx z3lvars Map.empty f
         match Z3Utils.check z3ctx z3e timeout with
         | Z3Utils.UNSAT -> UNSAT
@@ -63,12 +63,12 @@
     let check_z3_disjunction (md:AST.ModuleDecl<'a,'b>) f fs timeout =
         let z3ctx = Z3Utils.build_context md
 
-        let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars [] z3ctx f
+        let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars [] z3ctx Map.empty f
         let z3e = Z3Utils.build_value z3ctx z3lvars Map.empty f
 
         let declare_lvars (mmd, action, f) =
             let args_decl = (MinimalAST.find_action mmd action).Args
-            let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars_ext args_decl z3ctx f (z3lvars, z3concrete_map)
+            let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars_ext args_decl z3ctx Map.empty f (z3lvars, z3concrete_map)
             (mmd, action, Z3Utils.build_value z3ctx z3lvars Map.empty f, (z3lvars, z3concrete_map))
         let fs = List.map declare_lvars fs
 
@@ -85,12 +85,12 @@
     let z3_unsat_core (md:AST.ModuleDecl<'a,'b>) args_decl local_enums f fs timeout =
         let z3ctx = Z3Utils.build_context md
 
-        let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars args_decl z3ctx f
         let lenums = List.fold (fun acc e -> Z3Utils.declare_new_enumerated_type_ext e z3ctx acc) Map.empty local_enums
+        let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars args_decl z3ctx lenums f
         let z3e = Z3Utils.build_value z3ctx z3lvars lenums f
 
         let add_constraint ((z3lvars, z3concrete_map),acc) (str,f) =
-            let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars_ext [] z3ctx f (z3lvars, z3concrete_map)
+            let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars_ext args_decl z3ctx lenums f (z3lvars, z3concrete_map)
             let z3e = Z3Utils.build_value z3ctx z3lvars lenums f
             ((z3lvars, z3concrete_map),(str,z3e)::acc)
         let (_,z3_es) = List.fold add_constraint ((z3lvars, z3concrete_map),[]) fs
@@ -135,7 +135,7 @@
                     if Model.cardinal infos < former_cardinal
                     then Some (i, action, formula, infos, env)
                     else !counterexample
-                | (SAT _, None) -> failwith "Can't retrieve the main action og the counterexample."
+                | (SAT _, None) -> failwith "Can't retrieve the main action of the counterexample."
 
         List.iter treat_formula formulas
         !counterexample
@@ -237,7 +237,9 @@
 
     type MinimizationMode = Safe | Hard | MinimizeAltExec
     let wpr_based_minimization (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) infos (env:Model.Environment) action other_actions formula (m:Marking.Marks) (alt_exec:List<Marking.Marks*Model.Environment>) (mode:MinimizationMode) =
+        
         let m = { m with v = Set.empty } // We remove local vars
+        let save_m = m
         let m = expand_marks md mmd infos env m // We expand marks!
         
         // Unsat core!
@@ -254,14 +256,15 @@
                 let f = z3_formula_for_constraints md mmd env m
                 WPR.Z3And (f, not_valid_run)
 
-        let (m, env) =
+        let (save_m, m, env) =
             if mode = MinimizeAltExec then
                 assert (List.length alt_exec = 1)
                 let (m', env) = List.head alt_exec
                 let m' = { m' with v = Set.empty } // We remove local vars
+                let save_m = m'
                 let m' = expand_marks md mmd infos env (Marking.marks_union m m') // We expand marks!
-                (Marking.marks_diff m' m, env)
-            else (m, env)
+                (save_m,Marking.marks_diff m' m, env)
+            else (save_m, m, env)
 
         let ms = decompose_marks m
         let labeled_ms = List.mapi (fun i m -> (sprintf "%i" i, m)) ms
@@ -274,7 +277,7 @@
             Marking.marks_union_many ms
         | _ ->
             printfn "Can't resolve unSAT core!"
-            m
+            save_m
         // TODO: run unsat core only for constraintd on functions, and then run unsat core for disequalities on the result?
 
     let has_valid_k_execution_formula formula actions init_actions boundary =
@@ -285,8 +288,8 @@
         let actions_enum_map = List.fold2 (fun acc (str,_) e_str -> Map.add str e_str acc) Map.empty actions actions_enum_vals
         // Level enum
         let levels_enum = AST.generated_name (sprintf "__level_enum")
-        let levels_enum_vals = List.init boundary (fun i -> AST.compose_name levels_enum (sprintf "%i" (i+1)))
-        let (levels_enum_map,_) = List.fold (fun (acc,i) e_str -> (Map.add i e_str acc, i+1)) (Map.empty,1) levels_enum_vals
+        let levels_enum_vals = List.init (boundary+1) (fun i -> AST.compose_name levels_enum (sprintf "%i" i))
+        let (levels_enum_map,_) = List.fold (fun (acc,i) e_str -> (Map.add i e_str acc, i+1)) (Map.empty,0) levels_enum_vals
         let new_enums = [(actions_enum, actions_enum_vals);(levels_enum, levels_enum_vals)]
 
         let rename_vars mmd action suffix f =
@@ -317,7 +320,7 @@
             let new_vars = Set.add length_selection_var new_vars
             let f = WPR.Z3And (f, WPR.Z3Equal(WPR.Z3Var length_selection_var.Name, WPR.Z3Const (AST.ConstEnumerated (levels_enum, Map.find i levels_enum_map))))
             (f::paths, new_vars, i+1)
-        let (paths, new_vars, _) = List.fold add_length_constr ([],new_vars, 1) paths
+        let (paths, new_vars, _) = List.fold add_length_constr ([],new_vars, 0) paths
         let f = WPR.disjunction_of paths
 
         // Add initializations
@@ -331,7 +334,9 @@
         (f, new_vars, new_enums)
         
     let sbv_based_minimization (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) infos (env:Model.Environment) actions init_actions (m:Marking.Marks) (alt_exec:List<Marking.Marks*Model.Environment>) boundary =
+
         let m = { m with v = Set.empty } // We remove local vars
+        let save_m = m
         let m = expand_marks md mmd infos env m // We expand marks!
 
         // Base assumptions
@@ -360,5 +365,5 @@
             Marking.marks_union_many ms
         | _ ->
             printfn "Can't resolve unSAT core!"
-            m
+            save_m
         

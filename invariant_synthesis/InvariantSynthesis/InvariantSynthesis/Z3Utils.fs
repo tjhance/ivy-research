@@ -40,7 +40,7 @@
     let name_of_constint (t,i) =
         sprintf "%s%c%i" t AST.name_separator i
 
-    let declare_lvars_ext<'a,'b> args (ctx:ModuleContext) v (lvars,z3concrete_map) =
+    let declare_lvars_ext<'a,'b> args (ctx:ModuleContext) lenum v (lvars,z3concrete_map) =
         
         let add_civ (lvars,z3concrete_map) (t,i) =
             let name = name_of_constint (t,i)
@@ -57,21 +57,21 @@
             then acc
             else
                 let decl = List.find (fun (v:VarDecl) -> v.Name = name) args
-                let sort = sort_of_type ctx.Context ctx.Sorts decl.Type
+                let sort = sort_of_type ctx.Context (Helper.merge_maps ctx.Sorts lenum) decl.Type
                 Map.add name (ctx.Context.MkConstDecl(name,sort)) acc
         
         let (lvars,z3concrete_map) = Set.fold add_civ (lvars,z3concrete_map) (const_int_in_value v)
         let lvars = Set.fold add_fv lvars (free_vars_of_value v)
         (lvars,z3concrete_map)
 
-    let declare_lvars<'a,'b> args (ctx:ModuleContext) v =
-        declare_lvars_ext args ctx v (Map.empty, [])
+    let declare_lvars<'a,'b> args (ctx:ModuleContext) lenum v =
+        declare_lvars_ext args ctx lenum v (Map.empty, [])
 
     let declare_new_enumerated_type_ext<'a,'b> (str:string, vs) (ctx:ModuleContext) lenums =
-        let sort = ctx.Context.MkEnumSort (str, List.toArray vs)
+        let sort = ctx.Context.MkEnumSort (str, List.toArray vs) :> Sort
         Map.add str sort lenums
 
-    let expr_of_cv (ctx:ModuleContext) lvars lenums cv =
+    let expr_of_cv (ctx:ModuleContext) lvars (lenums:Map<string,Sort>) cv =
         match cv with
         | AST.ConstVoid -> failwith "Void value is not a valid expression!"
         | AST.ConstBool true -> ctx.Context.MkTrue() :> Expr
@@ -84,7 +84,7 @@
             let esort =
                 if Map.containsKey t lenums
                 then
-                    Map.find t lenums
+                    Map.find t lenums :?> EnumSort
                 else
                     Map.find t ctx.Sorts :?> EnumSort
             ctx.Context.MkConst (Array.find (fun (fd:FuncDecl) -> fd.Name.ToString() = str) esort.ConstDecls)
