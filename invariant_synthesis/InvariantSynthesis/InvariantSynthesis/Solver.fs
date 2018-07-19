@@ -218,7 +218,12 @@
         let is_formula_valid f' =
             let f = WPR.Z3And (f, WPR.Z3Not f')
             match check_z3_formula md [] f 1000 with
-            | UNSAT -> true
+            | UNSAT ->
+                // We don't add mark if t can be deduced directly from the axioms
+                let f = WPR.Z3And (axioms_conjs, WPR.Z3Not f')
+                match check_z3_formula md [] f 1000 with
+                | SAT _ -> true
+                | _ -> false
             | _ -> false
         let is_funmark_valid (str, cvs) =
             let m = { Marking.empty_marks with f=Set.singleton (str, cvs) }
@@ -357,8 +362,16 @@
         let labeled_cs = List.map (fun (i,m) -> (i, formula_for_marks m)) labeled_ms
         printfn "Solving unSAT core..."
 
-        match z3_unsat_core md (Set.toList new_vars) new_enums f labeled_cs 10000 with
+        match z3_unsat_core md (Set.toList new_vars) new_enums f labeled_cs 25000 with
         | (Z3Utils.SolverResult.UNSAT, lst) ->
+            // TMP TODO: FIX UNSAT CORE (IT IS NOT MINIMAL)
+            let labeled_cs = List.filter (fun (str,_) -> List.contains str lst) labeled_cs
+            let try_without_cs (str,_) =
+                let labeled_cs = List.filter (fun (str',_) -> str'<>str) labeled_cs
+                match z3_unsat_core md (Set.toList new_vars) new_enums f labeled_cs 25000 with
+                | (Z3Utils.SolverResult.UNSAT, _) -> printfn "UNSAT!" | _ -> printfn "SAT!"
+            List.iter try_without_cs labeled_cs
+            // -----
             let labeled_ms = List.filter (fun (str,_) -> List.contains str lst) labeled_ms
             let ms = List.map (fun (_,m) -> m) labeled_ms
             Marking.marks_union_many ms
