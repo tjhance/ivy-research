@@ -173,7 +173,7 @@ March-July 2018
         \item Some variables, relations and functions over these types (a variable can be considered like a function of arity 0, and a relation can be considered as a function
         which returns a boolean). These elements are mutable (their valuation can be modified by the transitions described below).
         \item Some axioms over these types, variables, functions and relations. Axioms are \(\exists^*\forall^*\) formulas (\( \phi_{EA} \) in the grammar below).
-        \item Some transitions that we call `actions'. An action is a \(statement\) (see the grammar below) with potentially some parameters.
+        \item Some transitions that we call `actions'. An action is characterized by a name and a \(statement\) (see the grammar below).
         \item A special `init' action that is only executed once at the beginning (before any other action).
     \end{itemize}
 
@@ -431,7 +431,7 @@ March-July 2018
 
     \section{Introduction}
 
-    The synthesis of inductive invariants is a common problem in verification, and it is undecidable (excepted for very restricted systems). [REF]
+    The synthesis of inductive invariants is a common problem in verification, and even with the restrictions of RML, it is still undecidable (though it can be decidable for some very restricted classes of invariants). [REF]
     In particular, even if checking whether an invariant is inductive or not in a RML program is decidable, the synthesis of a such invariant is not decidable.
     Nevertheless, even an partial resolution can still be very helpful for the user.
 
