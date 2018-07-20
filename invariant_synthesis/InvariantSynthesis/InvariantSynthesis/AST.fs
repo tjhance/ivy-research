@@ -4,7 +4,6 @@
 
     // TODO: Test on new examples (verdi_lock, leader election...)
     // TODO: Optimize computation of WPR: use mutable AST for formulas so substitutions can be done in constant time
-    // TODO: Add a "simplify" method for WPR formulas that remove doule negations, that use And x y instead of Not Or Not x Not y
 
     // TODO: "while" loops
     // TODO: "if some" with multiple var decls

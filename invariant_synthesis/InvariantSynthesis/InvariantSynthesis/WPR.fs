@@ -155,6 +155,41 @@
             let dico = Map.remove d.Name dico
             Z3Exists (d, map_vars_in_z3value v dico)
         | Z3Hole -> Z3Hole
+    
+    let simplify_z3_value f =
+        let rec aux f =
+            match f with
+            // Possible simplifications
+            | Z3Not (Z3Const (AST.ConstBool true)) -> Z3Const (AST.ConstBool false)
+            | Z3Not (Z3Const (AST.ConstBool false)) -> Z3Const (AST.ConstBool true)
+            | Z3Or (Z3Const (AST.ConstBool true), _) | Z3Or (_, Z3Const (AST.ConstBool true)) -> Z3Const (AST.ConstBool true)
+            | Z3Or (Z3Const (AST.ConstBool false), v) | Z3Or (v, Z3Const (AST.ConstBool false)) -> aux v
+            | Z3And (Z3Const (AST.ConstBool false), _) | Z3And (_, Z3Const (AST.ConstBool false)) -> Z3Const (AST.ConstBool false)
+            | Z3And (Z3Const (AST.ConstBool true), v) | Z3Or (v, Z3Const (AST.ConstBool true)) -> aux v
+            | Z3Imply (Z3Const (AST.ConstBool true), v) -> aux v
+            | Z3Imply (Z3Const (AST.ConstBool false), _) | Z3Imply (_, Z3Const (AST.ConstBool true)) -> Z3Const (AST.ConstBool true)
+            | Z3Imply (v, Z3Const (AST.ConstBool false)) -> aux (Z3Not v)
+            | Z3Not (Z3Not v) -> aux v
+            | Z3Not (Z3And (v1, v2)) -> aux (Z3Or (Z3Not v1, Z3Not v2))
+            | Z3Not (Z3Or (v1, v2)) -> aux (Z3And (Z3Not v1, Z3Not v2))
+            | Z3Not (Z3Imply (v1, v2)) -> aux (Z3And (v1, Z3Not v2))
+            | Z3Not (Z3Forall (d,f)) -> aux (Z3Exists (d, Z3Not f))
+            | Z3Not (Z3Exists (d,f)) -> aux (Z3Forall (d, Z3Not f))
+            | Z3Or (Z3Not v1, v2) -> aux (Z3Imply (v1, v2))
+            // Normal cases
+            | Z3Const c -> Z3Const c
+            | Z3Var str -> Z3Var str
+            | Z3Fun (str,vs) -> Z3Fun (str, List.map aux vs)
+            | Z3Equal (v1,v2) -> Z3Equal (aux v1, aux v2)
+            | Z3Or (v1, v2) -> Z3Or (aux v1, aux v2)
+            | Z3And (v1, v2) -> Z3And (aux v1, aux v2)
+            | Z3Imply (v1, v2) -> Z3Imply (aux v1, aux v2)
+            | Z3Not v -> Z3Not (aux v)
+            | Z3IfElse (f, v1, v2) -> Z3IfElse (aux f, aux v1, aux v2)
+            | Z3Forall (d, v) -> Z3Forall (d, aux v)
+            | Z3Exists (d, v) -> Z3Exists (d, aux v)
+            | Z3Hole -> Z3Hole
+        aux f
 
     // We convert the AST to a simpler one & we rename each local variable in order for them to be unique
     let minimal_val2z3_val (m:ModuleDecl<'a,'b>) v =
@@ -215,7 +250,8 @@
                 (ctx, v)
             | ValueInterpreted (str, _) ->
                 aux (ValueStar (MinimalAST.find_interpreted_action m str).Output)
-        aux v
+        let (ctx, v) = aux v
+        (simplify_z3_value ctx, simplify_z3_value v)
 
     exception ValueNotAllowed
 
@@ -422,7 +458,7 @@
                 let f = Z3Imply (v, f)
                 replace_holes_with f ctx
             | Abort -> Z3Const (AST.ConstBool false)
-        aux f st
+        simplify_z3_value (aux f st)
    
     let conjectures_to_z3values<'a,'b> (m:ModuleDecl<'a,'b>) conj =
         List.fold
