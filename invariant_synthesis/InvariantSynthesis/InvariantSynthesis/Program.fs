@@ -327,7 +327,7 @@ let main argv =
                                 allowed_paths := (m_al,env_allowed)::(!allowed_paths)
                             else printfn "ERROR: Illegal execution!"
                         | None ->
-                            printfn "No more allowed path found!"
+                            printfn "No more allowed execution found!"
                             if !only_terminating_exec = true
                             then
                                 printfn "Extending the search domain to non-terminating runs..."

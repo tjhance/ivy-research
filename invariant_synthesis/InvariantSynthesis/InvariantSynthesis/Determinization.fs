@@ -33,8 +33,8 @@
                 let (dscond, asscond, vcond) = aux new_cond
                 fail_if_assumptions_depend_on asscond new_d.Name
                 let (dselse, asselse, velse) = aux velse
-                let assumption = ValueOr (vcond, ValueForall (new_d, ValueNot (vcond)))
-                let v = ValueIfElse (vcond, ValueVar new_d.Name, velse)
+                let assumption = ValueOr (vcond, ValueNot (ValueOr (ValueNot (ValueForall (new_d, ValueNot (vcond))), ValueNot (ValueEqual (ValueVar new_d.Name, velse)))))
+                let v = ValueVar new_d.Name
                 (dscond@[new_d]@dselse, asscond@[assumption]@asselse, v)
             | ValueIfElse (cond, vif, velse) ->
                 let (ds1, ass1, cond) = aux cond

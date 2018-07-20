@@ -193,10 +193,10 @@
                 fail_if_ctx_depends_on ctx1 (Set.singleton new_d.Name)
                 let (ctx2, v2) = aux v2
 
-                let condition = Z3Forall (new_d, Z3Imply (Z3Or (v1, Z3Not (Z3Exists (new_d, v1))), Z3Hole))
+                let condition = Z3Forall (new_d, Z3Imply (Z3Or (v1, Z3And (Z3Not (Z3Exists (new_d, v1)), Z3Equal(Z3Var new_d.Name, v2))), Z3Hole))
                 let ctx = replace_holes_with condition ctx2
                 let ctx = replace_holes_with ctx ctx1
-                let v = Z3IfElse (v1, Z3Var new_d.Name, v2)
+                let v = Z3Var new_d.Name
                 (ctx, v)
             | ValueIfElse (c,i,e) ->
                 let (ctx1, c) = aux c

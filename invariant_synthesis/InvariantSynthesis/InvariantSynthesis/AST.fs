@@ -3,6 +3,8 @@
     (* A VERY BASIC AST FOR IVY *)
 
     // TODO: Test on new examples (verdi_lock, leader election...)
+    // TODO: Optimize computation of WPR: use mutable AST for formulas so substitutions can be done in constant time
+    // TODO: Add a "simplify" method for WPR formulas that remove doule negations, that use And x y instead of Not Or Not x Not y
 
     // TODO: "while" loops
     // TODO: "if some" with multiple var decls
@@ -14,10 +16,6 @@
     // with an additionals first parameters for every var/fun/action/etc (that corresponds the parameters of the initial function)
     // TODO: isolate, inductive, extract, interpret...
     // TODO: Infer types for macro args (currently, type annotations is required)
-
-    // Refactor:
-    // TODO: Create a function that retrieve the name of a var decl, and use it everywhere.
-    // TODO: Factorize parameters passed to marks_for_value (etc.) by redefining this function. 
 
     type Type =
         | Void
