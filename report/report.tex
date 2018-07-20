@@ -431,9 +431,8 @@ March-July 2018
 
     \section{Introduction}
 
-    The synthesis of inductive invariants is a common problem in verification, and even with the restrictions of RML, it is still undecidable (though it can be decidable for some very restricted classes of invariants). [REF]
-    In particular, even if checking whether an invariant is inductive or not in a RML program is decidable, the synthesis of a such invariant is not decidable.
-    Nevertheless, even an partial resolution can still be very helpful for the user.
+    The synthesis of an inductive invariant is a common problem in verification, and even with the restrictions of RML, it is still undecidable (though it can be decidable for some very restricted classes of invariants). [REF]
+    Nevertheless, even an partial resolution of this problem can still be very helpful for the user.
 
     In IVy, most of invariants are universal invariants (\(\forall^*\)), but sometimes a \(\forall^*\exists^*\) invariant can be required (under some restrictions in order
     to stay in a decidable fragment of logic). Thus, we will restrain our search to these two types of invariant.
@@ -517,14 +516,14 @@ March-July 2018
     \end{enumerate}
     
     The resulting formula \(F\) is an existentially quantified formula that characterizes all structures containing a substructure isomorphic to the counterexample.
-    In order to avoid this counterexample, we just have to negate \(F\) (it will become universally quantified) and add it to the current invariant.
+    In order to prevent this counterexample from happening again, we just have to negate \(F\) (it will become universally quantified) and add it to the current invariant.
 
     This technique always generate an universally-quantified invariant, and so there is no decidability issue.
     However, there are three major issues:
     \begin{itemize}
         \item As we will see in the next section, the new invariant generated is not always correct.
         \item The formula generated can be very long, because it contains all the constraints characterizing our counterexample.
-        \item The formula generated is very specific: it will not avoid other \textit{similar} counterexamples as long as
+        \item The formula generated is very specific: it will not prevent other \textit{similar} counterexamples from happening, as long as
         one constraint differs, even if this difference has no impact.
     \end{itemize}
 
@@ -548,7 +547,7 @@ March-July 2018
         \item The init action, and some other actions to set/unset a value of \(f\) and to change the value of \(elt\).
     \end{itemize}
 
-    This code satisfies the conjecture, however the conjecture is not inductive. Here is a counterexample:\\
+    This code always satisfies the conjecture, however the conjecture is not an inductive invariant. Here is a counterexample:\\
 
     \begin{minipage}{0.45\textwidth}
         \includegraphics[width=8cm]{NonMonotonicExCounterexample}
@@ -584,7 +583,7 @@ March-July 2018
         In particular, executing change_elt(\(a_1\)) will not break the conjecture anymore.
     \end{minipage}\\
 
-    Indeed, the course of the execution of change_elt(\(a_1\)) can be changed just by adding a new element to \(b\)
+    Indeed, the course of the execution of change_elt(\(a_1\)) can be altered just by adding a new element to \(b\)
     (without changing anything else). In this example, it is due to the use of the \textit{if some} statement.
     More generally, it can be caused by non-determinism, by the use of quantified formulas, or anything that explore all the elements of a type.
 
@@ -598,9 +597,10 @@ March-July 2018
     \end{definition}
 
     \begin{property}
-        The naive counterexample generalization method always generates correct invariants if the action involved is monotonic
-        \textbf{and} the broken invariant is monotonic.
-        Otherwise, it can generate incorrect invariants.
+        For a counterexample \((S,E)\), if \(E\) is monotonic \textbf{and} the broken invariant is monotonic (and correct),
+        then there exists a correct universal invariant that is not satisfied by \(S\) (we say that it `captures' the counterexample).
+
+        The naive counterexample generalization method always generates such invariant when it exists, otherwise it generates an incorrect invariant.
     \end{property}
 
     \section{Improving the result with symbolic bounded verification}
@@ -652,7 +652,7 @@ March-July 2018
     \begin{itemize}
         \item I have proposed a new method to select the important constraints of the counterexample, based on the analysis of the execution of the counterexample.
         This approach is quite complementary with the current IVy approach (symbolic bounded verification): both approaches can be combinated. 
-        \item I have extended this new approach with an additional process that is (sometimes) able to generate valid invariants of the form \(\forall^*\exists^*\)
+        \item I have extended this new approach with an additional process that is (sometimes) able to generate correct invariants of the form \(\forall^*\exists^*\)
         when no universal invariant exists (for instance for the example of the section 2.4).
         \item I have implemented a proof of concept for these methods, using the language F\# and the SMT-Solver Z3 [REF].        
         \item I have analyzed and compared the guarantees of all these different approaches.
@@ -662,9 +662,9 @@ March-July 2018
 
     The problem we want to solve is as follows: given a counterexample (\(S,E\)) (\(S\) being the initial state and \(E\) a deterministic statement describing the execution of an action),
     we want to highlight a subset of constraints as small as possible, among the constraints characterizing the interpretations of \(S\) (see section 2.3), such that no state satisfying these constraints
-    can be obtained through a valid execution (for non-monotonic counterexamples it is not always possible, but it will be treated in section 3.3).
+    can be obtained through a valid execution (for non-monotonic counterexamples it is not always possible, but this case will be treated in section 3.3).
 
-    To solve this problem, the IVy approach is to compute a minimal unSAT core, by using symbolic bounded verification to characterize valid runs.
+    To solve this problem, the IVy approach is to compute a minimal unSAT core, by using symbolic bounded verification to characterize valid executions.
     My approach is very different:
     \begin{enumerate}
         \item We compute \(S'\) the state obtained after the execution of \(E\) from \(S\).
@@ -763,8 +763,8 @@ March-July 2018
     \begin{itemize}
         \item It doesn't need to use symbolic bounded verification, which is an intensive process that can fail if the boundary is too small.
         \item It can detect potential non-monotonicity in the code.
-        \item Even if the code is non-monotonic and no universal invariant exists, it can still gather some important constraints.
-        From them, a valid invariant of the form \(\forall^*\exists^*\) can sometimes be generated, as we will see in the section 3.3.
+        \item For a non-monotonic counterexample, it can still gather some important constraints, even if there is no correct universal invariant that can capture the counterexample.
+        From these constraints, a correct invariant of the form \(\forall^*\exists^*\) can sometimes be generated, as we will see in the section 3.3.
     \end{itemize}
 
     The major drawback is that, sometimes, some useless constraints are kept (because the computation of marks is not optimal).
@@ -774,15 +774,45 @@ March-July 2018
 
     \section{Case of non-monotonicity}
 
-    \section{Weakening the conjecture}
+    As we have seen in section 2.4, some non-monotonic counterexamples can't be captured by any correct universal invariant.
+    For this reason, if some non-monotonicity has been detected during the computation of marks,
+    a second process is performed in order to know whether the generated conjecture is correct or not, and to fix it if it is not correct.
+    
+    In order to do that, we can try to find some valid states that satisfy all the constraints of the counterexample
+    (or at least those that have been marked as important).
+    If no such state is found, we know that the universal invariant generated is correct.
+    If we find such a state, we will try to weaken the generated conjecture in order to make it accept this state.
+    In this section, we will see how to find such states, and in the next section we will see how to use them to weaken the conjecture.
 
+    Let \((S,E)\) be the initial counterexample, let \(C\) be the constraints of \(S\) that have been marked.
+    We want to find a state \(S'\) such that:
+    \begin{enumerate}
+        \item \(S'\) satisfies all constraints in \(C\). It implies that the domains of \(S'\) contain all concrete values that appear in \(C\).
+        However, the domains of \(S'\) can also contain some other elements.
+        \item \(S'\) is a valid state (it can be obtained through a valid run).
+    \end{enumerate}
+
+    % Could use symbolic bounded verification
+
+    Indeed, verifying the condition 2 is hard (it requires to use symbolic bounded verification), but we can also use this weaker condition instead:
+    \(S'\) satisfies all the current invariants and axioms, and doesn't break any of them after one iteration (in particular after executing the action of the counterexample).
+
+    % Detail process for finding valid examples
     % Not always decidable!
     % Characterize it:
     % decidable when studied invariant is universal only,
     % axioms involved with mutation are existential only
     % assumption are existantial only
 
+    % Can also add a constraint to not have two times the same example
+
+    \section{Weakening the conjecture}
+
+
+
     \section{Guarantees}
+
+    % Give generated formula for the previous example
 
 \chapter{Conclusion}
 
