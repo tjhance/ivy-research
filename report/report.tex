@@ -502,7 +502,8 @@ March-July 2018
     A counterexample is a pair \( (S,E) \) where \(S\) is a state that satisfies the current invariant and \(E\) is a deterministic statement that describes the execution of an action,
     starting from \(S\) and leading to a new state \(S'\) that doesn't satisfy the current invariant.
     \end{definition}
-    Thanks to the finite model property of EPR (section 1.3.2), we are always able to find a finite counterexample when the current invariant is not inductive.
+    Thanks to the finite model property of EPR (section 1.3.2), we are always able to find a finite counterexample when the current invariant is not inductive
+    (section 1.4 explains how to check the inductiveness of an invariant).
 
     Let \( (S,E) \) be a finite counterexample.
     We can fully characterize the interpretations of \(S\) with a finite number of constraints of the form \(symbol(concrete\_value_1,\ldots,concrete\_value_n) = concrete\_value\)
@@ -792,16 +793,15 @@ March-July 2018
         \item \(S'\) is a valid state (it can be obtained through a valid run).
     \end{enumerate}
 
-    The first condition is easy to express with a formula. However, verifying the second condition is hard: it would require to use symbolic bounded verification.
-    In order to avoid that, we can replace the second condition by this other one (which is weaker, if we assume that the current invariants are correct):
+    The first condition is easy to express with a formula. However, verifying the second condition is hard: it would require to use symbolic bounded verification (see section 2.5).
+    If we want to avoid that, we can approximate the second condition with this other one (which is weaker, if we assume that the current invariants are correct):
     \(S'\) satisfies all the current invariants and axioms, and doesn't break any of them after one iteration (in particular after executing the action of the counterexample).
+    We can express this new condition with the following formula:
 
-    % Detail process for finding valid examples
-    % Not always decidable!
-    % Characterize it:
-    % decidable when studied invariant is universal only,
-    % axioms involved with mutation are existential only
-    % assumption are existantial only
+    \(A \land I \land wpr(\text{action}_1|\ldots|\text{action}_n,I)\)
+
+    Most of time, the satisfiability of this formula can be checked much faster than the k-invariantness of a state (using symbolic bounded verification), even for a small k.
+    However, it is not always decidable: the weakest precondition is not always EPR (see section 2.2).
 
     % Can also add a constraint to not have two times the same example
     % Often terminate quickly because the search space is restricted (by the constraints C)
