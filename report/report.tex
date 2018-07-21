@@ -662,7 +662,7 @@ March-July 2018
     \section{Filtering constraints by analyzing the execution}
 
     The problem we want to solve is as follows: given a counterexample (\(S,E\)) (\(S\) being the initial state and \(E\) a deterministic statement describing the execution of an action),
-    we want to highlight a subset of constraints as small as possible, among the constraints characterizing the interpretations of \(S\) (see section 2.3), such that no state satisfying these constraints
+    we want to highlight a subset of constraints as small as possible, among the concrete constraints characterizing the interpretations of \(S\) (see section 2.3), such that no state satisfying these constraints
     can be obtained through a valid execution (for non-monotonic counterexamples it is not always possible, but this case will be treated in section 3.3).
 
     To solve this problem, the IVy approach is to compute a minimal unSAT core, by using symbolic bounded verification to characterize valid executions.
@@ -709,19 +709,20 @@ March-July 2018
                         \KwRet{\MFV{\(S,F_1\)} \(\cup\) \MFV{\(S,F_2\)}}\;
                     }
                 }
-                \uCase{\(\forall x. F(x)\)}{
-                    \uIf {there exists \(x_F\) in \(S\) such that \(F(x_F)\) evaluates to false} {
-                        \KwRet{\MFV{\(S,F(x_F)\)}}\;
+                \uCase{\(\forall x:a. F(x)\)}{
+                    \uIf {there exists \(x_f \in a\) such that \(F(x_f)\) evaluates to false} {
+                        \KwRet{\MFV{\(S,F(x_f)\)}}\;
                     }
                     \uElse {
                         \tcc{potential non-monotonicity, see section 3.3}
+                        \KwRet{\(\bigcup_{x_t \in a}\) \MFV{\(S,F(x_t)\)}}
                     }
                 }
                 \uCase{\(\ldots\)}{}
             }
         }
         \caption{Computing marks for a term or a formula}
-    \end{algorithm}
+    \end{algorithm}\hfill
 
     For instance, at the end of the counterexample of the section 2.4,
     the formula \(dom(elt) \rightarrow f(elt,img)\) is not satisfied and the constraints that ensure it are:\\
@@ -758,7 +759,12 @@ March-July 2018
             }
         }
         \caption{Retropropagate marks through the execution of a statement}
-    \end{algorithm}
+    \end{algorithm}\hfill
+
+    For instance, after applying this algorithm to the example of section 2.4 (all primitives used can be translated to RML),
+    we can detect that the execution is not monotonic, and we obtain the following marked constraints:\\
+    \(\{img=b_0 ; dom(a_1) ; \neg f(a_1,b_0)\} \quad \longrightarrow \quad \forall A:a.\ \neg (dom(A) \land \neg f(A,img))\)\\
+    Note that the generated invariant is still incorrect, but is also simpler.\\
 
     This approach has some advantages compared to the current IVy method:
     \begin{itemize}
@@ -781,8 +787,8 @@ March-July 2018
     
     In order to do that, we can try to find some valid states that satisfy all the constraints of the counterexample
     (or at least those that have been marked as important). Such states would be the witnesses of the non-correctness of our generated invariant.
-    If no such state is found, we know that the universal invariant generated is correct.
-    If we find such a state, we will try to weaken the generated conjecture in order to make it accept this state.
+    If we find such a state, we can use it to weaken the generated conjecture in order to make it accept this state.
+    Otherwise, we know that the universal invariant generated is already correct.
     In this section, we will see how to find such states, and in the next section we will see how to use them to weaken the conjecture.
 
     Let \((S,E)\) be the initial counterexample, let \(C\) be the constraints of \(S\) that have been marked.
@@ -803,13 +809,55 @@ March-July 2018
     Most of time, the satisfiability of this formula can be checked much faster than the k-invariantness of a state (using symbolic bounded verification), even for a small k.
     However, it is not always decidable: the weakest precondition is not always EPR (see section 2.2).
 
-    If the conditions 1 and 2 are satisfiable, we can compute a finite model: it gives us a state as desired.
-    We will see in the next section how to `generalize' the constraints characterizing this state and use them to weaken the generated invariant.
-    We can then try to find an other such state, by adding as a third condition the negation of these generalized constraints.
-    This process can potentially not terminate if we always find new such states: we will discuss it in the section 3.5.
+    If the conditions 1 and 2 are satisfiable, we can compute a finite model: it gives us a state \(S'\) as desired.
+    We will see in the next section how to `generalize' the constraints characterizing \(S'\) and use them to weaken the generated invariant.
+    By adding as a third condition the negation of these generalized constraints, an other valid state can be searched.
+    This process can potentially not terminate if a new valid state is always found: it will be discussed it in the section 3.5.
 
     \section{Weakening the conjecture}
 
+    Once we have a valid state \(S'\) that satisfies all the marked constraints \(C\) of the counterexample,
+    we will generalize it and we will build a new invariant that allows states similar to \(S'\).
+
+    The process of generalization of \(S'\) is quite similar to the process of generalization of the counterexample \((S,E)\) (see section 2.3).
+    First, we can compute the set \(C'\) of the concrete constraints characterizing the interpretations of \(S'\).
+    This set \(C'\) can be reduced by using symbolic bounded verification or by computing marks for some relevant executions.
+    Then, we remove from \(C'\) every constraint that already is in \(C\) in order to keep only constraints that are specific to \(S'\).
+
+    Then, we replace each concrete value by an existentially quantified variable, but only for concrete values that are specific to \(S'\):
+    concrete values that also appear in \(C\) are not replaced.
+    This will give us a semi-generalized formula \(F'\) that characterize, among the states satisfying \(C\), those that also
+    contains a substructure isomorphic to \(S'\). Note that, again, it may exist some states that satisfy \(F'\) but that are not
+    valid, in the same way as there exists states such as \(S'\) that satisfy all the constraints in \(C\) but that are valid.
+    However, it is not an major issue since it will not compromise the correctness of the final invariant generated.
+
+    Now, we can build a formula that characterize more precisely the states that could lead to an execution similar to the execution of the counterexample.
+    We want to characterize states that satisfy \(C\), but we only want bad states, so we don't want to include states that satisfy \(F'\).
+    It gives us the following formula: \( C \land (\neg F') \).
+    This formula still contains concrete values (those that appear in \(C\)), so we replace them by existentially quantified variables.
+    The resulting formula has the form \( \exists^* \ldots \land \neg(\exists^* \ldots) \). After negating it, we obtain a new invariant of the form
+    \( \forall^* \ldots \rightarrow (\exists^* \ldots) \), that is an invariant with a \(\forall^*\exists^*\) prefix.
+
+    Here is a table that illustrates this process on the example of the section 2.4:
+
+    \begin{tabular}{|l|c|c|}
+        \hline
+        & Counterexample \((S,E)\) & Valid state \(S'\) \\
+        \hline
+        Shared concrete constraints & \multicolumn{2}{c|}{\(dom(a_1)\)}\\
+        (after reduction and simplification) & \multicolumn{2}{c|}{\(\neg f(a_1,img)\)}\\
+        \hline
+        Shared concrete values & \multicolumn{2}{c|}{\(\{ a_1 \}\)} \\
+        \hline
+        Constraints specific to \(S'\) (after reduction) & - & \(f(a_1,b_1)\) \\
+        \hline
+        Concrete values specific to \(S'\) & - & \(\{b_1\}\) \\
+        \hline
+        Semi-generalized formula characterizing \(S'\) & - & \(\exists B:b.\ f(a_1, B)\) \\
+        \hline
+        New generated invariant & \multicolumn{2}{c|}{\(\forall A:a.\ dom(A) \land \neg f(A,img) \rightarrow \exists B:b.\ f(A,B) \)}\\
+        \hline
+    \end{tabular}\\
 
 
     \section{Guarantees}
