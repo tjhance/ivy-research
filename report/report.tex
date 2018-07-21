@@ -298,7 +298,7 @@ March-July 2018
         \end{theorem}
 
         This process can be used to decide the satisfiability of any EPR formula. Moreover, when a formula is satisfiable,
-        it gives us an interpretation over the Herbrand domain that satisfy the formula (= a model).
+        it gives us an interpretation over the Herbrand domain that satisfy the formula.
         The Herbrand domain being finite, we have the following property:
 
         \begin{property}[Finite model property]
@@ -780,7 +780,7 @@ March-July 2018
     a second process is performed in order to know whether the generated conjecture is correct or not, and to fix it if it is not correct.
     
     In order to do that, we can try to find some valid states that satisfy all the constraints of the counterexample
-    (or at least those that have been marked as important).
+    (or at least those that have been marked as important). Such states would be the witnesses of the non-correctness of our generated invariant.
     If no such state is found, we know that the universal invariant generated is correct.
     If we find such a state, we will try to weaken the generated conjecture in order to make it accept this state.
     In this section, we will see how to find such states, and in the next section we will see how to use them to weaken the conjecture.
@@ -795,7 +795,7 @@ March-July 2018
 
     The first condition is easy to express with a formula. However, verifying the second condition is hard: it would require to use symbolic bounded verification (see section 2.5).
     If we want to avoid that, we can approximate the second condition with this other one (which is weaker, if we assume that the current invariants are correct):
-    \(S'\) satisfies all the current invariants and axioms, and doesn't break any of them after one iteration (in particular after executing the action of the counterexample).
+    \(S'\) satisfies all the current invariants and axioms, and doesn't break any of them after one iteration (in particular after executing the same action than the counterexample).
     We can express this new condition with the following formula:
 
     \(A \land I \land wpr(\text{action}_1|\ldots|\text{action}_n,I)\)
@@ -803,14 +803,18 @@ March-July 2018
     Most of time, the satisfiability of this formula can be checked much faster than the k-invariantness of a state (using symbolic bounded verification), even for a small k.
     However, it is not always decidable: the weakest precondition is not always EPR (see section 2.2).
 
-    % Can also add a constraint to not have two times the same example
-    % Often terminate quickly because the search space is restricted (by the constraints C)
+    If the conditions 1 and 2 are satisfiable, we can compute a finite model: it gives us a state as desired.
+    We will see in the next section how to `generalize' the constraints characterizing this state and use them to weaken the generated invariant.
+    We can then try to find an other such state, by adding as a third condition the negation of these generalized constraints.
+    This process can potentially not terminate if we always find new such states: we will discuss it in the section 3.5.
 
     \section{Weakening the conjecture}
 
 
 
     \section{Guarantees}
+
+    % Non-monotonicity process: Often terminate quickly because the search space is restricted (by the constraints C)
 
     % Give generated formula for the previous example
 
