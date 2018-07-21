@@ -788,13 +788,12 @@ March-July 2018
     We want to find a state \(S'\) such that:
     \begin{enumerate}
         \item \(S'\) satisfies all constraints in \(C\). It implies that the domains of \(S'\) contain all concrete values that appear in \(C\).
-        However, the domains of \(S'\) can also contain some other elements.
+        However, they can also contain some other elements.
         \item \(S'\) is a valid state (it can be obtained through a valid run).
     \end{enumerate}
 
-    % Could use symbolic bounded verification
-
-    Indeed, verifying the condition 2 is hard (it requires to use symbolic bounded verification), but we can also use this weaker condition instead:
+    The first condition is easy to express with a formula. However, verifying the second condition is hard: it would require to use symbolic bounded verification.
+    In order to avoid that, we can replace the second condition by this other one (which is weaker, if we assume that the current invariants are correct):
     \(S'\) satisfies all the current invariants and axioms, and doesn't break any of them after one iteration (in particular after executing the action of the counterexample).
 
     % Detail process for finding valid examples
@@ -805,6 +804,7 @@ March-July 2018
     % assumption are existantial only
 
     % Can also add a constraint to not have two times the same example
+    % Often terminate quickly because the search space is restricted (by the constraints C)
 
     \section{Weakening the conjecture}
 
