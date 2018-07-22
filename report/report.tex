@@ -445,38 +445,41 @@ March-July 2018
     If this conjecture is simple enough, the user can analyze it and adjust it as he wants, and we repeat this process.
 
     Thus, the problem we want to solve is as follows:
-    given an invariant that is not inductive, we want to sthrengthen it (as much as possible) by respecting these criteria:
+    given an invariant that is not inductive, we want to sthrengthen it (as much as possible) without breaking the correctness
+    of the invariant nor the decidability of checking it. To be correct, an invariant must be satisfied by every state
+    that can be obtained after a valid execution, that is after executing the `init' action followed by any other actions.
+    The following criteria can be used to evaluate an algorithm that tries to solve this problem:
     \begin{enumerate}
-        \item \textbf{Correctness}: The new invariant must still be correct, in the sense that it must be satisfied by every state obtained
-        after a valid execution (that is, after executing the `init' action followed by as many other actions as we want).
-        \item \textbf{Decidability}: The new invariant should still be checkable in a decidable way (in our case it should be in EPR).
-        \item \textbf{Simplicity}: The new invariant should be easily understandable by the user in order to be adjusted if needed.
+        \item \textbf{Reliability}: Can the algorithm fail, not terminate or generate incorrect invariants?
+        \item \textbf{Decidability}: Is the new invariant generated still checkable in a decidable way (in our case, we want it to be EPR)?
+        \item \textbf{Simplicity}: Is the new invariant generated easily understandable by the user (in order to be adjusted if needed)?
     \end{enumerate}
 
     \section{Weakest precondition as a new invariant}
 
-    One possible way to sthrengthen an invariant is to make the conjunction with its weakest precondition.
+    One possible way to sthrengthen an invariant \(I\) is to make the conjunction with its weakest precondition \(wpr(\text{action}_1|\ldots|\text{action}_n,I)\).
     If the initial invariant is not inductive, the result will be stricltly stronger.
 
-    Let's see if this method respect our criteria.\\
+    Let's evaluate this method with our criteria.\\
     
-    \textbf{Correctness:} We assume that the initial invariant \(I\) is correct. From that, we deduce that its weakest precondition \(P\) is also correct:
-    \\
+    \textbf{Reliability}: This method always terminate and never fail. Moreover, it produces correct invariants. Here is a proof:
+
+    We assume that the initial invariant \(I\) is correct. Let \(P = wpr(\text{action}_1|\ldots|\text{action}_n,I)\).
 
     By contradiction, let's suppose that we have a state \(S\), issued from a valid execution \(E\), that doesn't satisfy \(P\).
     Two cases are possible:
     \begin{itemize}
-        \item There exists an execution \(E'\) of one action from \(S\) such that the resulting state doesn't satisfy the initial invariant.
+        \item There exists an execution \(E'\) of one iteration (one action) starting in \(S\) such that the resulting state doesn't satisfy the initial invariant.
         \(E\) followed by \(E'\) is a valid execution that doesn't satisfy \(I\) and thus we have a contradiction.
-        \item Every possible execution of one action from \(S\) will result in a state that satisfy \(I\).
+        \item Every possible execution of one iteration starting in \(S\) will result in a state that satisfy \(I\).
         In this case, we can generate a precondition for our initial invariant that is stricly weaker than \(P\):
         let \(F\) be a formula that fully characterize \(S\) (its concrete domains and its interpretations in these domains),
-        then \(P \lor F\) is still a precondition for \(I\) and is strictly weaker than \(P\): contradiction. 
+        then \(P \lor F\) is still a precondition for \(I\) and is strictly weaker than \(P\) (contradiction). 
     \end{itemize}
 
-    So \(P\) is correct and thus \(P \land I\) is correct.\\
+    So \(P\) is a correct invariant and thus \(P \land I\) is also a correct invariant.\\
 
-    \textbf{Decidability:} Even if the initial invariant is EPR, the weakest precondition is not guaranteed to be EPR.
+    \textbf{Decidability}: Even if the initial invariant is EPR, the weakest precondition is not guaranteed to be EPR.
     Indeed, stratification can be broken in several cases: assumptions, non-deterministic operations, etc.
 
     Nevertheless, we can have the guarantee that the weakest precondition is EPR by adding these restrictions:
@@ -490,7 +493,7 @@ March-July 2018
     and thus will be EPR. However, these conditions are very restrictive and so they can't be reasonably imposed.
     \\
 
-    \textbf{Simplicity:} Weakest preconditions are usually very long, even after simplification (they can grow exponentially).
+    \textbf{Simplicity}: Weakest preconditions are usually very long, even after simplification (they can grow exponentially).
     Moreover, they are not focused on one aspect in particular (they mix many elements together), and so they are even more complicated
     to understand.
 
@@ -625,23 +628,20 @@ March-July 2018
         aggregates all constraints of the initial state of the counterexample, we are able to only keep a minimal number of constraints
         such that the resulting invariant is still correct. It can be done quite efficiently by computing a minimal unSAT core using a SMT-solver.
         \item If the program that we want to check is not correct (it doesn't match the specification), symbolic bounded verification
-        allows us to find it out, while a naive counterexample generalization would just generate incorrect invariants.
-    \end{itemize}
+        can sometimes allow us to find it out, while a naive counterexample generalization would just generate incorrect invariants.
+    \end{itemize}\hfill
 
-    This method of counterexample generalization using symbolic bounded verification is the method currently implemented by IVy in order to
-    help the user to synthesize inductive invariants interactively.\\
+    \textbf{Reliability}: This method can generate an incorrect invariant if the boundary \(k\) for the symbolic bounded verification
+    is too small (sometimes we can't go beyond \(k=3\) in a reasonable time). This method can only generate universal invariants,
+    so it will fail if there is no universal invariant that can capture the counterexample (case of non-monotonicity, see section 2.4).\\
 
-    \textbf{Correctness:} Can sometimes generate incorrect invariants, but most of times the symbolic bounded verification prevents it from
-    happening (in this case, this method is not able to propose a new invariant).\\
+    \textbf{Decidability}: All invariants generated are universal, so it never causes any decidability issue.\\
 
-    \textbf{Decidability:} All invariants generated are universal, so it never causes any decidability issue.\\
-
-    \textbf{Simplicity:} Invariants generated are very simple. They are more focused than weakest preconditions
+    \textbf{Simplicity}: Invariants generated are quite small and simple. They are more focused than weakest preconditions
     (because they are issued from one precise counterexample) and do not contain any useless litteral.\\
 
-    Almost all our criteria are fullfilled. However, it can sometimes generate incorrect invariants if the boundary \(k\) for
-    symbolic verification is too low (sometimes we can't go beyond \(k=3\) in a reasonable time).
-    Moreover, it can only generate universal invariants. Thus, in the case of non-monotonic counterexamples, it can fail to propose an invariant.
+    This method seems less reliable than the weakest precondition, however it generates invariants that are much more interesting.
+    It is the method currently implemented by IVy in order to help the user to synthesize inductive invariants interactively.
 
 \chapter{My contributions}
 
@@ -870,10 +870,19 @@ March-July 2018
     \end{tabular}\\
 
 
-    \section{Guarantees and comparison with other methods}
+    \section{Comparison with other methods}
 
-    % Discuss the 3 criteria
+    \textbf{Reliability}: If we assume that the initial invariant is correct, then this algorithm always generate correct invariants
+    (except if we use symbolic bounded verification to reduce the set of constraints \(C\)).
+    However, if there is no universal invariant that can capture the counterexample, this algorithm might not terminate (see section 3.3).\\
+
+    \textbf{Decidability}: If there exists an universal invariant that can capture the counterexample, then such an invariant will be produced.
+    Otherwise, an invariant of the form \(\forall^*\exists^*\) will be produced: it may cause some decidability issues that the user will have to solve.\\
+
+    \textbf{Simplicity}: Invariants generated are quite small and simple.
     
+    % TODO: make comparative table
+
     \section{Conclusion}
 
     % What remains to be done: optimisation, etc
