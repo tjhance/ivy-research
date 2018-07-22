@@ -613,7 +613,8 @@ March-July 2018
     \( A \Rightarrow \bigwedge\limits_{j=0}^k wp(\text{init}; (\text{action}_1|\ldots|\text{action}_n)^j, Q) \)\\
     where \(A\) refers to the axioms and `\(\text{statement}^j\)' represents the sequential composition of \(j\) copies of `statement'.
 
-    According to section 1.4, checking the validity of this formula (for a given \(k\)) is decidable (for \(A\) of the form \(\exists^*\forall^*\) and \(Q\) of the form \(\forall^*\exists^*\)).
+    In order to check the validity of this formula (for a given \(k\)), we can just check the satisfiability of its negation.
+    According to section 1.4, this is decidable (for \(A\) of the form \(\exists^*\forall^*\) and \(Q\) of the form \(\forall^*\exists^*\)).
 
     This concept of k-invariant can improve the naive counterexample generalization in three points:
     \begin{itemize}
@@ -665,7 +666,7 @@ March-July 2018
     we want to highlight a subset of constraints as small as possible, among the concrete constraints characterizing the interpretations of \(S\) (see section 2.3), such that no state satisfying these constraints
     can be obtained through a valid execution (for non-monotonic counterexamples it is not always possible, but this case will be treated in section 3.3).
 
-    To solve this problem, the IVy approach is to compute a minimal unSAT core, by using symbolic bounded verification to characterize valid executions.
+    To solve this problem, the IVy approach is to use symbolic bounded verification (see section 2.5) to reduce the number of constraints (the problem is encoded as an unSAT core to minimize).
     My approach is very different:
     \begin{enumerate}
         \item We compute \(S'\) the state obtained after the execution of \(E\) from \(S\).
@@ -768,7 +769,7 @@ March-July 2018
 
     This approach has some advantages compared to the current IVy method:
     \begin{itemize}
-        \item It doesn't need to use symbolic bounded verification, which is an intensive process that can fail if the boundary is too small.
+        \item It doesn't need to use symbolic bounded verification, which can return an incorrect output if \(k\) is too small (and can take too much time for bigger \(k\)).
         \item It can detect potential non-monotonicity in the code.
         \item For a non-monotonic counterexample, it can still gather some important constraints, even if there is no correct universal invariant that can capture the counterexample.
         From these constraints, a correct invariant of the form \(\forall^*\exists^*\) can sometimes be generated, as we will see in the section 3.3.
@@ -799,15 +800,16 @@ March-July 2018
         \item \(S'\) is a valid state (it can be obtained through a valid run).
     \end{enumerate}
 
-    The first condition is easy to express with a formula. However, verifying the second condition is hard: it would require to use symbolic bounded verification (see section 2.5).
-    If we want to avoid that, we can approximate the second condition with this other one (which is weaker, if we assume that the current invariants are correct):
-    \(S'\) satisfies all the current invariants and axioms, and doesn't break any of them after one iteration (in particular after executing the same action than the counterexample).
+    The first condition is easy to express with a formula, but the second condition is more complicated.
+    Note that symbolic bounded verification is not helpful here as it only allows us to determine whether a given formula is a k-invariant (that is, if it is satisfied by \textbf{all} valid executions or not).
+    However, we can approximate the second condition with this other one (which is weaker, if we assume that the current invariants are correct):
+    \(S'\) satisfies all the current invariants and axioms, and doesn't break any of them after one iteration (in particular after executing the action that is executed in the counterexample).
     We can express this new condition with the following formula:
 
     \(A \land I \land wpr(\text{action}_1|\ldots|\text{action}_n,I)\)
 
-    Most of time, the satisfiability of this formula can be checked much faster than the k-invariantness of a state (using symbolic bounded verification), even for a small k.
-    However, it is not always decidable: the weakest precondition is not always EPR (see section 2.2).
+    Note that checking the satisfiability of this formula is not always decidable either: the weakest precondition is not always EPR (see section 2.2).
+    However, it does not seem to be a big issue in the examples that I have tested.
 
     If the conditions 1 and 2 are satisfiable, we can compute a finite model: it gives us a state \(S'\) as desired.
     We will see in the next section how to `generalize' the constraints characterizing \(S'\) and use them to weaken the generated invariant.
@@ -821,7 +823,8 @@ March-July 2018
 
     The process of generalization of \(S'\) is quite similar to the process of generalization of the counterexample \((S,E)\) (see section 2.3).
     First, we can compute the set \(C'\) of the concrete constraints characterizing the interpretations of \(S'\).
-    This set \(C'\) can be reduced by using symbolic bounded verification or by computing marks for some relevant executions.
+    This set \(C'\) can potentially be reduced by computing marks for some relevant executions starting in \(S'\)
+    (symbolic bounded verification can't be used here: it does not allow to decide whether a formula can be satisfied by \textbf{at least one} valid execution or not).
     Then, we remove from \(C'\) every constraint that already is in \(C\) in order to keep only constraints that are specific to \(S'\).
 
     Then, we replace each concrete value by an existentially quantified variable, but only for concrete values that are specific to \(S'\):
