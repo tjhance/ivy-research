@@ -814,7 +814,14 @@ March-July 2018
     If the conditions 1 and 2 are satisfiable, we can compute a finite model: it gives us a state \(S'\) as desired.
     We will see in the next section how to `generalize' the constraints characterizing \(S'\) and use them to weaken the generated invariant.
     By adding as a third condition the negation of these generalized constraints, an other valid state can be searched.
-    This process can potentially not terminate if a new valid state is always found: it will be discussed it in the section 3.5.
+    %This process can potentially not terminate if a new valid state is always found: it will be discussed it in the section 3.5.
+    This process can potentially not terminate if a new valid state is always found. Indeed, it could be compared to the whole process of finding an inductive invariant:
+    \begin{itemize}
+        \item To find an inductive invariant, we start from a safety property and we sthrengthen it until there are no more counterexamples.
+        \item To generate a valid invariant from a counterexample, we first generate a universal invariant and we weaken it until there are no more valid states satisfying it.
+    \end{itemize}
+    However, this process of weakening is much more likely to terminate than the whole process of finding an inductive invariant, because the search space is more restricted:
+    we are only looking for valid states that satisfy the constraints \(C\).
 
     \section{Weakening the conjecture}
 
@@ -863,23 +870,14 @@ March-July 2018
     \end{tabular}\\
 
 
-    \section{Guarantees}
+    \section{Guarantees and comparison with other methods}
 
-    % Non-monotonicity process: Often terminate quickly because the search space is restricted (by the constraints C)
+    % Discuss the 3 criteria
+    
+    \section{Conclusion}
 
-    % Give generated formula for the previous example
-
-\chapter{Conclusion}
-
-    \section{Comparison of the different methods}
-
-    % symbolic bounded verification generalized better than my method
-
-    \section{What remains to be done}
-
-    % Combine the two methods together (use symbolic bounded verification at the end to generalize, so we can have advantages of both methods)
-
-    \section{Lessons from this internship}
+    % What remains to be done: optimisation, etc
+    % Lessons from this internship
 
 %\chapter{Annexes}
     %\section{RML example: a leader election protocol}
