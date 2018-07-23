@@ -125,7 +125,6 @@ March-July 2018
     \section{Context}
 
     As distributed programs become more and more widespread, their verification is a major challenge.
-
     The general purpose of my internship is to make the certification of those programs easier.
     Certifying a program consists in writing some specifications (in our case, some safety properties), and then proving than the program satisfy them.
     Several languages and tools already exist for that:
@@ -156,7 +155,7 @@ March-July 2018
         \item Once the program is written and specified in an accepted logic, it can be checked more easily:
         the checker can always decide whether the program matches the invariants or not, and give a counterexample if it does not.
         \item It does not rely on any heuristic/specificity of the SMT-solver used.
-        When a program cannot be checked, we always know the reason.
+        When a program cannot be checked, a precise reason is provided.
         \item A program can be checked with any version of any SMT-solver (because it does not depend on any heuristic).
     \end{itemize}
     
@@ -169,7 +168,7 @@ March-July 2018
     IVy is inspired by a modeling language called RML (Relational Modeling Language). It is restricted such that some decidability properties are guaranteed (see section 1.4).
     A RML program is composed of:
     \begin{itemize}
-        \item Some uninterpreted types called `sorts'. `Uninterpreted' means that these types are not interpreted using any existing theory like arithmetic:
+        \item Some uninterpreted types called `sorts'. `Uninterpreted' means that these types are not interpreted in any existing theory like arithmetic:
         they are just set of values without any specific structure, though we can add axioms to our system (see below).
         A sort has an unbounded number of elements.
         \item Some variables, relations and functions over these types (a variable can be considered like a function of arity 0, and a relation can be considered as a function
@@ -177,8 +176,8 @@ March-July 2018
         \item Some axioms over these types, variables, functions and relations. Axioms are \(\exists^*\forall^*\) formulas (\( \phi_{EA} \) in the grammar below).
         \item Some transitions that we call `actions'. An action is characterized by a name and a \(statement\) (see the grammar below).
         \item A special `init' action that is only executed once at the beginning (before any other action).
-        \item A set of safety properties, that is first order formulas that should be satisfied after executing any action in a valid run (starting with the `init' action).
-        Only a fragment of first order logic can be used for decidability reasons (see sections 1.3 and 1.4).
+        \item A set of safety properties, that are first order formulas that should be satisfied after the execution of any action in a valid run (starting with the `init' action).
+        Only a restricted fragment of first order logic can be used, for decidability reasons (see sections 1.3 and 1.4).
     \end{itemize}
 
     The transitions can be written using the following grammar:
@@ -216,16 +215,15 @@ March-July 2018
 
     The semantic of terms and formulas is as usual. The semantic of statements will be described later in the section 1.4.
 
-    One important thing to note is that RML only allows uninterpreted sorts and booleans (and possibly other enumerated types).
-    It means that types and operations over these types are only constrained by the axioms of the RML program,
+    One important thing to note is that types can only be uninterpreted sorts or booleans (or possibly other enumerated types).
+    It means that the structure of these types and the operations over them are only constrained by the axioms of the RML program,
     and the form of these axioms is quite restrictive.
     In particular, we can't define arithmetic operations (see section 1.3).
-    However, we will see later that it is possible to extend it with linear integer arithmetic or some other theories.
 
-    Also, unlike some other languages like F*, IVy does not allow refinement types or dependent types (for decidability reasons).
+    Also, unlike some other languages like F*, we can't have refinement types or dependent types.
     As a consequence, we can't encode any property in the types.
     Instead, the specifications of the program are expressed with assertions (that can be built with the primitives `|', `assume' and `abort')
-    and safety properties (=invariants).
+    and safety properties.
 
     \section{Decidable logics}
 
@@ -266,18 +264,18 @@ March-July 2018
         \end{align*}
 
         This is called the skolem normal form of \(F\).
-        Note that in the general case, we can eliminate any existential quantifier in a formula in prenex normal form by introducing a new function
-        that depends on all universally quantified variables in its scope. This process is called `skolemization' and preserve the satisfiability of the formula.
+        In the general case, we can eliminate any existential quantifier of a formula in prenex normal form by introducing a new function
+        that depends on all previously declared universally quantified variables. This process is called `skolemization' and it preserves the satisfiability of the formula.
 
         \begin{property}[Skolemization]
-            Let \(F\) be a formula and \(F'\) be the formula obtained after solemization if \(F\). Then \(F\) is satisfiable iff \(F'\) is satisfiable.
+            Let \(F\) be a formula and \(F'\) be the formula obtained after solemization of \(F\). Then \(F\) is satisfiable iff \(F'\) is satisfiable.
         \end{property}
 
         Now, we want to restrict the domain of the possible interpretations in order to be able to decide the satisfiability of our formula.
 
         \begin{definition}[Herbrand domain]
-            The Herbrand domain of a formula is the set of every term that can be written with the constants and functions symbols present in the formula
-            (if there is no constant symbol in the formula, we introduce a new one).
+            The Herbrand domain of a formula is the set of every term that can be written with constants and functions symbols that are used in the formula
+            (if there is no constant symbol in the formula, a new fresh constant symbol can be used).
         \end{definition}
 
         Our formula has a unique constant \(A\) and no function symbol (only a relation symbol), so its Herbrand domain is the following:
@@ -313,18 +311,18 @@ March-July 2018
         \subsection{EPR with types}
 
         In RML, relations, functions and constants (that are preferably called `variables' since they are mutable) have types.
-        For instance, a function takes arguments of some specific sorts and also return a value in a specific sort (sorts are unbounded set of values).
-
+        In particular, the arguments and the output of a function have types.
         We can easily add these typing constraints to the logical symbols we used in the previous subsection.
         Moreover, it allows us to extend the domain of EPR formulas by still keeping a finite Herbrand domain.
 
         Indeed, we can allow function symbols and \(\forall\exists\) quantifier alternation as long as,
-        once the formula is skolemized, all function symbols are stratified (that is, there exists
-        an order over the sorts such that, for every function symbol \( f: t_1 \to t_2 \), we have \( t_1 < t_2 \)).
-        In this way, the formula will still has a finite Herbrand domain.
+        once the formula is skolemized, we have the following property (we say that function symbols are \textbf{stratified}):
+        there exists a strict order `<' over the unbounded sorts such that,
+        for every function symbol \( f: t_1,\ldots,t_n \to t \), we have \( t_i < t \) for all \(i \in [1..n]\) such that \(t_i\) and \(t\)
+        are unbounded sorts. 
 
         However, the EPR fragment can still be too restrictive: for instance, we can't introduce linear arithmetic using only EPR axioms.
-        Indeed, the standard way to define integers is to introduce a successor function symbol, which is not allowed because it is not stratified.
+        Indeed, the standard way to define integers is to introduce a successor function symbol, which is not allowed because it can't be stratified.
         More generally, we can't characterize any infinite set with only EPR axioms: it would contradict the finite model property.
 
         Actually, some strict extensions of EPR are still decidable, for instance the Finite Almost Uninterpreted fragment [REF] which allows
@@ -342,17 +340,17 @@ March-July 2018
     \section{Checking a RML program}
 
     \begin{definition}[Structure \& State]
-        For a given RML program, a structure is a pair \(((D_s)_{s\in \text{sorts}}, (I_s)_{s\in \text{symbols}})\) where:
+        For a given RML program, a structure (or interpretation) is a pair \(((D_s)_{s\in \text{sorts}}, (I_s)_{s\in \text{symbols}})\) where:
         \begin{itemize}
             \item For all \(s \in \text{sorts}\), \(D_s\) is a finite domain associated to the sort \(s\).
-            \item For all \(s \in \text{symbols}\) (variable, function or relation), \(I_s\) is an interpretation (=valuation) for the symbol \(s\) over the corresponding domains of \((D_s)\).
+            \item For all \(s \in \text{symbols}\) (variable, function or relation), \(I_s\) is a valuation for the symbol \(s\) (using the domains \((D_s)_{s\in \text{sorts}}\)).
         \end{itemize}
-        A state is a structure that satisfy every axiom defined in the RML program.
+        A state is a structure that satisfy every axiom of the RML program.
     \end{definition}
 
     In order to certify that a RML program never abort abnormally and satisfy its safety properties, we must provide IVy with an invariant \(I\) such that:
     \begin{enumerate}
-        \item \(I\) is initially satisfied (after any execution of the `init' action from any state).
+        \item \(I\) is initially satisfied (after any execution of the `init' action starting from any state).
         \item Any state satisfying \(I\) also satisfy all the safety properties.
         \item \(I\) is \textbf{inductive}, that is: from any state satisfying \(I\), any execution of one iteration (= one action) will not fail and
         will lead to a new state that also satisfy \(I\). 
@@ -419,14 +417,14 @@ March-July 2018
     \begin{itemize}
         \item The implementation and specification of programs, in accordance with the restrictions of IVy
         (stratification of functions, restriction on formulas, no recursion, limited use of while statements...).
-        A lot of research is in progress to help the user to make such programs. In particular, two majors methods are
-        studied: the fragmentation of code into many independent modules that can use different fragments of logic[REF],
-        and the adding of some mutable `ghost' relations in the program in order to capture the value of some formulas needed by the specification.[REF]
+        A lot of research is in progress in order to help the user to make such programs. In particular, two majors methods are
+        studied: the fragmentation of the code into many independent modules that can use different fragments of the first-order logic[REF],
+        and the insertion of some mutable `ghost' relations in the program that aim to capture the values of some formulas.[REF]
         
-        \item The finding of inductive invariants (once the program is implemented and specified). As we will see in the next part,
-        IVy can help the user to find an inductive invariant by providing a counterexample when an invariant is not inductive.
-        From such counterexamples, a new conjecture can also be automatically generated in order to strengthen the current invariant.
-        My work has consisted in improving this generation of invariant.
+        \item The finding of an inductive invariant (once the program is implemented and specified). As we will see in the next part,
+        IVy can help the user to find an inductive invariant by providing a counterexample if the current invariant is not inductive.
+        From this counterexample, a new conjecture can be automatically generated in order to strengthen the current invariant.
+        My work has consisted in improving this synthesis.
     \end{itemize}
 
     Some other challenges are also studied, like the verification of liveness properties [REF].
@@ -485,7 +483,7 @@ March-July 2018
         \(E\) followed by \(E'\) is a valid execution that doesn't satisfy \(I\) and thus we have a contradiction.
         \item Every possible execution of one iteration starting in \(S\) will result in a state that satisfy \(I\).
         In this case, we can generate a precondition for our initial invariant that is stricly weaker than \(P\):
-        let \(F\) be a formula that fully characterize \(S\) (its concrete domains and its interpretations in these domains),
+        let \(F\) be a formula that fully characterize \(S\) (the cardinality of its domains and the valuations of the different symbols in these domains),
         then \(P \lor F\) is still a precondition for \(I\) and is strictly weaker than \(P\) (contradiction). 
     \end{itemize}
 
@@ -579,7 +577,7 @@ March-July 2018
     \begin{minipage}{0.45\textwidth}
         Domain for \(a\): \(\{a_0,a_1\}\)\\
         Domain for \(b\): \(\{b_0\}\)\\
-        Constraints on interpretations:\\
+        Constraints on valuations:\\
         \(elt = a_0\)\\
         \(\neg dom(a_0)\)\\
         \(dom(a_1)\)\\
@@ -600,7 +598,7 @@ March-July 2018
     \end{minipage} \hfill
     \begin{minipage}{0.45\textwidth}
         One element \(b_1\) has been added to \(b\)\\
-        with the following new interpretations:\\
+        with the following new valuations:\\
         \(\neg f(a_0,b_1)\)\\
         \(f(a_1,b_1)\)\\
         This time, the conjecture remains satisfied after executing any action.\\
