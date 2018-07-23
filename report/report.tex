@@ -391,7 +391,7 @@ March-July 2018
     \end{enumerate}
 
     \begin{lemma}
-        Let \(S\) be a RML statement and \(Q\) a \(\forall^*\exists^*\) formula (that is a formula whose normal prenex form has a \(\forall^*\exists^*\) prefix followed by a quantifier-free part), then \(wp(S,Q)\) is also a \(\forall^*\exists^*\) formula.
+        Let \(S\) be a RML statement and \(Q\) a \(\forall^*\exists^*\) formula (= a formula whose normal prenex form has a \(\forall^*\exists^*\) prefix followed by a quantifier-free part), then \(wp(S,Q)\) is also a \(\forall^*\exists^*\) formula.
     \end{lemma}
 
     This lemma can easily be proved by induction on \(S\) (we remind that axioms \(A\) are \(\exists^*\forall^*\) formulas).
@@ -522,22 +522,27 @@ March-July 2018
     (section 1.4 explains how to check the inductiveness of an invariant).
 
     Let \( (S,E) \) be a finite counterexample.
-    % TODO: add constraints of the form (val /= val) to this set of constraints instead of adding these constraints later. Also apply it to other occurences in the document.
-    % Also give a name to this set of constraints (like constr(C))
-    We can fully characterize the interpretations of \(S\) with a finite number of constraints of the form \(symbol(concrete\_value_1,\ldots,concrete\_value_n) = concrete\_value\)
-    (where concrete values are elements of the domains of \(S\)).
-    From these constraints, we will generate a formula as follows:
+
+    \begin{definition}
+        Let \(S\) be a state, then \(constr(S)\) is the set of all constraints of the following forms that are satisfied by \(S\):
+        \begin{itemize}
+            \item \(symbol(concrete\_value_1,\ldots,concrete\_value_n) = concrete\_value\) with `\(symbol\)' refering to any variable, function or relation of \(S\) and `concrete values'
+            being any elements of the domains of \(S\)
+            \item \(concrete\_value_1 \neq concrete\_value_2\) (with `\(concrete\_value_1\)' and `\(concrete\_value_2\)' of the same type)
+        \end{itemize}
+    \end{definition}
+
+    We can generate a formula as follows:
     \begin{enumerate}
-        \item We associate a variable \( X_v \) to each concrete value \(v\)
-        \item In each constraint, we replace each concrete value \(v\) by \( X_v \)
-        \item For every pair of concrete values \( (v_1,v_2) \) in the same domain such that \( v_1 \neq v_2 \), we add the constraint \( X_{v_1} \neq X_{v_2} \)
+        \item We associate a variable \( X_v \) to each concrete value \(v\) in \(S\)
+        \item For each constraint in \(constr(S)\), we replace each concrete value \(v\) by \( X_v \)
         \item We make the conjunction of all these constraints and we quantify existentially on each \(X_v\). Optionaly, we can simplify the resulting formula to get rid of some variables.
     \end{enumerate}
     
-    The resulting formula \(F\) is an existentially quantified formula that characterizes all structures containing a substructure isomorphic to the counterexample.
+    The resulting formula \(F\) is an existentially quantified formula that characterizes all structures containing a substructure that is isomorphic to the structure of the counterexample.
     In order to prevent this counterexample from happening again, we just have to negate \(F\) (it will become universally quantified) and add it to the current set of invariants.
 
-    This technique always generate an universally-quantified invariant, and so there is no decidability issue.
+    This technique always generate an universal invariant, and so there is no decidability issue.
     However, there are three major issues:
     \begin{itemize}
         \item As we will see in the next section, the new invariant generated is not always correct.
@@ -647,9 +652,9 @@ March-July 2018
         Actually, we cannot be sure that an invariant is correct using this method (because it is bounded to executions of length \(k\)),
         but in practice taking \(k=5\) is sufficient to detect incorrect invariants.
         \item It allows us to generate simpler and more general invariants. Indeed, instead of generating a formula that
-        aggregates all constraints of the initial state \(S\) of the counterexample, we are able to only keep a minimal number of constraints
+        aggregates all constraints in \(constr(S)\), we are able to only keep a minimal number of constraints
         such that the resulting invariant is still correct. It can be done quite efficiently by computing a minimal unSAT core using a SMT-solver.
-        \item If the program that we want to check is not correct (it doesn't match the specification), symbolic bounded verification
+        \item If the program that we want to check is not correct (it doesn't match the specifications), symbolic bounded verification
         can sometimes allow us to find it out, while a naive counterexample generalization would just generate incorrect invariants.
     \end{itemize}\hfill
 
@@ -664,7 +669,7 @@ March-July 2018
     They do not contain any useless litteral, so we can expect them to be quite strong.\\
 
     This method seems less reliable than the weakest precondition, however it generates invariants that are much more interesting.
-    It is the method currently implemented by IVy in order to help the user to synthesize inductive invariants interactively.
+    This is the method that is currently implemented by IVy in order to help the user to synthesize inductive invariants interactively.
 
 \chapter{My contributions}
 
@@ -686,33 +691,29 @@ March-July 2018
     \section{Filtering constraints by analyzing the execution}
 
     The problem we want to solve is as follows: given a counterexample (\(S,E\)) (\(S\) being the initial state and \(E\) a deterministic statement describing the execution of an action),
-    % TODO
-    we want to highlight a subset of constraints as small as possible, among the concrete constraints characterizing the interpretations of \(S\) (see section 2.3), such that no state satisfying these constraints
-    can be obtained through a valid execution (for non-monotonic counterexamples it is not always possible, but this case will be treated in section 3.3).
+    we want to highlight a subset of \(constr(S)\) (see section 2.3) as small as possible, such that there is no valid state (= state that can be reached with a valid run) that can satisfy these constraints
+    (for non-monotonic counterexamples it is not always possible, but this case will be treated in section 3.3).
 
     To solve this problem, the IVy approach is to use symbolic bounded verification (see section 2.5) to reduce the number of constraints (the problem is encoded as an unSAT core to minimize).
     My approach is very different:
     \begin{enumerate}
         \item We compute \(S'\) the state obtained after the execution of \(E\) from \(S\).
-        % TODO
-        We compute \(C\) and \(C'\), the sets of all constraints of the form \(symbol(concrete\_value_1,\ldots,concrete\_value_n) = concrete\_value\) characterizing the interpretations of respectively \(S\) and \(S'\).
-        \item We try to compute a subset of \(C'\) that is sufficient to guarantee that the current invariant is broken.
-        More precisely, we compute a set of `marks', a `mark' being a pointer to an important constraint.
-        A mark is an object of the form \(symbol(concrete\_value_1,\ldots,concrete\_value_n)\). % TODO
-        \item We retropopagate these marks through the execution of \(E\) in order to obtain a subset of \(C\) that is sufficient
-        to guarantee that, after the execution of \(E\), the invariant will be broken.
+        \item We try to compute a subset \(C'\) of \(constr(S')\) (as small as possible) such that all states satisfying \(C'\) (modulo renaming of the concrete values)
+        evaluate the current invariant to the same value. More precisely, we compute a set of `marks', a `mark' being a pointer to an important constraint:
+        it can be an object of the form \(symbol(concrete\_value_1,\ldots,concrete\_value_n)\) or \(concrete\_value_1 \neq concrete\_value_2\).
+        \item We retropopagate these marks through the execution of \(E\) in order to obtain a subset \(C\) of \(constr(S)\) such that
+        all states satisfying \(C\) (modulo renaming of the concrete values) can reproduce the execution \(E\) and satisfy \(C'\) at the end.
     \end{enumerate}
 
     To perform the step 2, we can use the following algorithm (formulas and terms are assimilated):
-    % TODO: Add case t1=t2
+
     \begin{algorithm}[H]
         \SetKwFunction{MFV}{Compute_marks}%
         \SetKwProg{Fn}{Function}{}{end}
         \SetKwSwitch{Match}{Case}{Other}{match}{}{case}{otherwise}{endcase}{end}
         \Fn{\MFV{S,V}}{
             \KwData{a state \(S\), a formula or a term \(V\)}
-            \KwResult{a set of marks \(M\) such that all states concurring with \(S\) on the values pointed by \(M\)
-            will evaluate \(V\) to the same concrete value}
+            \KwResult{a set of marks \(M\) that points to some constraints in \(constr(S)\)}
 
             \Match{V}{
                 \uCase{symbol(\(t_1,\ldots,t_n\))}{
@@ -753,6 +754,7 @@ March-July 2018
                         \KwRet{\(\bigcup_{x_t \in a}\) \MFV{\(S,F(x_t)\)}}
                     }
                 }
+                \uCase{\(\ldots\)}{}
             }
         }
         %\caption{Computing marks for a term or a formula}
@@ -771,8 +773,7 @@ March-July 2018
         \SetKwSwitch{Match}{Case}{Other}{match}{}{case}{otherwise}{endcase}{end}
         \Fn{\RPM{M',E,S}}{
             \KwData{a set of marks \(M'\) computed after the execution of the deterministic statement \(E\) from the state \(S\)}
-            \KwResult{a new set of marks \(M\) such that every state concurring with \(S\) on the values pointed by \(M\)
-            will concur with \(S'\) on the values pointed by \(M'\) (\(S'\) being that state obtained after executing \(E\) from \(S\))}
+            \KwResult{a new set of marks \(M\) that points to some constraints in \(constr(S)\)}
 
             \Match{E}{
                 \uCase{skip}{\KwRet{\(M'\)}\;}
@@ -819,8 +820,8 @@ March-July 2018
     For this reason, if some non-monotonicity has been detected during the computation of marks,
     a second process is performed in order to know whether the generated conjecture is correct or not, and to fix it if it is not correct.
     
-    In order to do that, we can try to find some valid states that satisfy all the constraints of the counterexample
-    (or at least those that have been marked as important). Such states would be the witnesses of the non-correctness of our generated invariant.
+    In order to do that, we can try to find some valid states that satisfy all the constraints \(C\).
+    Such states would be the witnesses of the non-correctness of our generated invariant.
     If we find such a state, we can use it to weaken the generated conjecture in order to make it accept this state.
     Otherwise, we know that the universal invariant generated is already correct.
     In this section, we will see how to find such states, and in the next section we will see how to use them to weaken the conjecture.
@@ -828,13 +829,13 @@ March-July 2018
     Let \((S,E)\) be the initial counterexample, let \(C\) be the constraints of \(S\) that have been marked.
     We want to find a state \(S'\) such that:
     \begin{enumerate}
-        \item \(S'\) satisfies all constraints in \(C\). It implies that the domains of \(S'\) contain all concrete values that appear in \(C\).
+        \item \(S'\) satisfies all constraints \(C\). It implies that the domains of \(S'\) contain all concrete values that appear in \(C\).
         However, they can also contain some other elements.
-        \item \(S'\) is a valid state (it can be obtained through a valid run).
+        \item \(S'\) is a valid state (it can be reached with a valid run).
     \end{enumerate}
 
     The first condition is easy to express with a formula, but the second condition is more complicated.
-    Note that symbolic bounded verification is not helpful here as it only allows us to determine whether a given formula is a k-invariant (that is, if it is satisfied by \textbf{all} valid executions or not).
+    Note that symbolic bounded verification is not helpful here as it only allows us to determine whether a given formula is a k-invariant (that is, if it is satisfied by \textbf{all} valid k-executions or not).
     However, we can approximate the second condition with this other one (which is weaker, if we assume that the current invariant is correct):
     \(S'\) satisfies the current invariant and the axioms, and doesn't break any of them after one iteration (in particular after executing the action that is executed in the counterexample).
     We can express this new condition with the following formula:
@@ -845,25 +846,23 @@ March-July 2018
     However, it does not seem to be a big issue in the examples that I have tested.
 
     If the conditions 1 and 2 are satisfiable, we can compute a finite model: it gives us a state \(S'\) as desired.
-    We will see in the next section how to `generalize' this state and use it to weaken the generated invariant.
-    By adding as a third condition the negation of these generalized constraints, an other valid state can be searched.
-    %This process can potentially not terminate if a new valid state is always found: it will be discussed it in the section 3.5.
+    We will see in the next section how to produce a formula that `generalize' this state and use it to weaken the generated invariant.
+    By adding as a third condition the negation of this formula, an other valid state can be searched.
     This process can potentially not terminate if a new valid state is always found. Indeed, it could be compared to the whole process of finding an inductive invariant:
     \begin{itemize}
-        \item To find an inductive invariant, we start from a safety property and we sthrengthen it until there are no more counterexamples.
-        \item To generate a valid invariant from a counterexample, we first generate a universal invariant and we weaken it until there are no more valid states satisfying it.
+        \item To find an inductive invariant, we start from the safety properties and we sthrengthen them until there are no more counterexamples.
+        \item To generate a valid invariant from a counterexample, we first generate an universal invariant and we weaken it until there are no more valid states satisfying it.
     \end{itemize}
     However, this process of weakening is much more likely to terminate than the whole process of finding an inductive invariant, because the search space is more restricted:
     we are only looking for valid states that satisfy the constraints \(C\).
 
     \section{Weakening the conjecture}
-
+% TODO: rename S' in Sv
     Once we have a valid state \(S'\) that satisfies all the marked constraints \(C\) of the counterexample,
-    we will generalize it and we will build a new invariant that allows states similar to \(S'\).
+    we will generalize it and we will build a new invariant that allows valid states that are similar to \(S'\).
 
     The process of generalization of \(S'\) is quite similar to the process of generalization of the counterexample \((S,E)\) (see section 2.3).
-    First, we can compute the set \(C'\) of the concrete constraints characterizing the interpretations of \(S'\).% TODO
-    This set \(C'\) can potentially be reduced by computing marks for some relevant executions starting in \(S'\)
+    First, we can compute a subset \(C'\) of \(constr(S')\) by computing marks for some relevant executions starting in \(S'\)
     (symbolic bounded verification can't be used here: it does not allow to decide whether a formula can be satisfied by \textbf{at least one} valid execution or not).
     Then, we remove from \(C'\) every constraint that already is in \(C\) in order to keep only constraints that are specific to \(S'\).
 
@@ -875,7 +874,7 @@ March-July 2018
     However, it is not an major issue since it will not compromise the correctness of the final invariant generated.
 
     Now, we can build a formula that characterize more precisely the states that could lead to an execution similar to the execution of the counterexample.
-    We want to characterize states that satisfy \(C\), but we only want bad states, so we don't want to include states that satisfy \(F'\).
+    We want to characterize states that satisfy \(C\), but we only want invalid states, so we don't want to include states that satisfy \(F'\).
     It gives us the following formula: \( C \land (\neg F') \).
     This formula still contains concrete values (those that appear in \(C\)), so we replace them by existentially quantified variables.
     The resulting formula has the form \( \exists^* \ldots \land \neg(\exists^* \ldots) \). After negating it, we obtain a new invariant of the form
