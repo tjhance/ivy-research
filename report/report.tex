@@ -3,13 +3,15 @@
 \usepackage[T1]{fontenc}
 \usepackage{microtype}
 \usepackage[dvips]{graphicx}
-\usepackage{xcolor}
+\usepackage[dvipsnames]{xcolor}
 \usepackage{times}
 \usepackage{amsmath}
 \usepackage{amsthm}
 \usepackage{syntax}
 \usepackage{multicol}
 \usepackage[]{algorithm2e}
+\usepackage{xcolor}
+\usepackage{tabularx}
 %\usepackage{algorithm}
 
 \usepackage[
@@ -198,7 +200,7 @@ March-July 2018
 
             <t> ::= \(x\)
             \alt \textbf{v}
-            \alt \textbf{f}(\(t,...t\))
+            \alt \textbf{f}(\(t,\ldots t\))
             \alt ite(\( \phi_{QF},t,t\))
 
             <\( \phi_{QF} \)> ::= \textbf{r}(\(t,\ldots t\))
@@ -220,7 +222,8 @@ March-July 2018
 
     Also, unlike some other languages like F*, IVy does not allow refinement types or dependent types (for decidability reasons).
     As a consequence, we can't encode any property in the types.
-    Instead, the specifications of the program will be expressed using assertions and invariants.
+    Instead, the specifications of the program are expressed with assertions (that can be built with the primitives `|', `assume' and `abort')
+    and safety properties (=invariants).
 
     \section{Decidable logics}
 
@@ -341,7 +344,7 @@ March-July 2018
         \end{itemize}
         A state is a structure that satisfy every axiom defined in the RML program.
     \end{definition}
-
+    % TODO: also check safety properties
     In order to certify that a RML program never abort abnormally, we must provide IVy with an invariant \(I\) such that:
     \begin{enumerate}
         \item \(I\) is initially satisfied (after any execution of the `init' action from any state).
@@ -434,14 +437,15 @@ March-July 2018
     The synthesis of an inductive invariant is a common problem in verification, and even with the restrictions of RML, it is still undecidable (though it can be decidable for some very restricted classes of invariants). [REF]
     Nevertheless, even an partial resolution of this problem can still be very helpful for the user.
 
-    In IVy, most of invariants are universal invariants (\(\forall^*\)), but sometimes a \(\forall^*\exists^*\) invariant can be required (under some restrictions in order
+    In IVy, most of invariants can be expressed with universal formulas (\(\forall^*\)), but sometimes a \(\forall^*\exists^*\) formula can be required (under some restrictions in order
     to stay in a decidable fragment of logic). Thus, we will restrain our search to these two types of invariant.
     In particular, when possible, we will try to synthetize universal invariants because they are easier to generate and will never cause any decidability issue.
     
-    As described in this article [REF], the most common way to find an universal inductive invariant is to start from the specification of the program
-    and try to sthrengthen it (using one of the methods described in the next sections) until we get an inductive invariant.
+    As described in this article [REF], the most common way to find an inductive invariant is to start from the safety properties of the program
+    and try to sthrengthen them by adding new invariants (using one of the methods described in the next sections) until this set of invariants form an inductive invariant
+    (thereafter, we will use the terms `invariant' or `set of invariants' indistinguishably: a set of invariants can be seen as a single invariant that is the conjunction of all invariants of the set).
     This iterative process may not terminate, but it offers to the user an interactive way to find an inductive invariant:
-    if the current invariant is not inductive, a new conjecture is proposed to the user (in order to be added to the current invariant).
+    if the current invariant is not inductive, a new conjecture is proposed to the user (in order to sthrengthen the current invariant).
     If this conjecture is simple enough, the user can analyze it and adjust it as he wants, and we repeat this process.
 
     Thus, the problem we want to solve is as follows:
@@ -451,14 +455,14 @@ March-July 2018
     The following criteria can be used to evaluate an algorithm that tries to solve this problem:
     \begin{enumerate}
         \item \textbf{Reliability}: Can the algorithm fail, not terminate or generate incorrect invariants?
-        \item \textbf{Decidability}: Is the new invariant generated still checkable in a decidable way (in our case, we want it to be EPR)?
-        \item \textbf{Simplicity}: Is the new invariant generated easily understandable by the user (in order to be adjusted if needed)?
+        \item \textbf{Decidability}: Is the new invariant generated checkable in a decidable way (in our case, we want it to be EPR)?
+        \item \textbf{Efficiency}: How strong is the new invariant generated? Is it easily understandable by the user (in order to be adjusted if needed)?
     \end{enumerate}
 
     \section{Weakest precondition as a new invariant}
 
     One possible way to sthrengthen an invariant \(I\) is to make the conjunction with its weakest precondition \(wpr(\text{action}_1|\ldots|\text{action}_n,I)\).
-    If the initial invariant is not inductive, the result will be stricltly stronger.
+    If the initial invariant is not inductive, the result will be strictly stronger.
 
     Let's evaluate this method with our criteria.\\
     
@@ -477,7 +481,7 @@ March-July 2018
         then \(P \lor F\) is still a precondition for \(I\) and is strictly weaker than \(P\) (contradiction). 
     \end{itemize}
 
-    So \(P\) is a correct invariant and thus \(P \land I\) is also a correct invariant.\\
+    So \(P\) is a correct invariant.\\
 
     \textbf{Decidability}: Even if the initial invariant is EPR, the weakest precondition is not guaranteed to be EPR.
     Indeed, stratification can be broken in several cases: assumptions, non-deterministic operations, etc.
@@ -493,9 +497,10 @@ March-July 2018
     and thus will be EPR. However, these conditions are very restrictive and so they can't be reasonably imposed.
     \\
 
-    \textbf{Simplicity}: Weakest preconditions are usually very long, even after simplification (they can grow exponentially).
-    Moreover, they are not focused on one aspect in particular (they mix many elements together), and so they are even more complicated
-    to understand.
+    \textbf{Efficiency}: Weakest preconditions aim to be `weakest', while we want an invariant as strong and simple as possible.
+    They are usually very long, even after simplification (they can grow exponentially).
+    Moreover, they are not focused on one aspect in particular (they mix many different elements together), and so they are even more complicated
+    to understand. 
 
     \section{Naive counterexample generalization}
 
@@ -509,6 +514,8 @@ March-July 2018
     (section 1.4 explains how to check the inductiveness of an invariant).
 
     Let \( (S,E) \) be a finite counterexample.
+    % TODO: add constraints of the form (val /= val) to this set of constraints instead of adding these constraints later. Also apply it to other occurences in the document.
+    % Also give a name to this set of constraints (like constr(C))
     We can fully characterize the interpretations of \(S\) with a finite number of constraints of the form \(symbol(concrete\_value_1,\ldots,concrete\_value_n) = concrete\_value\)
     (where concrete values are elements of the domains of \(S\)).
     From these constraints, we will generate a formula as follows:
@@ -520,7 +527,7 @@ March-July 2018
     \end{enumerate}
     
     The resulting formula \(F\) is an existentially quantified formula that characterizes all structures containing a substructure isomorphic to the counterexample.
-    In order to prevent this counterexample from happening again, we just have to negate \(F\) (it will become universally quantified) and add it to the current invariant.
+    In order to prevent this counterexample from happening again, we just have to negate \(F\) (it will become universally quantified) and add it to the current set of invariants.
 
     This technique always generate an universally-quantified invariant, and so there is no decidability issue.
     However, there are three major issues:
@@ -602,10 +609,17 @@ March-July 2018
 
     \begin{property}
         For a counterexample \((S,E)\), if \(E\) is monotonic \textbf{and} the broken invariant is monotonic (and correct),
-        then there exists a correct universal invariant that is not satisfied by \(S\) (we say that it `captures' the counterexample).
-
-        The naive counterexample generalization method always generates such invariant when it exists, otherwise it generates an incorrect invariant.
+        then there exists a correct universal invariant that is not satisfied by \(S\) (we say that the invariant `captures' the counterexample).
     \end{property}
+    \begin{property}
+        If there exists a correct universal invariant that is not satisfied by \(S\), then
+        the naive counterexample generalization method will always generate such an invariant.
+        More precisely, it will generate the weakest universal invariant that is not satisfied by \(S\).
+
+        If there is no such invariant, the invariant generated will be incorrect.
+    \end{property}
+    
+    A proof for this last property can be found in this article [REF] (lemma 1).
 
     \section{Improving the result with symbolic bounded verification}
 
@@ -637,8 +651,9 @@ March-July 2018
 
     \textbf{Decidability}: All invariants generated are universal, so it never causes any decidability issue.\\
 
-    \textbf{Simplicity}: Invariants generated are quite small and simple. They are more focused than weakest preconditions
-    (because they are issued from one precise counterexample) and do not contain any useless litteral.\\
+    \textbf{Efficiency}: Invariants generated are quite small and simple. They are more focused than weakest preconditions
+    (because they are issued from one precise counterexample) so they can be understood more easily.
+    They do not contain any useless litteral, so we can expect them to be quite strong.\\
 
     This method seems less reliable than the weakest precondition, however it generates invariants that are much more interesting.
     It is the method currently implemented by IVy in order to help the user to synthesize inductive invariants interactively.
@@ -671,7 +686,7 @@ March-July 2018
     \begin{enumerate}
         \item We compute \(S'\) the state obtained after the execution of \(E\) from \(S\).
         We compute \(C\) and \(C'\), the sets of all constraints of the form \(symbol(concrete\_value_1,\ldots,concrete\_value_n) = concrete\_value\) characterizing the interpretations of respectively \(S\) and \(S'\).
-        \item We try to compute a subset of \(C'\) that is sufficient to guarantee that the invariant is broken.
+        \item We try to compute a subset of \(C'\) that is sufficient to guarantee that the current invariant is broken.
         More precisely, we compute a set of `marks', a `mark' being a pointer to an important constraint.
         A mark is an object of the form \(symbol(concrete\_value_1,\ldots,concrete\_value_n)\).
         \item We retropopagate these marks through the execution of \(E\) in order to obtain a subset of \(C\) that is sufficient
@@ -679,7 +694,7 @@ March-July 2018
     \end{enumerate}
 
     To perform the step 2, we can use the following algorithm (formulas and terms are assimilated):
-
+    % TODO: Add case t1=t2
     \begin{algorithm}[H]
         \SetKwFunction{MFV}{Compute_marks}%
         \SetKwProg{Fn}{Function}{}{end}
@@ -802,8 +817,8 @@ March-July 2018
 
     The first condition is easy to express with a formula, but the second condition is more complicated.
     Note that symbolic bounded verification is not helpful here as it only allows us to determine whether a given formula is a k-invariant (that is, if it is satisfied by \textbf{all} valid executions or not).
-    However, we can approximate the second condition with this other one (which is weaker, if we assume that the current invariants are correct):
-    \(S'\) satisfies all the current invariants and axioms, and doesn't break any of them after one iteration (in particular after executing the action that is executed in the counterexample).
+    However, we can approximate the second condition with this other one (which is weaker, if we assume that the current invariant is correct):
+    \(S'\) satisfies the current invariant and the axioms, and doesn't break any of them after one iteration (in particular after executing the action that is executed in the counterexample).
     We can express this new condition with the following formula:
 
     \(A \land I \land wpr(\text{action}_1|\ldots|\text{action}_n,I)\)
@@ -848,8 +863,7 @@ March-July 2018
     The resulting formula has the form \( \exists^* \ldots \land \neg(\exists^* \ldots) \). After negating it, we obtain a new invariant of the form
     \( \forall^* \ldots \rightarrow (\exists^* \ldots) \), that is an invariant with a \(\forall^*\exists^*\) prefix.
 
-    Here is a table that illustrates this process on the example of the section 2.4:
-
+    Here is a table that illustrates this process on the example of the section 2.4:\\
     \begin{tabular}{|l|c|c|}
         \hline
         & Counterexample \((S,E)\) & Valid state \(S'\) \\
@@ -869,8 +883,9 @@ March-July 2018
         \hline
     \end{tabular}\\
 
-
     \section{Comparison with other methods}
+
+    Let's evaluate the method presented in this chapter:
 
     \textbf{Reliability}: If we assume that the initial invariant is correct, then this algorithm always generate correct invariants
     (except if we use symbolic bounded verification to reduce the set of constraints \(C\)).
@@ -879,9 +894,29 @@ March-July 2018
     \textbf{Decidability}: If there exists an universal invariant that can capture the counterexample, then such an invariant will be produced.
     Otherwise, an invariant of the form \(\forall^*\exists^*\) will be produced: it may cause some decidability issues that the user will have to solve.\\
 
-    \textbf{Simplicity}: Invariants generated are quite small and simple.
-    
-    % TODO: make comparative table
+    \textbf{Efficiency}: Invariants generated are quite small and simple because they only contains elements that have played an important role in the execution of the counterexample.
+    Symbolic bounded verification can be used to improve the result.\\
+
+    Here is a table that compare the different methods of invariant synthesis:\\
+    \begin{tabularx}{\textwidth}{|l|X|X|X|}
+        \hline
+            & Weakest precondition & \multicolumn{2}{c|}{Counterexample generalization}\\
+        \cline{3-4}
+            & (section 2.2) & Symbolic bounded verification (section 2.5) & Execution analysis + Weakening (chapter 3)\\
+        \hline
+            Reliability & \textcolor{ForestGreen}{Always terminate, always correct} &
+            \textcolor{Red}{Can only generate universal invariants (no guarantee for non-monotonic counterexamples), incorrect if \(k\) is too small}
+            & \textcolor{Dandelion}{Can generate universal invariants when possible, otherwise can generate \(\forall^*\exists^*\) invariants (but may not terminate in this case)}\\
+        \hline
+            Decidability & \textcolor{Dandelion}{Additional restrictions must be imposed to have the guarantee that weakest preconditions are EPR}
+            & \textcolor{ForestGreen}{Generated invariants are always EPR}
+            & \textcolor{ForestGreen}{Generated invariants are EPR for monotonic counterexamples}\\
+        \hline
+            Efficiency & \textcolor{Red}{Generated invariants are very long, unreadable, and often too weak}
+            & \textcolor{ForestGreen}{Generated invariants are simple and don't contain any useless litteral}
+            & \textcolor{ForestGreen}{Generated invariants are quite simple, symbolic bounded verification can be used to improve the result}\\
+        \hline
+    \end{tabularx}\\
 
     \section{Conclusion}
 
