@@ -647,7 +647,7 @@ March-July 2018
         Actually, we cannot be sure that an invariant is correct using this method (because it is bounded to executions of length \(k\)),
         but in practice taking \(k=5\) is sufficient to detect incorrect invariants.
         \item It allows us to generate simpler and more general invariants. Indeed, instead of generating a formula that
-        aggregates all constraints of the initial state of the counterexample, we are able to only keep a minimal number of constraints
+        aggregates all constraints of the initial state \(S\) of the counterexample, we are able to only keep a minimal number of constraints
         such that the resulting invariant is still correct. It can be done quite efficiently by computing a minimal unSAT core using a SMT-solver.
         \item If the program that we want to check is not correct (it doesn't match the specification), symbolic bounded verification
         can sometimes allow us to find it out, while a naive counterexample generalization would just generate incorrect invariants.
@@ -686,6 +686,7 @@ March-July 2018
     \section{Filtering constraints by analyzing the execution}
 
     The problem we want to solve is as follows: given a counterexample (\(S,E\)) (\(S\) being the initial state and \(E\) a deterministic statement describing the execution of an action),
+    % TODO
     we want to highlight a subset of constraints as small as possible, among the concrete constraints characterizing the interpretations of \(S\) (see section 2.3), such that no state satisfying these constraints
     can be obtained through a valid execution (for non-monotonic counterexamples it is not always possible, but this case will be treated in section 3.3).
 
@@ -693,10 +694,11 @@ March-July 2018
     My approach is very different:
     \begin{enumerate}
         \item We compute \(S'\) the state obtained after the execution of \(E\) from \(S\).
+        % TODO
         We compute \(C\) and \(C'\), the sets of all constraints of the form \(symbol(concrete\_value_1,\ldots,concrete\_value_n) = concrete\_value\) characterizing the interpretations of respectively \(S\) and \(S'\).
         \item We try to compute a subset of \(C'\) that is sufficient to guarantee that the current invariant is broken.
         More precisely, we compute a set of `marks', a `mark' being a pointer to an important constraint.
-        A mark is an object of the form \(symbol(concrete\_value_1,\ldots,concrete\_value_n)\).
+        A mark is an object of the form \(symbol(concrete\_value_1,\ldots,concrete\_value_n)\). % TODO
         \item We retropopagate these marks through the execution of \(E\) in order to obtain a subset of \(C\) that is sufficient
         to guarantee that, after the execution of \(E\), the invariant will be broken.
     \end{enumerate}
@@ -713,10 +715,19 @@ March-July 2018
             will evaluate \(V\) to the same concrete value}
 
             \Match{V}{
-                \uCase{symbol(\(V_1,\ldots,V_n\))}{
-                    Compute \(M_1,\ldots,M_n\) the marks for \(V_1,\ldots,V_n\)\;
-                    Compute \(v_1,\ldots,v_n\) the evaluation of \(V_1,\ldots,V_n\) in \(S\)\;
+                \uCase{symbol(\(t_1,\ldots,t_n\))}{
+                    Compute \(M_1,\ldots,M_n\) the marks for \(t_1,\ldots,t_n\)\;
+                    Compute \(v_1,\ldots,v_n\) the evaluation of \(t_1,\ldots,t_n\) in \(S\)\;
                     \KwRet{\(\{symbol(v_1,\ldots,v_n)\} \cup \bigcup M_k\)}\;
+                }
+                \uCase{\(t_1 = t_2\)}{
+                    Compute \(v_1,v_2\) the evaluation of \(t_1,t_2\) in \(S\)\;
+                    \uIf {\(v_1 = v_2\)} {
+                        \KwRet{\MFV{\(S,t_1\)} \(\cup\) \MFV{\(S,t_2\)}}\;
+                    }
+                    \uElse {
+                        \KwRet{\MFV{\(S,t_1\)} \(\cup\) \MFV{\(S,t_2\)} \(\cup \{v_1 \neq v_2\}\)}\;
+                    }
                 }
                 \uCase{\(\neg F\)}{
                     \KwRet{\MFV{\(S,F\)}}\;
@@ -742,10 +753,9 @@ March-July 2018
                         \KwRet{\(\bigcup_{x_t \in a}\) \MFV{\(S,F(x_t)\)}}
                     }
                 }
-                \uCase{\(\ldots\)}{}
             }
         }
-        \caption{Computing marks for a term or a formula}
+        %\caption{Computing marks for a term or a formula}
     \end{algorithm}\hfill
 
     For instance, at the end of the counterexample of the section 2.4,
@@ -782,7 +792,7 @@ March-July 2018
                 }
             }
         }
-        \caption{Retropropagate marks through the execution of a statement}
+        %\caption{Retropropagate marks through the execution of a statement}
     \end{algorithm}\hfill
 
     For instance, after applying this algorithm to the example of section 2.4 (all primitives used can be translated to RML),
@@ -835,7 +845,7 @@ March-July 2018
     However, it does not seem to be a big issue in the examples that I have tested.
 
     If the conditions 1 and 2 are satisfiable, we can compute a finite model: it gives us a state \(S'\) as desired.
-    We will see in the next section how to `generalize' the constraints characterizing \(S'\) and use them to weaken the generated invariant.
+    We will see in the next section how to `generalize' this state and use it to weaken the generated invariant.
     By adding as a third condition the negation of these generalized constraints, an other valid state can be searched.
     %This process can potentially not terminate if a new valid state is always found: it will be discussed it in the section 3.5.
     This process can potentially not terminate if a new valid state is always found. Indeed, it could be compared to the whole process of finding an inductive invariant:
@@ -852,7 +862,7 @@ March-July 2018
     we will generalize it and we will build a new invariant that allows states similar to \(S'\).
 
     The process of generalization of \(S'\) is quite similar to the process of generalization of the counterexample \((S,E)\) (see section 2.3).
-    First, we can compute the set \(C'\) of the concrete constraints characterizing the interpretations of \(S'\).
+    First, we can compute the set \(C'\) of the concrete constraints characterizing the interpretations of \(S'\).% TODO
     This set \(C'\) can potentially be reduced by computing marks for some relevant executions starting in \(S'\)
     (symbolic bounded verification can't be used here: it does not allow to decide whether a formula can be satisfied by \textbf{at least one} valid execution or not).
     Then, we remove from \(C'\) every constraint that already is in \(C\) in order to keep only constraints that are specific to \(S'\).
