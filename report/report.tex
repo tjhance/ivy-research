@@ -67,7 +67,7 @@ bookmarks=true,bookmarksopenlevel=2]{hyperref}
 %%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%
 
 \begin{document}
-
+\pagenumbering{gobble}
 %%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%
 %   TITLEPAGE
 %
@@ -84,7 +84,7 @@ bookmarks=true,bookmarksopenlevel=2]{hyperref}
 ~\vspace{\fill}
 
 {\huge 
-Invariant Synthesis by Counterexample Generalization
+Generalization of counterexamples for inductive invariant synthesis
 }
 
 \vspace{2.5cm}
@@ -119,7 +119,8 @@ March-July 2018
 
 %%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%
 %%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%---%%%
-
+\pagenumbering{arabic}
+\setcounter{page}{1}
 \chapter{Presentation of IVy}
 
     \section{Context}
@@ -673,7 +674,7 @@ March-July 2018
     This method seems less reliable than just computing the weakest precondition, however it generates invariants that are much more interesting.
     This is the method that is currently implemented by IVy in order to help the user to synthesize inductive invariants interactively.
 
-\chapter{My contributions}
+\chapter{Contributions}
 
     \section{Course of my internship}
 
