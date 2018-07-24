@@ -146,7 +146,7 @@ March-July 2018
         in order to help the SMT-solver.
     \end{itemize}
 
-    IVy is a language that allows the user to certify its program using a SMT-solver based approach. [REF]
+    IVy\cite{Padon:2016:ISV:2908080.2908118} is a language that allows the user to certify its program using a SMT-solver based approach.
     However, unlike most of its concurrents, IVy restricts the language and the logic used for specifications
     in order to be able to check the program in a decidable way.
 
@@ -326,16 +326,14 @@ March-July 2018
         Indeed, the standard way to define integers is to introduce a successor function symbol, which is not allowed because it can't be stratified.
         More generally, we can't characterize any infinite set with only EPR axioms: it would contradict the finite model property.
 
-        Actually, some strict extensions of EPR are still decidable, for instance the Finite Almost Uninterpreted fragment [REF] which allows
+        Actually, some strict extensions of EPR are still decidable, for instance the Finite Almost Uninterpreted fragment\cite{Taube:2018:MDD:3192366.3192414} which allows
         some basic linear arithmetic. However, we will not use such extensions in this report because it breaks the finite model property.
 
         %\subsection{Extensions of EPR}
 
         %Some strict extensions of EPR are still decidable.
-        %In particular, SMT-solvers like Z3 [ref] are able to decide the Finite Almost Uninterpreted (FAU) fragment of first order logic,
+        %In particular, SMT-solvers like Z3 are able to decide the Finite Almost Uninterpreted (FAU) fragment of first order logic,
         %which add to EPR some usual interpreted symbols of Linear Arithmetic (integer constants, `+', `\( \leq \)') under some additional constraints.
-        %You can refer to [REF] for more details about it. 
-        
         %In this report, we will not use such extension of EPR, because it breaks the finite model property.
     
     \section{Checking a RML program}
@@ -419,8 +417,8 @@ March-July 2018
         \item The implementation and specification of programs, in accordance with the restrictions of IVy
         (stratification of functions, restriction on formulas, no recursion, limited use of while statements...).
         A lot of research is in progress in order to help the user to make such programs. In particular, two majors methods are
-        studied: the fragmentation of the code into many independent modules that can use different fragments of the first-order logic[REF],
-        and the insertion of some mutable `ghost' relations in the program that aim to capture the values of some formulas.[REF]
+        studied: the fragmentation of the code into many independent modules that can use different fragments of the first-order logic\cite{Taube:2018:MDD:3192366.3192414},
+        and the insertion of some mutable `ghost' relations in the program that aim to capture the values of some formulas\cite{Padon:2017:PME:3152284.3140568}.
         
         \item The finding of an inductive invariant (once the program is implemented and specified). As we will see in the next part,
         IVy can help the user to find an inductive invariant by providing a counterexample if the current invariant is not inductive.
@@ -428,7 +426,7 @@ March-July 2018
         My work has consisted in improving this synthesis.
     \end{itemize}
 
-    Some other challenges are also studied, like the verification of liveness properties [REF].
+    Some other challenges are also studied, like the verification of liveness properties\cite{Padon:2017:RLS:3177123.3158114}.
 
 %\chapter{Research directions}
 %    \section{Make code EPR}
@@ -441,14 +439,14 @@ March-July 2018
 
     \section{Introduction}
 
-    The synthesis of an inductive invariant is a common problem in verification, and even with the restrictions of RML, it is still undecidable (though it can be decidable for some very restricted classes of invariants). [REF]
+    The synthesis of an inductive invariant is a common problem in verification, and even with the restrictions of RML, it is still undecidable (though it can be decidable for some very restricted classes of invariants)\cite{Padon:2016:DII:2914770.2837640}.
     Nevertheless, even an partial resolution of this problem can still be very helpful for the user.
 
     In IVy, most of invariants can be expressed with universal formulas (\(\forall^*\)), but sometimes a \(\forall^*\exists^*\) formula can be required (under some restrictions in order
     to stay in a decidable fragment of logic). Thus, we will restrain our search to these two types of invariant.
     In particular, when possible, we will try to synthetize universal invariants because they are easier to generate and will never cause any decidability issue.
     
-    As described in this article [REF], the most common way to find an inductive invariant is to start from the safety properties of the program
+    As described in this article\cite{Karbyshev:2017:PIU:3065931.3022187}, a common way to find an inductive invariant is to start from the safety properties of the program
     and try to sthrengthen them by adding new invariants (using one of the methods described in the next sections) until the resulting set of invariants form an inductive invariant
     (thereafter, we will use the terms `invariant' or `set of invariants' indistinguishably: a set of invariants can be seen as a single invariant that is the conjunction of all the invariants of the set).
     This iterative process may not terminate, but it offers to the user an interactive way to find an inductive invariant:
@@ -630,7 +628,7 @@ March-July 2018
         If there is no such invariant, the invariant generated will be incorrect.
     \end{property}
     
-    A proof for this last property can be found in this article [REF] (lemma 1).
+    A proof for this last property can be found in this\cite{Karbyshev:2017:PIU:3065931.3022187} article (lemma 1).
 
     \section{Improving the result with symbolic bounded verification}
 
@@ -650,7 +648,7 @@ March-July 2018
     According to the section 1.4, it is decidable (for \(A\) of the form \(\exists^*\forall^*\) and \(Q\) of the form \(\forall^*\exists^*\)).
     Note that symbolic bounded verification does not allow us to find k-invariants, it can only be used to check whether a formula is a k-invariant or not.
 
-    The naive counterexample generalization method can be improved by using symbolic bounded verification [REF]:
+    The naive counterexample generalization method can be improved by using symbolic bounded verification\cite{Padon:2016:ISV:2908080.2908118}:
     \begin{itemize}
         \item It could allow us to know when a generated invariant is not correct.
         Actually, we cannot be sure that an invariant is correct using this method (because it does not analyze executions of length \(> k\)),
@@ -688,7 +686,7 @@ March-July 2018
         This approach is quite complementary with the current IVy approach (symbolic bounded verification): both approaches can be combined. 
         \item I have extended this method with an additional process that can generate correct invariants of the form \(\forall^*\exists^*\)
         when no correct universal invariant exists.
-        \item I have implemented a proof of concept for these methods, using the languages F\# and OCaml and the SMT-Solver Z3 [REF].        
+        \item I have implemented a proof of concept for these methods, using the languages F\# and OCaml and the SMT-Solver Z3\cite{z3ref}.        
         \item I have analyzed and compared the guarantees of all these different approaches.
     \end{itemize}
 
