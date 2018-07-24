@@ -171,6 +171,7 @@ March-July 2018
         \item Some uninterpreted types called `sorts'. `Uninterpreted' means that these types are not interpreted in any existing theory like arithmetic:
         they are just set of values without any specific structure, though we can add axioms to our system (see below).
         A sort has an unbounded number of elements.
+        Some enumerated types can also be defined (= types with fixed finite number of elements).
         \item Some variables, relations and functions over these types (a variable can be considered like a function of arity 0, and a relation can be considered as a function
         which returns a boolean). These elements are mutable (their valuation can be modified by the transitions described below).
         \item Some axioms over these types, variables, functions and relations. Axioms are \(\exists^*\forall^*\) formulas (\( \phi_{EA} \) in the grammar below).
@@ -215,7 +216,7 @@ March-July 2018
 
     The semantic of terms and formulas is as usual. The semantic of statements will be described later in the section 1.4.
 
-    One important thing to note is that types can only be uninterpreted sorts or booleans (or possibly other enumerated types).
+    One important thing to note is that types can only be uninterpreted sorts or enumerated types (like booleans).
     It means that the structure of these types and the operations over them are only constrained by the axioms of the RML program,
     and the form of these axioms is quite restrictive.
     In particular, we can't define arithmetic operations (see section 1.3).
