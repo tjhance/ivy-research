@@ -146,7 +146,7 @@ March-July 2018
         in order to help the SMT-solver.
     \end{itemize}
 
-    IVy\cite{Padon:2016:ISV:2908080.2908118} is a language that allows the user to certify its program using a SMT-solver based approach.
+    IVy\cite{Padon:2016:ISV:2908080.2908118} is a language and a set of tools that allows the user to certify its program using a SMT-solver based approach.
     However, unlike most of its concurrents, IVy restricts the language and the logic used for specifications
     in order to be able to check the program in a decidable way.
 
@@ -228,7 +228,7 @@ March-July 2018
 
     \section{Decidable logics}
 
-    In this section, we will describe the Bernays-Schönfinkel class of formulas. It is a decidable fragment of the first order logic that is used by IVy.
+    In this section, we will describe the Bernays-Schönfinkel class of formulas. It is a decidable fragment of the first order logic that is used in RML.
     We will refer to it as EPR (for Effectively Propositional) because this logic can be effectively translated into propositional logic (see the subsection 1.3.2).
 
         \subsection{The Bernays-Schönfinkel class (EPR)}
@@ -404,7 +404,7 @@ March-July 2018
 
     In particular, checking whether a formula with no quantifier alternation satisfies these three properties is decidable.
     In practice, since satisfiability of some formulas with \( \forall\exists \) quantifier alternation can still be decidable,
-    some invariants with quantifier alternation are allowed in IVy. However, if an invariant can't be checked in a decidable way, IVy will reject it
+    some invariants with quantifier alternation are allowed in RML. However, if an invariant can't be checked in a decidable way, IVy will reject it
     and will indicate to the user the faulty functions or quantifier alternations.
 
     \section{Challenges and current research}
@@ -412,10 +412,10 @@ March-July 2018
     As we have just seen, some inductive invariants can be checked in a decidable way.
     However, it does not mean that they can be automatically produced.
 
-    Indeed, the two main challenges of IVy are:
+    Indeed, the two main challenges concerning IVy are:
     \begin{itemize}
-        \item The implementation and specification of programs, in accordance with the restrictions of IVy
-        (stratification of functions, restriction on formulas, no recursion, limited use of while statements...).
+        \item The implementation and specification of programs, in accordance with the restrictions of RML
+        (stratification of functions, restriction on formulas, no recursion... though some additional primitives can be added to RML).
         A lot of research is in progress in order to help the user to make such programs. In particular, two majors methods are
         studied: the fragmentation of the code into many independent modules that can use different fragments of the first-order logic\cite{Taube:2018:MDD:3192366.3192414},
         and the insertion of some mutable `ghost' relations in the program that aim to capture the values of some formulas\cite{Padon:2017:PME:3152284.3140568}.
@@ -442,7 +442,7 @@ March-July 2018
     The synthesis of an inductive invariant is a common problem in verification, and even with the restrictions of RML, it is still undecidable (though it can be decidable for some very restricted classes of invariants)\cite{Padon:2016:DII:2914770.2837640}.
     Nevertheless, even an partial resolution of this problem can still be very helpful for the user.
 
-    In IVy, most of invariants can be expressed with universal formulas (\(\forall^*\)), but sometimes a \(\forall^*\exists^*\) formula can be required (under some restrictions in order
+    In the context of RML programs, most of invariants can be expressed with universal formulas (\(\forall^*\)), but sometimes a \(\forall^*\exists^*\) formula can be required (under some restrictions in order
     to stay in a decidable fragment of logic). Thus, we will restrain our search to these two types of invariant.
     In particular, when possible, we will try to synthetize universal invariants because they are easier to generate and will never cause any decidability issue.
     
@@ -468,7 +468,7 @@ March-July 2018
     One possible way to sthrengthen an invariant \(I\) is to make the conjunction with its weakest precondition \(wp(\text{action}_1|\ldots|\text{action}_n,I)\).
     If the initial invariant is not inductive, the result will be strictly stronger.
 
-    Let's evaluate this method with our criteria.\\
+    Let's evaluate this method with the criteria above.\\
     
     \textbf{Reliability}: This method always terminates and never fails. Moreover, it produces correct invariants. Here is a proof:
 
@@ -589,7 +589,7 @@ March-July 2018
     Applying the method described in the previous section will give the following invariant:
     \(\forall A:a. \neg(\neg dom(elt) \land dom(A) \land A \neq elt \land \neg f(elt,res) \land \neg f(A,res))\)
 
-    However, this invariant is not correct: for instance, the following state doesn't satisfy it and can be obtained through a valid execution:
+    However, this invariant is not correct. For instance, the following state doesn't satisfy it and can be obtained through a valid execution:
 
     \begin{minipage}{0.45\textwidth}
         \includegraphics[width=8cm]{NonMonotonicExValid}
@@ -677,7 +677,7 @@ March-July 2018
 
     \section{Course of my internship}
 
-    I spent the first half of my 5-months internship to study the differents aspects of IVy. I wrote some basic protocols in IVy in order to get
+    I spent the first half of my 5-months internship to study the differents aspects of IVy. I wrote some basic protocols in order to get
     familiar with it, I read many articles in order to be aware of the state-of-the-art, etc.
 
     Finally, I decided to work on the invariant synthesis, and more specifically the counterexample generalization:
@@ -696,7 +696,7 @@ March-July 2018
     we want to highlight a subset of \(constr(S)\) (see section 2.3) as small as possible, such that there is no valid state (= state that can be reached after a valid run) that can satisfy these constraints
     (for non-monotonic counterexamples it is not always possible, but this case will be treated in section 3.3).
 
-    To solve this problem, the IVy approach is to use symbolic bounded verification (see section 2.5) to minimize the number of constraints: the problem is encoded as an unSAT core that can be minimized by a SMT-solver.
+    To solve this problem, the IVy approach is to use symbolic bounded verification (see section 2.5) to minimize the number of constraints (the problem is encoded as an unSAT core that can be minimized by a SMT-solver).
     My approach is very different:
     \begin{enumerate}
         \item We compute \(S'\) the state obtained after the execution of \(E\) from \(S\).
@@ -843,7 +843,7 @@ March-July 2018
 
     \(A \land I \land wp(\text{action}_1|\ldots|\text{action}_n,I)\)
 
-    Note that checking the satisfiability of this formula is not always decidable: the weakest precondition is not always EPR (see section 2.2).
+    Note that checking the satisfiability of this formula is not always decidable (so it may not terminate), because the weakest precondition is not always EPR (see section 2.2).
     However, it was not an issue for the examples that I have tested.
 
     If the conditions 1 and 2 are satisfiable, we can compute a finite model: it gives us a state \(S_v\) as desired.
@@ -905,13 +905,13 @@ March-July 2018
 
     \section{Comparison with other methods}
 
-    Let's evaluate the method presented in this chapter:
+    Let's evaluate the method presented in this chapter using the same criteria as before.
 
     \textbf{Reliability}: If we assume that the initial invariant is correct, then this algorithm always generate correct invariants.
     However, if there is no correct universal invariant that can capture the counterexample, this algorithm might not terminate (see section 3.3).\\
 
     \textbf{Decidability}: If there exists a correct universal invariant that can capture the counterexample, then such an invariant will be produced.
-    Otherwise, an invariant of the form \(\forall^*\exists^*\) will be produced: it may cause some decidability issues that the user will have to solve
+    Otherwise, an invariant of the form \(\forall^*\exists^*\) will be produced. It may cause some decidability issues that the user will have to solve
     (it is challenge that the user will often have to face when using IVy, see section 1.5).\\
 
     \textbf{Efficiency}: Invariants generated are quite small and simple because they only contains elements that have played an important role in the execution of the counterexample.
@@ -928,9 +928,9 @@ March-July 2018
             \textcolor{Red}{Can only generate universal invariants (no guarantee for non-monotonic counterexamples), incorrect if \(k\) is too small}
             & \textcolor{Dandelion}{Can generate universal invariants when possible, otherwise can generate \(\forall^*\exists^*\) invariants (but may not terminate in this case)}\\
         \hline
-            Decidability & \textcolor{Dandelion}{Additional restrictions must be imposed to have the guarantee that weakest preconditions are EPR}
-            & \textcolor{ForestGreen}{Generated invariants are always EPR}
-            & \textcolor{ForestGreen}{Generated invariants are EPR for monotonic counterexamples}\\
+            Decidability & \textcolor{Dandelion}{Not always EPR. Additional restrictions can be imposed to always have EPR weakest preconditions}
+            & \textcolor{ForestGreen}{Generated invariants are always universal (so they always can be checked in a decidable way)}
+            & \textcolor{ForestGreen}{Generated invariants are universal when possible (in particular, for monotonic counterexamples)}\\
         \hline
             Efficiency & \textcolor{Red}{Generated invariants are very long, unreadable, and often too weak}
             & \textcolor{ForestGreen}{Generated invariants are simple and don't contain any useless litteral}
