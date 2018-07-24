@@ -352,7 +352,7 @@ March-July 2018
     \begin{enumerate}
         \item \(I\) is initially satisfied (after any execution of the `init' action starting from any state).
         \item Any state satisfying \(I\) also satisfy all the safety properties.
-        \item \(I\) is \textbf{inductive}, that is: from any state satisfying \(I\), any execution of one iteration (= one action) will not fail and
+        \item \(I\) is \textbf{inductive}, that is: from any state satisfying \(I\), any execution of one step (= one action) will not fail and
         will lead to a new state that also satisfy \(I\). 
     \end{enumerate}
 
@@ -381,7 +381,7 @@ March-July 2018
     \( \phi(\beta,\alpha) \) denotes \(\phi\) with occurences of \(\alpha\) substituted by \(\beta\), and \(A_s\) denotes the axioms of the RML program
     that involve the symbol \(s\).\\
     \\
-    We can now rewrite the properties above using weakest preconditions:
+    Now, the properties above can be rewritten using weakest preconditions:
     \begin{enumerate}
         \item \(A \Rightarrow wp(\text{init},I)\)
         \item For any safety property \(P\), \(I \Rightarrow P\)
@@ -478,9 +478,9 @@ March-July 2018
     By contradiction, let's suppose that we have a state \(S\), issued from a valid execution \(E\), that doesn't satisfy \(P\).
     Two cases are possible:
     \begin{itemize}
-        \item There exists an execution \(E'\) of one iteration (= one action) starting in \(S\) such that the resulting state \(S'\) doesn't satisfy the initial invariant.
+        \item There exists an execution \(E'\) of one step (= one action) starting in \(S\) such that the resulting state \(S'\) doesn't satisfy the initial invariant.
         \(E\) followed by \(E'\) is a valid execution that results in the state \(S'\). As \(S'\) doesn't satisfy \(I\), we have a contradiction.
-        \item Every possible execution of one iteration starting in \(S\) will result in a state that satisfy \(I\).
+        \item Every possible execution of one step starting in \(S\) will result in a state that satisfy \(I\).
         In this case, we can generate a precondition for our initial invariant that is stricly weaker than \(P\):
         let \(F\) be a formula that fully characterize \(S\) modulo isomorphism (it can be done by constraining the cardinality of the domains and the valuations of the different symbols in these domains),
         then \(P \lor F\) is still a precondition for \(I\) and is strictly weaker than \(P\) (contradiction). 
@@ -633,17 +633,23 @@ March-July 2018
 
     \section{Improving the result with symbolic bounded verification}
 
-    The results of the naive counterexample generalization method can be improved by using symbolic bounded verification [REF].
-    We say that a formula is a k-invariant if it is satisfied by any execution starting from the init action followed by at most k
-    other actions. More formally, a formula \(Q\) is a k-invariant iff:
+    Symbolic bounded verification is a method to check whether a formula is a k-invariant or not:
+
+    \begin{definition}[k-invariant]
+        A formula is a k-invariant if it is satisfied after any valid execution of k steps or less
+        (that is, any execution of the init action followed by at most k other actions).
+    \end{definition}
+    
+    In order to check whether a formula \(Q\) is a k-invariant or not, we can check the validity of the following formula:
 
     \( A \Rightarrow \bigwedge\limits_{j=0}^k wp(\text{init}; (\text{action}_1|\ldots|\text{action}_n)^j, Q) \)\\
     where \(A\) refers to the axioms and `\(\text{statement}^j\)' is the sequential composition of \(j\) copies of `statement'.
 
     In order to check the validity of this formula (for a given \(k\)), we can just check the satisfiability of its negation.
     According to the section 1.4, it is decidable (for \(A\) of the form \(\exists^*\forall^*\) and \(Q\) of the form \(\forall^*\exists^*\)).
+    Note that symbolic bounded verification does not allow us to find k-invariants, it can only be used to check whether a formula is a k-invariant or not.
 
-    This concept of k-invariant can improve the naive counterexample generalization in three points:
+    The naive counterexample generalization method can be improved by using symbolic bounded verification [REF]:
     \begin{itemize}
         \item It could allow us to know when a generated invariant is not correct.
         Actually, we cannot be sure that an invariant is correct using this method (because it does not analyze executions of length \(> k\)),
@@ -831,10 +837,9 @@ March-July 2018
         \item \(S_v\) is a valid state (it can be reached after a valid run).
     \end{enumerate}
 
-    The first condition is easy to express with a formula, but the second condition is more complicated.
-    Note that symbolic bounded verification is not helpful here as it only allows us to determine whether a given formula is a k-invariant (that is, if it is satisfied by \textbf{all} valid k-executions or not).
-    However, we can approximate the second condition with this other one (which is weaker, if we assume that the current invariant is correct):
-    \(S_v\) satisfies the current invariant and the axioms, and doesn't break any of them after one iteration (in particular after executing the action that is executed in the counterexample).
+    The first condition is easy to express with a formula, but the second condition is more complicated (it would probably need some model checking).
+    However, we can approximate it with this other condition (which is weaker, if we assume that the current invariant is correct):
+    \(S_v\) satisfies the current invariant and the axioms, and doesn't break any of them after one step (in particular after executing the action that is executed in the counterexample).
     We can express this new condition with the following formula:
 
     \(A \land I \land wp(\text{action}_1|\ldots|\text{action}_n,I)\)
@@ -860,7 +865,9 @@ March-July 2018
 
     The process of generalization of \(S_v\) is quite similar to the process of generalization of the counterexample \((S,E)\).
     First, we can compute a subset \(C_v\) of \(constr(S_v)\) by computing marks for some relevant executions starting in \(S_v\)
-    (symbolic bounded verification can't be used here: it does not allow to decide whether a formula can be satisfied by \textbf{at least one} valid execution or not).
+    (it will not be detailled here, but the idea is to find an execution that is as close to \(E\) as possible).
+    Note that symbolic bounded verification can't be used here: we don't want our formula to be a k-invariant (= to be satisfied by all valid k-executions),
+    but only to be satisfied by at least one valid execution.
     Then, we remove from \(C_v\) every constraint that is already in \(C\) in order to keep only constraints that are specific to \(S_v\).
 
     Next, we replace each different concrete value in \(C_v\) by a fresh existentially quantified variable, but only for concrete values that are specific to \(S_v\):
@@ -905,7 +912,8 @@ March-July 2018
     However, if there is no correct universal invariant that can capture the counterexample, this algorithm might not terminate (see section 3.3).\\
 
     \textbf{Decidability}: If there exists a correct universal invariant that can capture the counterexample, then such an invariant will be produced.
-    Otherwise, an invariant of the form \(\forall^*\exists^*\) will be produced: it may cause some decidability issues that the user will have to solve.\\
+    Otherwise, an invariant of the form \(\forall^*\exists^*\) will be produced: it may cause some decidability issues that the user will have to solve
+    (it is challenge that the user will often have to face when using IVy, see section 1.5).\\
 
     \textbf{Efficiency}: Invariants generated are quite small and simple because they only contains elements that have played an important role in the execution of the counterexample.
     Symbolic bounded verification can be used to improve the result.\\
