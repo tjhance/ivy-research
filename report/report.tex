@@ -675,31 +675,31 @@ March-July 2018
     I spent the first half of my 5-months internship to study the differents aspects of IVy. I wrote some basic protocols in IVy in order to get
     familiar with it, I read many articles in order to be aware of the state-of-the-art, etc.
 
-    Finally, I decided to work on the invariant synthesis, and more specifically the counterexammple generalization:
+    Finally, I decided to work on the invariant synthesis, and more specifically the counterexample generalization:
     \begin{itemize}
-        \item I have proposed a new method to select the important constraints of the counterexample, based on the analysis of the execution of the counterexample.
-        This approach is quite complementary with the current IVy approach (symbolic bounded verification): both approaches can be combinated. 
-        \item I have extended this new approach with an additional process that is (sometimes) able to generate correct invariants of the form \(\forall^*\exists^*\)
-        when no universal invariant exists (for instance for the example of the section 2.4).
-        \item I have implemented a proof of concept for these methods, using the language F\# and the SMT-Solver Z3 [REF].        
+        \item I have proposed a new method to select the important constraints of the counterexample, based on an analysis of the execution of the counterexample.
+        This approach is quite complementary with the current IVy approach (symbolic bounded verification): both approaches can be combined. 
+        \item I have extended this method with an additional process that can generate correct invariants of the form \(\forall^*\exists^*\)
+        when no correct universal invariant exists.
+        \item I have implemented a proof of concept for these methods, using the languages F\# and OCaml and the SMT-Solver Z3 [REF].        
         \item I have analyzed and compared the guarantees of all these different approaches.
     \end{itemize}
 
     \section{Filtering constraints by analyzing the execution}
 
     The problem we want to solve is as follows: given a counterexample (\(S,E\)) (\(S\) being the initial state and \(E\) a deterministic statement describing the execution of an action),
-    we want to highlight a subset of \(constr(S)\) (see section 2.3) as small as possible, such that there is no valid state (= state that can be reached with a valid run) that can satisfy these constraints
+    we want to highlight a subset of \(constr(S)\) (see section 2.3) as small as possible, such that there is no valid state (= state that can be reached after a valid run) that can satisfy these constraints
     (for non-monotonic counterexamples it is not always possible, but this case will be treated in section 3.3).
 
-    To solve this problem, the IVy approach is to use symbolic bounded verification (see section 2.5) to reduce the number of constraints (the problem is encoded as an unSAT core to minimize).
+    To solve this problem, the IVy approach is to use symbolic bounded verification (see section 2.5) to minimize the number of constraints: the problem is encoded as an unSAT core that can be minimized by a SMT-solver.
     My approach is very different:
     \begin{enumerate}
         \item We compute \(S'\) the state obtained after the execution of \(E\) from \(S\).
         \item We try to compute a subset \(C'\) of \(constr(S')\) (as small as possible) such that all states satisfying \(C'\) (modulo renaming of the concrete values)
-        evaluate the current invariant to the same value. More precisely, we compute a set of `marks', a `mark' being a pointer to an important constraint:
-        it can be an object of the form \(symbol(concrete\_value_1,\ldots,concrete\_value_n)\) or \(concrete\_value_1 \neq concrete\_value_2\).
+        evaluate the current invariant to the same value (here, to false). More precisely, we compute a set of `marks', a `mark' being a pointer to an important constraint:
+        it can have the form \(symbol(concrete\_value_1,\ldots,concrete\_value_n)\) or \(concrete\_value_1 \neq concrete\_value_2\).
         \item We retropopagate these marks through the execution of \(E\) in order to obtain a subset \(C\) of \(constr(S)\) such that
-        all states satisfying \(C\) (modulo renaming of the concrete values) can reproduce the execution \(E\) and satisfy \(C'\) at the end.
+        all states satisfying \(C\) (modulo renaming of the concrete values) can reproduce the execution \(E\) and satisfy \(C'\) at the end (and so, break the invariant).
     \end{enumerate}
 
     To perform the step 2, we can use the following algorithm (formulas and terms are assimilated):
@@ -710,7 +710,7 @@ March-July 2018
         \SetKwSwitch{Match}{Case}{Other}{match}{}{case}{otherwise}{endcase}{end}
         \Fn{\MFV{S,V}}{
             \KwData{a state \(S\), a formula or a term \(V\)}
-            \KwResult{a set of marks \(M\) that points to some constraints in \(constr(S)\)}
+            \KwResult{a set of marks \(M\) that points to some important constraints in \(constr(S)\)}
 
             \Match{V}{
                 \uCase{symbol(\(t_1,\ldots,t_n\))}{
@@ -724,7 +724,7 @@ March-July 2018
                         \KwRet{\MFV{\(S,t_1\)} \(\cup\) \MFV{\(S,t_2\)}}\;
                     }
                     \uElse {
-                        \KwRet{\MFV{\(S,t_1\)} \(\cup\) \MFV{\(S,t_2\)} \(\cup \{v_1 \neq v_2\}\)}\;
+                        \KwRet{\MFV{\(S,t_1\)} \(\cup\) \MFV{\(S,t_2\)} \(\cup\ \{v_1 \neq v_2\}\)}\;
                     }
                 }
                 \uCase{\(\neg F\)}{
@@ -758,7 +758,7 @@ March-July 2018
     \end{algorithm}\hfill
 
     For instance, at the end of the counterexample of the section 2.4,
-    the formula \(dom(elt) \rightarrow f(elt,img)\) is not satisfied and the constraints that ensure it are:\\
+    the formula \(dom(elt) \rightarrow f(elt,img)\) is not satisfied and the marked constraints would be:\\
     \( \{ elt=a_1\ ;\ dom(a_1)=true\ ;\ img=b_0\ ;\ f(a_1,b_0)=false \} \)
 
     To perform the step 3, we can use the following algorithm:
@@ -770,7 +770,7 @@ March-July 2018
         \SetKwSwitch{Match}{Case}{Other}{match}{}{case}{otherwise}{endcase}{end}
         \Fn{\RPM{M',E,S}}{
             \KwData{a set of marks \(M'\) computed after the execution of the deterministic statement \(E\) from the state \(S\)}
-            \KwResult{a new set of marks \(M\) that points to some constraints in \(constr(S)\)}
+            \KwResult{a new set of marks \(M\) that points to some important constraints in \(constr(S)\)}
 
             \Match{E}{
                 \uCase{skip}{\KwRet{\(M'\)}\;}
@@ -793,42 +793,42 @@ March-July 2018
         %\caption{Retropropagate marks through the execution of a statement}
     \end{algorithm}\hfill
 
-    For instance, after applying this algorithm to the example of section 2.4 (all primitives used can be translated to RML),
+    For instance, after having applied this algorithm to the example of the section 2.4 (all primitives used in this example can be translated to RML),
     we can detect that the execution is not monotonic, and we obtain the following marked constraints:\\
     \(\{img=b_0 ; dom(a_1) ; \neg f(a_1,b_0)\} \quad \longrightarrow \quad \forall A:a.\ \neg (dom(A) \land \neg f(A,img))\)\\
-    Note that the generated invariant is still incorrect, but is also simpler.\\
+    Note that this invariant is much simpler than the one produced by keeping all the constraints (naive generalization, see section 2.3), but it is still incorrect.\\
 
     This approach has some advantages compared to the current IVy method:
     \begin{itemize}
-        \item It doesn't need to use symbolic bounded verification, which can return an incorrect output if \(k\) is too small (and can take too much time for bigger \(k\)).
+        \item It doesn't need to use symbolic bounded verification, which can return an incorrect output if \(k\) is too small (and it can take too much time for bigger \(k\)).
         \item It can detect potential non-monotonicity in the code.
         \item For a non-monotonic counterexample, it can still gather some important constraints, even if there is no correct universal invariant that can capture the counterexample.
         From these constraints, a correct invariant of the form \(\forall^*\exists^*\) can sometimes be generated, as we will see in the section 3.3.
     \end{itemize}
 
-    The major drawback is that, sometimes, some useless constraints are kept (because the computation of marks is not optimal).
-    As a consequence, resulting invariants can be more complicated and less general than invariants generated using symbolic bounded verification.
-    However, the two approaches can be used together: symbolic bounded verification can be used after having already filtered the constraints by using my approach.
+    The major drawback is that, sometimes, some useless constraints are not eliminated (because the computation of the marks is not optimal).
+    As a consequence, resulting invariants can be more complicated and weaker than invariants generated using symbolic bounded verification.
+    However, the two approaches can be used together: symbolic bounded verification can be used after having already filtered the constraints with this method.
     In this way, the advantages of the two methods are combinated. Moreover, the unSAT core to minimize will be smaller, so it will be done faster.
 
     \section{Case of non-monotonicity}
 
     As we have seen in section 2.4, some non-monotonic counterexamples can't be captured by any correct universal invariant.
-    For this reason, if some non-monotonicity has been detected during the computation of marks,
+    For this reason, if some potential non-monotonicity is detected during the computation of marks,
     a second process is performed in order to know whether the generated conjecture is correct or not, and to fix it if it is not correct.
     
     In order to do that, we can try to find some valid states that satisfy all the constraints \(C\).
-    Such states would be the witnesses of the non-correctness of our generated invariant.
-    If we find such a state, we can use it to weaken the generated conjecture in order to make it accept this state.
+    Such states would be the witnesses of the non-correctness of the universal invariant generated.
+    Moreover, if we find such a state, we can use it to weaken the generated conjecture.
     Otherwise, we know that the universal invariant generated is already correct.
     In this section, we will see how to find such states, and in the next section we will see how to use them to weaken the conjecture.
 
     Let \((S,E)\) be the initial counterexample, let \(C\) be the constraints of \(S\) that have been marked.
     We want to find a state \(S_v\) such that:
     \begin{enumerate}
-        \item \(S_v\) satisfies all constraints \(C\). It implies that the domains of \(S_v\) contain all concrete values that appear in \(C\).
-        However, they can also contain some other elements.
-        \item \(S_v\) is a valid state (it can be reached with a valid run).
+        \item \(S_v\) satisfies all the constraints \(C\). It implies that the domains of \(S_v\) contain all concrete values that appear in \(C\).
+        However, the domains of \(S_v\) can also contain some other elements.
+        \item \(S_v\) is a valid state (it can be reached after a valid run).
     \end{enumerate}
 
     The first condition is easy to express with a formula, but the second condition is more complicated.
@@ -839,16 +839,16 @@ March-July 2018
 
     \(A \land I \land wp(\text{action}_1|\ldots|\text{action}_n,I)\)
 
-    Note that checking the satisfiability of this formula is not always decidable either: the weakest precondition is not always EPR (see section 2.2).
-    However, it does not seem to be a big issue in the examples that I have tested.
+    Note that checking the satisfiability of this formula is not always decidable: the weakest precondition is not always EPR (see section 2.2).
+    However, it was not an issue for the examples that I have tested.
 
     If the conditions 1 and 2 are satisfiable, we can compute a finite model: it gives us a state \(S_v\) as desired.
-    We will see in the next section how to produce a formula that `generalize' this state and use it to weaken the generated invariant.
-    By adding as a third condition the negation of this formula, an other valid state can be searched.
+    We will see in the next section how to produce a formula \(F_v\) that `generalizes' this state and use it to weaken the generated invariant.
+    By adding as a third condition the negation of \(F_v\), an other valid state can be searched.
     This process can potentially not terminate if a new valid state is always found. Indeed, it could be compared to the whole process of finding an inductive invariant:
     \begin{itemize}
         \item To find an inductive invariant, we start from the safety properties and we sthrengthen them until there are no more counterexamples.
-        \item To generate a valid invariant from a counterexample, we first generate an universal invariant and we weaken it until there are no more valid states satisfying it.
+        \item To generate a valid invariant from a non-monotonic counterexample, we first generate an universal invariant and we weaken it until there are no more valid states satisfying it.
     \end{itemize}
     However, this process of weakening is much more likely to terminate than the whole process of finding an inductive invariant, because the search space is more restricted:
     we are only looking for valid states that satisfy the constraints \(C\).
@@ -856,24 +856,24 @@ March-July 2018
     \section{Weakening the conjecture}
 
     Once we have a valid state \(S_v\) that satisfies all the marked constraints \(C\) of the counterexample,
-    we will generalize it and we will build a new invariant that allows valid states that are similar to \(S_v\).
+    we will generalize it and we will build a new invariant that will allow valid states that are similar to \(S_v\).
 
-    The process of generalization of \(S_v\) is quite similar to the process of generalization of the counterexample \((S,E)\) (see section 2.3).
+    The process of generalization of \(S_v\) is quite similar to the process of generalization of the counterexample \((S,E)\).
     First, we can compute a subset \(C_v\) of \(constr(S_v)\) by computing marks for some relevant executions starting in \(S_v\)
     (symbolic bounded verification can't be used here: it does not allow to decide whether a formula can be satisfied by \textbf{at least one} valid execution or not).
-    Then, we remove from \(C_v\) every constraint that already is in \(C\) in order to keep only constraints that are specific to \(S_v\).
+    Then, we remove from \(C_v\) every constraint that is already in \(C\) in order to keep only constraints that are specific to \(S_v\).
 
-    Then, we replace each different concrete value in \(C_v\) by a fresh existentially quantified variable, but only for concrete values that are specific to \(S_v\):
-    concrete values that also appear in \(C\) are not replaced.
+    Next, we replace each different concrete value in \(C_v\) by a fresh existentially quantified variable, but only for concrete values that are specific to \(S_v\):
+    concrete values that also appear in \(C\) are kept as they are.
     This will give us a semi-generalized formula \(F_v\) that characterize, among the states satisfying \(C\), those that also
-    contains a substructure isomorphic to \(S_v\). Note that, again, it may exist some states that satisfy \(F_v\) but that are not
-    valid (for the same reason that there exists states such as \(S_v\) that satisfy all the constraints in \(C\) but that are valid).
-    However, it is not an major issue since it will not compromise the correctness of the final invariant generated.
+    contains a substructure isomorphic to \(S_v\). Note that it may exist some states that satisfy \(F_v\) but that are not
+    valid (again, due to a potential non-monotonicity of the negation of the current invariant).
+    However, it is not a major issue since it will not compromise the correctness of the invariant that will be generated.
 
-    Now, we can build a formula that characterize more precisely the states that could lead to an execution similar to the execution of the counterexample.
-    We want to characterize states that satisfy \(C\), but we only want invalid states, so we don't want to include states that satisfy \(F_v\).
-    It gives us the following formula: \( C \land (\neg F_v) \).
-    This formula still contains concrete values (those that appear in \(C\)), so we replace them by existentially quantified variables.
+    Now, we can build a new invariant that will not exclude states similar to \(S_v\).
+    We still want to focus on states that satisfy \(C\), but since we only want to characterize invalid states, we don't want to include states that satisfy \(F_v\).
+    Thus, we use the following formula: \( C \land (\neg F_v) \).
+    This formula still contains concrete values (those that appear in \(C\)), so we must replace them by existentially quantified variables.
     The resulting formula has the form \( \exists^* \ldots \land \neg(\exists^* \ldots) \). After negating it, we obtain a new invariant of the form
     \( \forall^* \ldots \rightarrow (\exists^* \ldots) \), that is an invariant with a \(\forall^*\exists^*\) prefix.
 
@@ -901,11 +901,10 @@ March-July 2018
 
     Let's evaluate the method presented in this chapter:
 
-    \textbf{Reliability}: If we assume that the initial invariant is correct, then this algorithm always generate correct invariants
-    (except if we use symbolic bounded verification to reduce the set of constraints \(C\)).
-    However, if there is no universal invariant that can capture the counterexample, this algorithm might not terminate (see section 3.3).\\
+    \textbf{Reliability}: If we assume that the initial invariant is correct, then this algorithm always generate correct invariants.
+    However, if there is no correct universal invariant that can capture the counterexample, this algorithm might not terminate (see section 3.3).\\
 
-    \textbf{Decidability}: If there exists an universal invariant that can capture the counterexample, then such an invariant will be produced.
+    \textbf{Decidability}: If there exists a correct universal invariant that can capture the counterexample, then such an invariant will be produced.
     Otherwise, an invariant of the form \(\forall^*\exists^*\) will be produced: it may cause some decidability issues that the user will have to solve.\\
 
     \textbf{Efficiency}: Invariants generated are quite small and simple because they only contains elements that have played an important role in the execution of the counterexample.
