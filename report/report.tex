@@ -448,20 +448,19 @@ March-July 2018
     In particular, when possible, we will try to synthetize universal invariants because they are easier to generate and will never cause any decidability issue.
     
     As described in this article [REF], the most common way to find an inductive invariant is to start from the safety properties of the program
-    and try to sthrengthen them by adding new invariants (using one of the methods described in the next sections) until this set of invariants form an inductive invariant
-    (thereafter, we will use the terms `invariant' or `set of invariants' indistinguishably: a set of invariants can be seen as a single invariant that is the conjunction of all invariants of the set).
+    and try to sthrengthen them by adding new invariants (using one of the methods described in the next sections) until the resulting set of invariants form an inductive invariant
+    (thereafter, we will use the terms `invariant' or `set of invariants' indistinguishably: a set of invariants can be seen as a single invariant that is the conjunction of all the invariants of the set).
     This iterative process may not terminate, but it offers to the user an interactive way to find an inductive invariant:
     if the current invariant is not inductive, a new conjecture is proposed to the user (in order to sthrengthen the current invariant).
-    If this conjecture is simple enough, the user can analyze it and adjust it as he wants, and we repeat this process.
+    If this conjecture is simple enough, the user can understand it and adjust it as he wants (making it stronger, resolving decidabilities issues, etc.), and we repeat this process.
 
     Thus, the problem we want to solve is as follows:
-    given an invariant that is not inductive, we want to sthrengthen it (as much as possible) without breaking the correctness
-    of the invariant nor the decidability of checking it. To be correct, an invariant must be satisfied by every state
-    that can be obtained after a valid execution, that is after executing the `init' action followed by any other actions.
+    given an invariant that is not inductive, we want to generate a new (correct) invariant as strong as possible, if possible without breaking the decidability of the system.
+    To be correct, an invariant must be satisfied by every state that can be obtained with a valid execution (beginning with the `init' action).
     The following criteria can be used to evaluate an algorithm that tries to solve this problem:
     \begin{enumerate}
         \item \textbf{Reliability}: Can the algorithm fail, not terminate or generate incorrect invariants?
-        \item \textbf{Decidability}: Is the new invariant generated checkable in a decidable way (in our case, we want it to be EPR)?
+        \item \textbf{Decidability}: Is the new set of invariants generated checkable in a decidable way (in our case, we want it to be EPR)?
         \item \textbf{Efficiency}: How strong is the new invariant generated? Is it easily understandable by the user (in order to be adjusted if needed)?
     \end{enumerate}
 
@@ -472,29 +471,29 @@ March-July 2018
 
     Let's evaluate this method with our criteria.\\
     
-    \textbf{Reliability}: This method always terminate and never fail. Moreover, it produces correct invariants. Here is a proof:
+    \textbf{Reliability}: This method always terminates and never fails. Moreover, it produces correct invariants. Here is a proof:
 
     We assume that the initial invariant \(I\) is correct. Let \(P = wp(\text{action}_1|\ldots|\text{action}_n,I)\).
 
     By contradiction, let's suppose that we have a state \(S\), issued from a valid execution \(E\), that doesn't satisfy \(P\).
     Two cases are possible:
     \begin{itemize}
-        \item There exists an execution \(E'\) of one iteration (one action) starting in \(S\) such that the resulting state doesn't satisfy the initial invariant.
-        \(E\) followed by \(E'\) is a valid execution that doesn't satisfy \(I\) and thus we have a contradiction.
+        \item There exists an execution \(E'\) of one iteration (= one action) starting in \(S\) such that the resulting state \(S'\) doesn't satisfy the initial invariant.
+        \(E\) followed by \(E'\) is a valid execution that results in the state \(S'\). As \(S'\) doesn't satisfy \(I\), we have a contradiction.
         \item Every possible execution of one iteration starting in \(S\) will result in a state that satisfy \(I\).
         In this case, we can generate a precondition for our initial invariant that is stricly weaker than \(P\):
-        let \(F\) be a formula that fully characterize \(S\) (the cardinality of its domains and the valuations of the different symbols in these domains),
+        let \(F\) be a formula that fully characterize \(S\) modulo isomorphism (it can be done by constraining the cardinality of the domains and the valuations of the different symbols in these domains),
         then \(P \lor F\) is still a precondition for \(I\) and is strictly weaker than \(P\) (contradiction). 
     \end{itemize}
 
     So \(P\) is a correct invariant.\\
 
     \textbf{Decidability}: Even if the initial invariant is EPR, the weakest precondition is not guaranteed to be EPR.
-    Indeed, stratification can be broken in several cases: assumptions, non-deterministic operations, etc.
+    Indeed, when computing the weakest precondition, stratification can be broken on several cases: assumptions, non-deterministic operations, etc.
 
     Nevertheless, we can have the guarantee that the weakest precondition is EPR by adding these restrictions:
     \begin{itemize}
-        \item Function symbols must be stratified.
+        \item All function symbols used must be stratified.
         \item The initial invariant must be universally quantified.
         \item Assumptions must be existentially quantified.
         \item Axioms that involve a mutable variable, function or relation must be existentially quantified.
@@ -525,28 +524,28 @@ March-July 2018
         Let \(S\) be a state, then \(constr(S)\) is the set of all constraints of the following forms that are satisfied by \(S\):
         \begin{itemize}
             \item \(symbol(concrete\_value_1,\ldots,concrete\_value_n) = concrete\_value\) with `\(symbol\)' refering to any variable, function or relation of \(S\) and `concrete values'
-            being any elements of the domains of \(S\)
-            \item \(concrete\_value_1 \neq concrete\_value_2\) (with `\(concrete\_value_1\)' and `\(concrete\_value_2\)' of the same type)
+            being elements of the domains of \(S\)
+            \item \(concrete\_value_1 \neq concrete\_value_2\) (where `\(concrete\_value_1\)' and `\(concrete\_value_2\)' have the same type)
         \end{itemize}
     \end{definition}
 
     We can generate a formula as follows:
     \begin{enumerate}
-        \item We associate a variable \( X_v \) to each concrete value \(v\) in \(S\)
-        \item For each constraint in \(constr(S)\), we replace each concrete value \(v\) by \( X_v \)
+        \item We associate a fresh variable \( X_v \) to each concrete value \(v\) in \(S\).
+        \item In each constraint of \(constr(S)\), we replace each concrete value \(v\) by \( X_v \).
         \item We make the conjunction of all these constraints and we quantify existentially on each \(X_v\). Optionaly, we can simplify the resulting formula to get rid of some variables.
     \end{enumerate}
     
-    The resulting formula \(F\) is an existentially quantified formula that characterizes all structures containing a substructure that is isomorphic to the structure of the counterexample.
+    The resulting formula \(F\) is an existentially quantified formula that characterizes all the structures containing a substructure that is isomorphic to the structure of the counterexample.
     In order to prevent this counterexample from happening again, we just have to negate \(F\) (it will become universally quantified) and add it to the current set of invariants.
 
-    This technique always generate an universal invariant, and so there is no decidability issue.
+    This technique always generate an universal invariant, and so there is no decidability issue (if the function symbols are stratified).
     However, there are three major issues:
     \begin{itemize}
         \item As we will see in the next section, the new invariant generated is not always correct.
         \item The formula generated can be very long, because it contains all the constraints characterizing our counterexample.
         \item The formula generated is very specific: it will not prevent other \textit{similar} counterexamples from happening, as long as
-        one constraint differs, even if this difference has no impact.
+        at least one constraint differs, even if this difference has no impact.
     \end{itemize}
 
     \section{A problematic example with non-monotonicity}
@@ -556,15 +555,15 @@ March-July 2018
     \includegraphics[width=15cm]{NonMonotonicExLarge}
     \\
     The keyword \textit{individual} is used to declare a variable, and the construction \textit{if some \(x\). \(\phi(x)\) \{ statement \}}
-    assign to the variable \(x\) a value \(v\) such that \(\phi(v)\) is true and executes \textit{statement}. If no such value \(v\) exists,
+    assigns to the variable \(x\) a value \(v\) such that \(\phi(v)\) is true and executes \textit{statement}. If no such value \(v\) exists,
     \textit{statement} is not executed.
 
     Basically, this example defines the following:
     \begin{itemize}
         \item Two uninterpreted sorts \(a\) and \(b\).
         \item A relation \(f\) from \(a\) to \(b\) that will represent a partial function, and \(dom\) its domain. It might look curious to not directly define a function instead,
-        but it is sometimes useful for the decidability because functions are subject to stratification constraints.
-        \item A variable \(elt\) in \(a\) and a variable \(img\) in \(b\). If \(elt\) is in the domain of \(f\), then \(b\) should always
+        but it can sometimes be useful for decidability reasons, as functions are subject to stratification constraints.
+        \item A variable \(elt\) in \(a\) and a variable \(img\) in \(b\). If \(elt\) is in the domain of \(f\), then \(img\) should always
         correspond to the image of \(elt\) by \(f\) (this specification is defined at the end with the keyword \textit{conjecture}).
         \item The init action, and some other actions to set/unset a value of \(f\) and to change the value of \(elt\).
     \end{itemize}
@@ -607,7 +606,7 @@ March-July 2018
 
     Indeed, the course of the execution of change_elt(\(a_1\)) can be altered just by adding a new element to \(b\)
     (without changing anything else). In this example, it is due to the use of the \textit{if some} statement.
-    More generally, it can be caused by non-determinism, by the use of quantified formulas, or anything that explore all the elements of a type.
+    More generally, it can be caused by non-determinism, by the use of quantified formulas, or anything that explores all the elements of a sort.
 
     \begin{definition}[Monotonicity]
         A statement \(s\) is monotonic iff, for any two states \(S_1\) and \(S_2\) such that \(S_1 \sqsubseteq S_2\)
@@ -615,7 +614,7 @@ March-July 2018
         \(s\) on \(S_1\) and \(S_2\) are such that \(S_1' \sqsubseteq S_2'\).
 
         An invariant \(P\) is monotonic iff, for any two states \(S_1\) and \(S_2\) such that \(S_1 \sqsubseteq S_2\),
-        if \(S_1\) \textbf{doesn't} satisfy \(P\) then \(S_2\) doesn't satisfy \(P\) neither.
+        if \(S_1\) \textbf{doesn't} satisfy \(P\) then \(S_2\) doesn't satisfy \(P\).
     \end{definition}
 
     \begin{property}
@@ -635,22 +634,22 @@ March-July 2018
     \section{Improving the result with symbolic bounded verification}
 
     The results of the naive counterexample generalization method can be improved by using symbolic bounded verification [REF].
-    We says that a formula is a k-invariant if is satisfied by any execution starting from the init action and followed by at most k
+    We say that a formula is a k-invariant if it is satisfied by any execution starting from the init action followed by at most k
     other actions. More formally, a formula \(Q\) is a k-invariant iff:
 
     \( A \Rightarrow \bigwedge\limits_{j=0}^k wp(\text{init}; (\text{action}_1|\ldots|\text{action}_n)^j, Q) \)\\
-    where \(A\) refers to the axioms and `\(\text{statement}^j\)' represents the sequential composition of \(j\) copies of `statement'.
+    where \(A\) refers to the axioms and `\(\text{statement}^j\)' is the sequential composition of \(j\) copies of `statement'.
 
     In order to check the validity of this formula (for a given \(k\)), we can just check the satisfiability of its negation.
-    According to section 1.4, this is decidable (for \(A\) of the form \(\exists^*\forall^*\) and \(Q\) of the form \(\forall^*\exists^*\)).
+    According to the section 1.4, it is decidable (for \(A\) of the form \(\exists^*\forall^*\) and \(Q\) of the form \(\forall^*\exists^*\)).
 
     This concept of k-invariant can improve the naive counterexample generalization in three points:
     \begin{itemize}
         \item It could allow us to know when a generated invariant is not correct.
-        Actually, we cannot be sure that an invariant is correct using this method (because it is bounded to executions of length \(k\)),
-        but in practice taking \(k=5\) is sufficient to detect incorrect invariants.
+        Actually, we cannot be sure that an invariant is correct using this method (because it does not analyze executions of length \(> k\)),
+        but in practice taking \(k=5\) is sufficient to detect incorrect invariants almost everytime.
         \item It allows us to generate simpler and more general invariants. Indeed, instead of generating a formula that
-        aggregates all constraints in \(constr(S)\), we are able to only keep a minimal number of constraints
+        aggregates all constraints of \(constr(S)\), we are able to only keep a minimal number of constraints
         such that the resulting invariant is still correct. It can be done quite efficiently by computing a minimal unSAT core using a SMT-solver.
         \item If the program that we want to check is not correct (it doesn't match the specifications), symbolic bounded verification
         can sometimes allow us to find it out, while a naive counterexample generalization would just generate incorrect invariants.
@@ -666,7 +665,7 @@ March-July 2018
     (because they are issued from one precise counterexample) so they can be understood more easily.
     They do not contain any useless litteral, so we can expect them to be quite strong.\\
 
-    This method seems less reliable than the weakest precondition, however it generates invariants that are much more interesting.
+    This method seems less reliable than just computing the weakest precondition, however it generates invariants that are much more interesting.
     This is the method that is currently implemented by IVy in order to help the user to synthesize inductive invariants interactively.
 
 \chapter{My contributions}
