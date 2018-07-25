@@ -280,10 +280,13 @@
             let labeled_ms = List.filter (fun (str,_) -> List.contains str lst) labeled_ms
             let ms = List.map (fun (_,m) -> m) labeled_ms
             Marking.marks_union_many ms
-        | _ ->
+        | (Z3Utils.SolverResult.UNKNOWN _, _) ->
             printfn "Can't resolve unSAT core!"
             save_m
-        // TODO: run unsat core only for constraintd on functions, and then run unsat core for disequalities on the result?
+        | (Z3Utils.SolverResult.SAT _, _) ->
+            printfn "Core is SAT."
+            save_m
+        // TODO: run unsat core only for constraints on functions, and then run unsat core for disequalities on the result?
 
     let has_valid_k_execution_formula formula actions init_actions boundary =
 
@@ -348,6 +351,7 @@
         let axioms = z3_fomula_for_axioms mmd
         let f = not_already_allowed_state_formula md mmd env m alt_exec
         let f = WPR.Z3And (axioms,f)
+        // TODO: Fix the following condition (it does not do what is expected)
         let (break_assumption, new_vars, new_enums) = has_valid_k_execution_formula (WPR.Z3Const (AST.ConstBool false)) actions init_actions boundary
         let f = WPR.Z3And (f, WPR.Z3Not break_assumption) // We don't want the execution to be valid only because it breaks an assumption
 
@@ -371,6 +375,6 @@
             printfn "Can't resolve unSAT core!"
             save_m
         | (Z3Utils.SolverResult.SAT _, _) ->
-            printfn "Core is SAT :("
+            printfn "Error: Core is SAT..."
             save_m
         
