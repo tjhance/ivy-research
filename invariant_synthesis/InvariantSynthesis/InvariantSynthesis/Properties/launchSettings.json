@@ -1,8 +1,0 @@
-{
-  "profiles": {
-    "InvariantSynthesis": {
-      "commandName": "Project",
-      "commandLineArgs": "verdi_lock.ivy"
-    }
-  }
-}
