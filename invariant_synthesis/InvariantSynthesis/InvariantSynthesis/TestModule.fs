@@ -74,6 +74,7 @@
                                 (
                                     [],
                                     [
+                                        Assume (ValueExists (AST.default_var_decl "$X" (Uninterpreted "incrementable.t"), ValueFun("incrementable.succ", [ValueVar "x"; ValueVar "$X"]))) ;
                                         VarAssign
                                             (
                                                 "y",
@@ -81,7 +82,7 @@
                                                     (
                                                         {Name="y";Type=Uninterpreted("incrementable.t");Representation=default_representation},
                                                         relation_formula "incrementable.succ" [ValueVar "x"; ValueVar "y"],
-                                                        ValueConst (ConstInt("incrementable.t",0))
+                                                        ValueStar (Uninterpreted "incrementable.t")
                                                     )
                                             )
                                     ]
@@ -99,7 +100,7 @@
                                 (
                                     [],
                                     [
-                                        Assert (ValueNot empty_formula) ;
+                                        Require (ValueNot empty_formula) ;
                                         VarAssign ("res", ExprFun ("q.first",[])) ;
                                         FunAssign ("q.content", [ExprFun ("q.first",[]);ExprFun ("q.first_e",[])], ExprConst (ConstBool false)) ;
                                         FunAssign ("q.first_e", [], ExprAction("incrementable.next", [ExprFun ("q.first_e",[])])) ;

@@ -208,7 +208,7 @@ let main argv =
                 ParserAST.ivy_elements_to_ast_module filename parsed_elts
 
     // Remove unwanted implementations from the module decl
-    printfn "Please enter the names of the concrete modules to ban:"
+    printfn "Please enter the names of the concrete modules to ignore:"
     let str = read_until_line_jump ()
     let banned_modules = str.Split([|Environment.NewLine|], StringSplitOptions.RemoveEmptyEntries)
     let md = AST.exclude_from_module md (Seq.toList banned_modules)
@@ -303,7 +303,7 @@ let main argv =
                                     Marking.marks_before_statement mmd infos_allowed finished_exec true tr_allowed (m_al,um_al,ad_al)
                                 if ad_al.md
                                 then printfn "Warning: Some marks still are model-dependent! Generated invariant could be weaker than expected."
-                                let m_al = Solver.simplify_marks md mmd env m_al m
+                                let m_al = Solver.simplify_marks md mmd env_allowed m_al m
 
                                 // Printing & Minimization
                                 let f_al = Formula.formula_from_marks env m [(m_al,env_allowed)] true
