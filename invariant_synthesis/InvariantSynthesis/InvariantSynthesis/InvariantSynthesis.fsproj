@@ -12,6 +12,7 @@
   </PropertyGroup>
   
   <ItemGroup>
+    <Compile Include="Config.fs" />
     <Compile Include="Helper.fs" />
     <Compile Include="AST.fs" />
     <Compile Include="MinimalAST.fs" />

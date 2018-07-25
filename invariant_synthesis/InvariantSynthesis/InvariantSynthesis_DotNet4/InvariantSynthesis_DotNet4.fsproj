@@ -64,6 +64,9 @@
     <Compile Include="AssemblyInfo.fs" />
     <None Include="App.config" />
     <Content Include="packages.config" />
+	<Compile Include="..\InvariantSynthesis\Config.fs">
+      <Link>Config.fs</Link>
+    </Compile>
     <Compile Include="..\InvariantSynthesis\Helper.fs">
       <Link>Helper.fs</Link>
     </Compile>

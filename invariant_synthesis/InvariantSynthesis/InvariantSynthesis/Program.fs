@@ -12,11 +12,6 @@ let read_until_line_jump () =
         ignore (str.Append(!line + Environment.NewLine))
     str.ToString()
 
-let parser_cmd = "lin"
-let parser_args = "parser.native all %IN% %OUT% %ERR%"
-let parser_output_path = "parser.out"
-let parser_error_path = "parser.err"
-
 // ----- MANUAL MODE -----
 
 let manual_counterexample (md:ModuleDecl) decls possible_actions mmds verbose =
@@ -194,12 +189,12 @@ let main argv =
             TestModule.Queue.queue_module
         else
             printfn "Parsing module..."
-            let args = parser_args.Replace("%IN%", "\"" + filename + "\"").Replace("%OUT%", "\"" + parser_output_path + "\"").Replace("%ERR%", "\"" + parser_error_path + "\"")
-            System.IO.File.Delete(parser_output_path)
-            System.IO.File.Delete(parser_error_path)
-            System.Diagnostics.Process.Start(parser_cmd, args).WaitForExit()
+            let args = Config.parser_args.Replace("%IN%", "\"" + filename + "\"").Replace("%OUT%", "\"" + Config.parser_output_path + "\"").Replace("%ERR%", "\"" + Config.parser_error_path + "\"")
+            System.IO.File.Delete(Config.parser_output_path)
+            System.IO.File.Delete(Config.parser_error_path)
+            System.Diagnostics.Process.Start(Config.parser_cmd, args).WaitForExit()
             let err =
-                try System.IO.File.ReadAllText(parser_error_path)
+                try System.IO.File.ReadAllText(Config.parser_error_path)
                 with :? System.IO.FileNotFoundException -> ""
             if err <> ""
             then
@@ -207,7 +202,7 @@ let main argv =
                 ignore (Console.ReadLine())
                 failwith "Parser error!"
             else
-                let content = System.IO.File.ReadAllText(parser_output_path)
+                let content = System.IO.File.ReadAllText(Config.parser_output_path)
                 let parsed_elts = ParserAST.deserialize content
                 printfn "Converting parsed AST..."
                 ParserAST.ivy_elements_to_ast_module filename parsed_elts
