@@ -1,0 +1,42 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp2.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+	<Compile Include="Config.fs" />
+    <Compile Include="../InvariantSynthesis/Helper.fs" />
+    <Compile Include="../InvariantSynthesis/AST.fs" />
+    <Compile Include="../InvariantSynthesis/MinimalAST.fs" />
+    <Compile Include="../InvariantSynthesis/Determinization.fs" />
+    <Compile Include="../InvariantSynthesis/Model.fs" />
+    <Compile Include="../InvariantSynthesis/InterpretedExpr.fs" />
+    <Compile Include="../InvariantSynthesis/Interpreter.fs" />
+    <Compile Include="../InvariantSynthesis/Trace.fs" />
+    <Compile Include="../InvariantSynthesis/TInterpreter.fs" />
+    <Compile Include="../InvariantSynthesis/Marking.fs" />
+    <Compile Include="../InvariantSynthesis/Formula.fs" />
+    <Compile Include="../InvariantSynthesis/WPR.fs" />
+    <Compile Include="../InvariantSynthesis/Z3Utils.fs" />
+    <Compile Include="../InvariantSynthesis/Solver.fs" />
+    <Compile Include="../InvariantSynthesis/ConstraintsParser.fs" />
+    <Compile Include="../InvariantSynthesis/ParserAST.fs" />
+    <Compile Include="../InvariantSynthesis/TestModule.fs" />
+    <Compile Include="../InvariantSynthesis/Printer.fs" />
+    <Compile Include="../InvariantSynthesis/Program.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FParsec" Version="1.0.3" />
+    <PackageReference Include="Prime" Version="2.8.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Microsoft.Z3">
+      <HintPath>..\z3-4.6.0-x64-linux\bin\Microsoft.Z3.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>
