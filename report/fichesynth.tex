@@ -35,13 +35,27 @@
 
 \begin{point}{General context}
   
-  De quoi s'agit-il? D'où vient la question? Quels sont les travaux
-  déjà accomplis dans ce domaine dans le monde?
+  As distributed programs become more and more widespread, their verification is a major challenge.
+  The general purpose of my internship is to make the certification of those programs easier, by providing new methods and semi-automated tools that will assist the user in this process.
+  In this report, we are using IVy, a language combined with a set of tools that can be used to write certified distributed protocols.
+  The particularity of IVy is that it restricts the language and the logic used for the specification in order to ensure some decidability properties.
+  In particular, checking whether an inductive invariant is correct or not become decidable.
+
+  When writing a protocol using IVy, the two main challenges are
+  \begin{itemize}
+    \item To implement the protocol and specify it by staying in the decidable fragment imposed by IVy,
+    \item Once the previous point is done, to find an inductive invariant.
+  \end{itemize}
+
+  During this internship, I have been working on the second point.
 
 \end{point}
 
 \begin{point}{The problem}
   
+  %The problem we want to solve is the following:
+  %given an invariant that is not inductive, we want to strenghten it by generating a new (correct) invariant as strong as possible, if possible without breaking the decidability of the system.
+
   Quelle est la question que vous avez résolue? Pourquoi est-elle
   importante, à quoi cela sert-il d'y répondre?  Pourquoi êtes-vous
   le premier chercheur de l'univers à l'avoir posée?

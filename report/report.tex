@@ -126,7 +126,7 @@ March-July 2018
     \section{Context}
 
     As distributed programs become more and more widespread, their verification is a major challenge.
-    The general purpose of my internship is to make the certification of those programs easier.
+    The general purpose of my internship is to make the certification of those programs easier, by providing new methods and semi-automated tools that will assist the user in this process.
     Certifying a program consists in writing some specifications (in our case, some safety properties), and then proving than the program satisfy them.
     Several languages and tools already exist for that:
 
@@ -166,7 +166,7 @@ March-July 2018
 
     \section{The RML language}
 
-    IVy is inspired by a modeling language called RML (Relational Modeling Language). It is restricted such that some decidability properties are guaranteed (see section 1.4).
+    IVy is inspired by a modeling language called RML (Relational Modeling Language)\cite{Padon:2016:ISV:2908080.2908118}. It is restricted such that some decidability properties are guaranteed (see section 1.4).
     A RML program is composed of:
     \begin{itemize}
         \item Some uninterpreted types called `sorts'. `Uninterpreted' means that these types are not interpreted in any existing theory like arithmetic:
@@ -362,7 +362,7 @@ March-July 2018
         every execution of \(S\) starting from a state satisfying \(P\) will lead to a state that satisfies \(Q\).
     \end{definition}
 
-    Weakest preconditions can be computed as follows:\\
+    Weakest preconditions can be computed as follows\cite{Padon:2016:ISV:2908080.2908118}:\\
 
     \begin{tabular}{|l|l|l|}
         \hline
@@ -413,7 +413,7 @@ March-July 2018
     As we have just seen, some inductive invariants can be checked in a decidable way.
     However, it does not mean that they can be automatically produced.
 
-    Indeed, the two main challenges concerning IVy are:
+    Indeed, when writing a protocol using IVy, the two main challenges are:
     \begin{itemize}
         \item The implementation and specification of programs, in accordance with the restrictions of RML
         (stratification of functions, restriction on formulas, no recursion... though some additional primitives can be added to RML).
@@ -454,8 +454,8 @@ March-July 2018
     if the current invariant is not inductive, a new conjecture is proposed to the user (in order to sthrengthen the current invariant).
     If this conjecture is simple enough, the user can understand it and adjust it as he wants (making it stronger, resolving decidabilities issues, etc.), and we repeat this process.
 
-    Thus, the problem we want to solve is as follows:
-    given an invariant that is not inductive, we want to generate a new (correct) invariant as strong as possible, if possible without breaking the decidability of the system.
+    Thus, the problem we want to solve is the following:
+    given an invariant that is not inductive, we want to strenghten it by generating a new (correct) invariant as strong as possible, if possible without breaking the decidability of the system.
     To be correct, an invariant must be satisfied by every state that can be obtained with a valid execution (beginning with the `init' action).
     The following criteria can be used to evaluate an algorithm that tries to solve this problem:
     \begin{enumerate}
