@@ -56,8 +56,8 @@
         let empty_formula =
             ValueOr
                 (
-                    ValueEqual (ValueVar("q.next_e"),ValueVar("q.first_e")),
-                    relation_formula "incrementable.t.<" [ValueVar "q.next_e"; ValueVar "q.first_e"]
+                    ValueEqual (ValueFun("q.next_e",[]),ValueFun("q.first_e",[])),
+                    relation_formula "incrementable.t.<" [ValueFun ("q.next_e",[]); ValueFun ("q.first_e",[])]
                 )
         
         let empty_statement = NewBlock([],[])
@@ -100,14 +100,14 @@
                                     [],
                                     [
                                         Assert (ValueNot empty_formula) ;
-                                        VarAssign ("res", ExprVar "q.first") ;
-                                        FunAssign ("q.content", [ExprVar "q.first";ExprVar "q.first_e"], ExprConst (ConstBool false)) ;
-                                        VarAssign ("q.first_e", ExprAction("incrementable.next", [ExprVar "q.first_e"])) ;
+                                        VarAssign ("res", ExprFun ("q.first",[])) ;
+                                        FunAssign ("q.content", [ExprFun ("q.first",[]);ExprFun ("q.first_e",[])], ExprConst (ConstBool false)) ;
+                                        FunAssign ("q.first_e", [], ExprAction("incrementable.next", [ExprFun ("q.first_e",[])])) ;
                                         IfSomeElse
                                             (
                                                 {Name="nf";Type=Uninterpreted("data");Representation=default_representation},
-                                                relation_formula "q.content" [ValueVar "nf";ValueVar "q.first_e"],
-                                                VarAssign ("q.first", ExprVar "nf"),
+                                                relation_formula "q.content" [ValueVar "nf";ValueFun ("q.first_e",[])],
+                                                FunAssign ("q.first", [], ExprVar "nf"),
                                                 empty_statement
                                             )
                                     ]
@@ -125,12 +125,12 @@
                         ValueOr
                             (
                                 empty_formula,
-                                ValueEqual (ValueVar "q.first", ValueFun ("q.spec.content_f", [ValueVar "q.first_e"]))
+                                ValueEqual (ValueFun ("q.first",[]), ValueFun ("q.spec.content_f", [ValueFun ("q.first_e",[])]))
                             )
                 }
             ]
 
-        let exports = [("q","q.pop");("q","q.push")]
+        let exports = [("q","q.pop")]
 
         let queue_module : ModuleDecl =
             {
