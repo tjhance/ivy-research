@@ -130,7 +130,7 @@ open Prime
             | And (expr1, expr2) -> And (rewrite_expr dico expr1, rewrite_expr dico expr2)
             | Not expr -> Not (rewrite_expr dico expr)
             | Forall (d, expr) -> let (_, d) = rewrite_arg dico d in Forall (d, rewrite_expr dico expr)
-            | Exists (d, expr) -> let (_, d) = rewrite_arg dico d in Forall (d, rewrite_expr dico expr)
+            | Exists (d, expr) -> let (_, d) = rewrite_arg dico d in Exists (d, rewrite_expr dico expr)
             | Imply (expr1, expr2) -> Imply (rewrite_expr dico expr1, rewrite_expr dico expr2)
             | SomeElse (d, expr, expr_opt) -> let (_, d) = rewrite_arg dico d in SomeElse (d, rewrite_expr dico expr, Option.map (rewrite_expr dico) expr_opt)
             | ExprIfElse (expr, expr1, expr2) -> ExprIfElse (rewrite_expr dico expr, rewrite_expr dico expr1, rewrite_expr dico expr2)
