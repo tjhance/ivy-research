@@ -154,8 +154,8 @@
         then (name.Substring(0,i), name.Substring(i+1))
         else (name, "")
 
-    let local_var_prefix = "" // Note: local var prefix is not needed anymore since global vars are considered as functions
-    let impossible_var_factor = "$"
+    let local_var_prefix = "$"
+    let impossible_var_factor = "$$"
 
     let void_return_decl = default_var_decl impossible_var_factor Void
 
@@ -195,6 +195,10 @@
 
     let find_type types str =
         List.find (fun (decl:TypeDecl) -> decl.Name = str) types
+
+    let all_uninterpreted_types types =
+        let et = List.filter (fun (t:TypeDecl) -> match t.Infos with UninterpretedTypeDecl -> true | _ -> false) types
+        List.map (fun (t:TypeDecl) -> Uninterpreted t.Name) et
 
     let all_enumerated_types types =
         let et = List.filter (fun (t:TypeDecl) -> match t.Infos with EnumeratedTypeDecl _ -> true | _ -> false) types

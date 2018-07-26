@@ -257,7 +257,7 @@
 
     exception ValueNotAllowed
 
-    let z3val2deterministic_formula (ctx,v) allow_contexts =
+    let z3ctx2deterministic_formula (ctx,v) allow_contexts =
         if allow_contexts
         then replace_holes_with v ctx
         else if ctx <> Z3Hole
@@ -468,15 +468,15 @@
             (
                 fun acc v ->
                     try
-                        (z3val2deterministic_formula (minimal_val2z3_val m v) false)::acc
+                        (z3ctx2deterministic_formula (minimal_val2z3_val m v) false)::acc
                     with :? ValueNotAllowed -> printfn "Illegal axiom/conjecture ignored..." ; acc
             ) [] conj
 
-    let wpr_for_action<'a,'b> (m:ModuleDecl<'a,'b>) f action uq_args =
+    let wpr_for_action<'a,'b> (m:ModuleDecl<'a,'b>) f action negate =
         let action = minimal_action2wpr_action m action false
         let axioms = conjectures_to_z3values m (MinimalAST.axioms_decls_to_formulas m.Axioms)
         let res = weakest_precondition m axioms f action.Content
-        if uq_args
+        if not negate
         then
             List.fold (fun acc (d:VarDecl) -> Z3Forall (d,acc)) res action.Args
-        else res
+        else Z3Not res

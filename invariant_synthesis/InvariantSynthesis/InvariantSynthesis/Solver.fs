@@ -27,7 +27,7 @@
         let dcs = List.map diff_constraint (m.d |> Set.toList)
         let cs = vcs@fcs@dcs
         let cs = List.map (MinimalAST.value2minimal md) cs
-        List.map (fun c -> WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd c) false) cs
+        List.map (fun c -> WPR.z3ctx2deterministic_formula (WPR.minimal_val2z3_val mmd c) false) cs
 
     let z3_formula_for_constraints (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) (m:Marking.Marks) =
         WPR.conjunction_of (z3_formulas_for_constraints md mmd env m)
@@ -41,9 +41,9 @@
         let axioms = z3_fomula_for_axioms mmd
         WPR.Z3And (axioms, conjectures)
 
-    let z3_formula_for_wpr (mmd:MinimalAST.ModuleDecl<'a,'b>) action formula uq_args =
-        let z3formula = WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd formula) false
-        WPR.wpr_for_action mmd z3formula action uq_args
+    let z3_formula_for_wpr (mmd:MinimalAST.ModuleDecl<'a,'b>) action formula negate =
+        let z3formula = WPR.z3ctx2deterministic_formula (WPR.minimal_val2z3_val mmd formula) false
+        WPR.wpr_for_action mmd z3formula action negate
 
     [<NoComparison>]
     type SolverResult = UNSAT | UNKNOWN | SAT of Model.TypeInfos * Model.Environment
@@ -102,8 +102,7 @@
         let counterexample = ref None
 
         let treat_formula (i,formula) =
-            let wpr = z3_formula_for_wpr mmd action formula false
-            let f = WPR.Z3And (axioms_conjectures, WPR.Z3Not wpr)
+            let f = WPR.Z3And (axioms_conjectures, z3_formula_for_wpr mmd action formula true)
             let res = check_z3_formula md (args_decl_for_action mmd action) f 3000
         
             counterexample :=
@@ -124,7 +123,7 @@
         let counterexample = ref None
 
         let treat_formula (i,formula) =
-            let fs = List.map (fun (action,mmd) -> (mmd, action, WPR.Z3Not (z3_formula_for_wpr mmd action formula false))) (Map.toList mmds)
+            let fs = List.map (fun (action,mmd) -> (mmd, action, z3_formula_for_wpr mmd action formula true)) (Map.toList mmds)
             let res = check_z3_disjunction md axioms_conjectures fs 3000
             
             counterexample :=
@@ -144,21 +143,21 @@
         let f = Formula.formula_from_marks env m allowed_execs true
         let f = AST.ValueNot f
         let f = MinimalAST.value2minimal md f
-        WPR.z3val2deterministic_formula (WPR.minimal_val2z3_val mmd f) false
+        WPR.z3ctx2deterministic_formula (WPR.minimal_val2z3_val mmd f) false
 
     let wpr_based_valid_state_formula (mmd:MinimalAST.ModuleDecl<'a,'b>) action other_actions formula =
-        let wpr = z3_formula_for_wpr mmd action formula true
+        let wpr = z3_formula_for_wpr mmd action formula false
         let add_wpr acc (action',mmd') =
             if action' <> action
             then
-                let wpr = z3_formula_for_wpr mmd' action' formula true
+                let wpr = z3_formula_for_wpr mmd' action' formula false
                 WPR.Z3And (acc, wpr)
             else acc
         let wpr = List.fold add_wpr wpr other_actions
         WPR.Z3And (z3_formula_for_axioms_and_conjectures mmd, wpr)
 
     let terminating_or_failing_run_formula (mmd:MinimalAST.ModuleDecl<'a,'b>) action =
-        WPR.Z3Not (WPR.wpr_for_action mmd (WPR.Z3Const (AST.ConstBool false)) action false)
+        WPR.wpr_for_action mmd (WPR.Z3Const (AST.ConstBool false)) action true
 
     let find_allowed_execution (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) formula
         action (m:Marking.Marks) other_actions prev_allowed only_terminating_run =
@@ -186,7 +185,7 @@
     let simplify_marks (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) (m:Marking.Marks) (additional_marks:Marking.Marks) =
         // We remove local vars
         let m = { m with v = Set.empty }
-        // We simplify functions
+
         let axioms_conjs = z3_formula_for_axioms_and_conjectures mmd
         let are_marks_necessary (m:Marking.Marks) (m':Marking.Marks) =
             let m = Marking.marks_diff m m'
@@ -196,17 +195,10 @@
             match check_z3_formula md [] f 1000 with
             | UNSAT -> false
             | _ -> true
-        let keep_funmark_if_necessary (m:Marking.Marks) (str, cvs) =
-            let m' = { Marking.empty_marks with f=Set.singleton (str, cvs) }
+        let keep_mark_if_necessary (m:Marking.Marks) m' =
             if are_marks_necessary m m'
             then m else Marking.marks_diff m m'
-        let m = Set.fold keep_funmark_if_necessary m m.f
-        // We simplify disequalities
-        let keep_diff_if_necessary (m:Marking.Marks) (cv1, cv2) =
-            let m' = { Marking.empty_marks with d=Set.singleton (cv1, cv2) }
-            if are_marks_necessary m m'
-            then m else Marking.marks_diff m m'
-        Set.fold keep_diff_if_necessary m m.d
+        List.fold keep_mark_if_necessary m (decompose_marks m)
 
     let expand_marks (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) infos (env:Model.Environment) (m:Marking.Marks) =
         // We remove local vars
@@ -225,20 +217,16 @@
                 | SAT _ -> true
                 | _ -> false
             | _ -> false
-        let is_funmark_valid (str, cvs) =
-            let m = { Marking.empty_marks with f=Set.singleton (str, cvs) }
-            let f = z3_formula_for_constraints md mmd env m
-            is_formula_valid f
-        let is_diff_valid (cv1, cv2) =
-            let m = { Marking.empty_marks with d=Set.singleton (cv1, cv2) }
+        let is_mark_valid m =
             let f = z3_formula_for_constraints md mmd env m
             is_formula_valid f
 
-        let fm = List.map (fun (k,_) -> k) (Map.toList env.f)
-        let fm = List.filter is_funmark_valid fm
-        let diffs = Set.unionMany (List.map (fun (d:AST.TypeDecl) -> Formula.all_diffs_for_type md.Types infos (AST.Uninterpreted d.Name)) md.Types)
-        let diffs = Set.filter is_diff_valid diffs
-        { Marking.empty_marks with f = fm |> Set.ofList ; d = diffs }
+        let fm = List.map (fun (k,_) -> k) (Map.toList env.f) |> Set.ofList
+        let diffs = Set.unionMany (List.map (fun t -> Formula.all_diffs_for_type md.Types infos t) (AST.all_uninterpreted_types md.Types))
+        let m = { Marking.empty_marks with Marking.d = diffs ; Marking.f = fm }
+        let ms = decompose_marks m
+        let ms = List.filter is_mark_valid ms
+        Marking.marks_union_many ms
 
     type MinimizationMode = Safe | Hard | MinimizeAltExec
     let wpr_based_minimization (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) infos (env:Model.Environment) action other_actions formula (m:Marking.Marks) (alt_exec:List<Marking.Marks*Model.Environment>) (mode:MinimizationMode) =
@@ -287,94 +275,58 @@
             printfn "Core is SAT."
             save_m
         // TODO: run unsat core only for constraints on functions, and then run unsat core for disequalities on the result?
+        // Alternatively, constraints should be sorted by order of "strength"
 
-    let has_valid_k_execution_formula formula actions init_actions boundary =
+    let has_k_exec_counterexample_formula formula actions init_actions boundary =
 
-        // Action enum
-        let actions_enum = AST.generated_name (sprintf "__action_enum")
-        let actions_enum_vals = List.init (List.length actions) (fun i -> AST.compose_name actions_enum (sprintf "%i" i))
-        let actions_enum_map = List.fold2 (fun acc (str,_) e_str -> Map.add str e_str acc) Map.empty actions actions_enum_vals
-        // Level enum
-        let levels_enum = AST.generated_name (sprintf "__level_enum")
-        let levels_enum_vals = List.init (boundary+1) (fun i -> AST.compose_name levels_enum (sprintf "%i" i))
-        let (levels_enum_map,_) = List.fold (fun (acc,i) e_str -> (Map.add i e_str acc, i+1)) (Map.empty,0) levels_enum_vals
-        let new_enums = [(actions_enum, actions_enum_vals);(levels_enum, levels_enum_vals)]
-
-        let rename_vars mmd action suffix f =
-            let args_decl = args_decl_for_action mmd action
-            let dico = List.fold (fun acc (v:AST.VarDecl) -> Map.add v.Name (AST.make_name_unique_bis v.Name suffix) acc) Map.empty args_decl
-            let renaming = Map.map (fun _ v -> WPR.Z3Var v) dico
-            (WPR.map_vars_in_z3value f renaming, List.map (fun (d:AST.VarDecl) -> AST.default_var_decl (Map.find d.Name dico) d.Type) (args_decl) |> Set.ofList)
-
-        let rec compute_next_iterations (fs,new_vars) n =
+        let rec compute_next_iterations fs n =
             match n with
-            | n when n <= 0 -> (*printfn "All paths have been computed!" ;*) (fs, new_vars)
+            | n when n <= 0 -> (*printfn "All paths have been computed!" ;*) fs
             | n ->
                 //printfn "Computing level %i..." n
                 let prev = List.head fs
-                let add_wpr (f,new_vars) (action,mmd) =
-                    let wpr = WPR.wpr_for_action mmd prev action false
-                    let (wpr, new_vars') = rename_vars mmd action (sprintf "lev_%i" n) wpr
-                    let new_vars = Set.union new_vars new_vars'
-                    let action_selection_var = AST.default_var_decl (AST.generated_name (sprintf "__action_selection_%i" n)) (AST.Enumerated actions_enum)
-                    let new_vars = Set.add action_selection_var new_vars
-                    (WPR.Z3Or (f, WPR.Z3And (wpr, WPR.Z3Equal(WPR.Z3Var action_selection_var.Name, WPR.Z3Const (AST.ConstEnumerated (actions_enum, Map.find action actions_enum_map))))), new_vars)
-                let (wpr, new_vars) = List.fold add_wpr (WPR.Z3Const (AST.ConstBool false),new_vars) actions
-                compute_next_iterations (wpr::fs,new_vars) (n-1)
+                let wprs = List.map (fun (action,mmd) -> WPR.wpr_for_action mmd prev action false) actions
+                let wpr = WPR.conjunction_of wprs
+                compute_next_iterations (wpr::fs) (n-1)
 
-        let (paths, new_vars) = compute_next_iterations ([formula], Set.empty) boundary
-        let add_length_constr (paths, new_vars, i) f =
-            let length_selection_var = AST.default_var_decl (AST.generated_name "__length_selection") (AST.Enumerated levels_enum)
-            let new_vars = Set.add length_selection_var new_vars
-            let f = WPR.Z3And (f, WPR.Z3Equal(WPR.Z3Var length_selection_var.Name, WPR.Z3Const (AST.ConstEnumerated (levels_enum, Map.find i levels_enum_map))))
-            (f::paths, new_vars, i+1)
-        let (paths, new_vars, _) = List.fold add_length_constr ([],new_vars, 0) paths
-        let f = WPR.disjunction_of paths
-
+        let paths = compute_next_iterations [formula] boundary
+        let f = WPR.conjunction_of paths
         // Add initializations
-        let add_init (f, new_vars) (action,mmd) =
-            let f = WPR.wpr_for_action mmd f action false
-            let (f, new_vars') = rename_vars mmd action (sprintf "init_%s" action) f
-            let new_vars = Set.union new_vars new_vars'
-            (f, new_vars)
-        let (f, new_vars) = List.fold add_init (f, new_vars) init_actions
-
-        (f, new_vars, new_enums)
+        let f = List.fold (fun f (action,mmd) -> WPR.wpr_for_action mmd f action false) f init_actions
+        WPR.Z3Not f
         
     let sbv_based_minimization (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) infos (env:Model.Environment) actions init_actions (m:Marking.Marks) (alt_exec:List<Marking.Marks*Model.Environment>) boundary =
+
+        // TMP Tests
+        // TODO: Fix axioms that seem to be ignored
+        let axioms = z3_fomula_for_axioms mmd 
+        printfn "%A" (check_z3_formula md [](WPR.Z3And (axioms,has_k_exec_counterexample_formula (WPR.Z3Const (AST.ConstBool true)) actions init_actions boundary)) 5000)
+        // ----------
 
         let m = { m with v = Set.empty } // We remove local vars
         let save_m = m
         let m = expand_marks md mmd infos env m // We expand marks!
 
-        // Base assumptions
         let axioms = z3_fomula_for_axioms mmd
-        let f = not_already_allowed_state_formula md mmd env m alt_exec
-        let f = WPR.Z3And (axioms,f)
-        // TODO: Fix the following condition (it does not do what is expected)
-        let (break_assumption, new_vars, new_enums) = has_valid_k_execution_formula (WPR.Z3Const (AST.ConstBool false)) actions init_actions boundary
-        let f = WPR.Z3And (f, WPR.Z3Not break_assumption) // We don't want the execution to be valid only because it breaks an assumption
+        let give_k_invariant m =
+            let f = WPR.z3ctx2deterministic_formula (WPR.minimal_val2z3_val mmd (MinimalAST.value2minimal md (Formula.formula_from_marks env m alt_exec false))) false
+            let f = WPR.Z3And (axioms, has_k_exec_counterexample_formula f actions init_actions boundary)
+            match check_z3_formula md [] f 5000 with
+            | SolverResult.UNKNOWN ->
+                printfn "Can't decide of satisfiability!"
+                false
+            | SolverResult.UNSAT -> true
+            | SolverResult.SAT _ -> false
 
-        // UnSAT core
-        let formula_for_marks m =
-            let f = z3_formula_for_constraints md mmd env m
-            let (f, _, _) = has_valid_k_execution_formula f actions init_actions boundary
-            f
-
-        let ms = decompose_marks m
-        let labeled_ms = List.mapi (fun i m -> (sprintf "%i" i, m)) ms
-        let labeled_cs = List.map (fun (i,m) -> (i, formula_for_marks m)) labeled_ms
-        printfn "Solving unSAT core..."
-
-        match z3_unsat_core md (Set.toList new_vars) new_enums f labeled_cs 25000 with
-        | (Z3Utils.SolverResult.UNSAT, lst) ->
-            let labeled_ms = List.filter (fun (str,_) -> List.contains str lst) labeled_ms
-            let ms = List.map (fun (_,m) -> m) labeled_ms
-            Marking.marks_union_many ms
-        | (Z3Utils.SolverResult.UNKNOWN, _) ->
-            printfn "Can't resolve unSAT core!"
+        if give_k_invariant m
+        then
+            let keep_mark_if_necessary (m:Marking.Marks) m' =
+                let m' = Marking.marks_diff m m'
+                if give_k_invariant m'
+                then m' else m
+            List.fold keep_mark_if_necessary m (decompose_marks m)
+        else
+            printfn "ERROR: The whole formula is not a k-invariant!"
             save_m
-        | (Z3Utils.SolverResult.SAT _, _) ->
-            printfn "Error: Core is SAT..."
-            save_m
+
         
