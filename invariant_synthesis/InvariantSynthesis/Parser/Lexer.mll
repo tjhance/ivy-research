@@ -36,7 +36,7 @@ rule read ignore_nls =
   | "require" { REQUIRE }
   | "assume" { ASSUME }
   | "conjecture" { CONJECTURE }
-  | "property" { CONJECTURE }
+  | "property" { AXIOM }
   | "type"   { TYPE }
   | "action" { ACTION }
   | "returns" { RETURNS }

@@ -297,12 +297,6 @@
         
     let sbv_based_minimization (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) infos (env:Model.Environment) actions init_actions (m:Marking.Marks) (alt_exec:List<Marking.Marks*Model.Environment>) boundary =
 
-        // TMP Tests
-        // TODO: Fix axioms that seem to be ignored
-        let axioms = z3_fomula_for_axioms mmd 
-        printfn "%A" (check_z3_formula md [](WPR.Z3And (axioms,has_k_exec_counterexample_formula (WPR.Z3Const (AST.ConstBool true)) actions init_actions boundary)) 5000)
-        // ----------
-
         let m = { m with v = Set.empty } // We remove local vars
         let save_m = m
         let m = expand_marks md mmd infos env m // We expand marks!
