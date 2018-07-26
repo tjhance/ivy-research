@@ -615,7 +615,7 @@ open Prime
         let predefined = ["<";"<=";">";">="]
         List.contains str predefined
 
-    let add_predefined_functions_and_macros type_name (m:ModuleDecl) =
+    let add_predefined_functions_and_macros module_name type_name (m:ModuleDecl) =
         let rep = { AST.RepresentationInfos.DisplayName = None ; AST.RepresentationInfos.Flags = Set.singleton AST.RepresentationFlags.Infix }
         let t = AST.Uninterpreted type_name
 
@@ -667,6 +667,7 @@ open Prime
         let axiom4 = AST.ValueOr (axiom4, AST.ValueEqual (AST.ValueVar x, AST.ValueVar y))
         let axiom4 = AST.ValueForall (var_x, AST.ValueForall (var_y, axiom4))
         let axioms = [axiom1;axiom2;axiom3;axiom4]
+        let axioms = List.map (fun a -> { AST.AxiomDecl.Module=module_name ; AST.Formula=a }) axioms
 
         { m with Funs=lt::m.Funs ; Macros=leq::geq::gt::m.Macros ; Implications=impl@m.Implications ; Axioms=axioms@m.Axioms }
 
@@ -693,7 +694,7 @@ open Prime
                     match elts_opt with
                     | None -> 
                         let m = { m with AST.Types=({ AST.Name = name ; AST.Infos = AST.UninterpretedTypeDecl }::m.Types) }
-                        (add_predefined_functions_and_macros name m, tmp_elements)
+                        (add_predefined_functions_and_macros base_name name m, tmp_elements)
                     | Some elts ->
                         let elts = List.map (fun str -> compose_name name str) elts
                         let m = { m with AST.Types=({ AST.Name = name ; AST.Infos = AST.EnumeratedTypeDecl elts }::m.Types) }
@@ -749,7 +750,7 @@ open Prime
                     let (dico, expr) = p2a_expr m base_name Map.empty Map.empty (Some AST.Bool) expr
                     let expr = close_formula m Map.empty dico Set.empty expr
                     let v = AST.expr_to_value expr
-                    ({ m with AST.Axioms=(v::m.Axioms) }, tmp_elements)
+                    ({ m with AST.Axioms=({AST.AxiomDecl.Module=base_name;AST.Formula=v}::m.Axioms) }, tmp_elements)
                 | Conjecture expr ->
                     let (dico, expr) = p2a_expr m base_name Map.empty Map.empty (Some AST.Bool) expr
                     let expr = close_formula m Map.empty dico Set.empty expr

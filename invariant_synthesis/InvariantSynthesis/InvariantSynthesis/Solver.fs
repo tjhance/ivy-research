@@ -33,10 +33,10 @@
         WPR.conjunction_of (z3_formulas_for_constraints md mmd env m)
 
     let z3_fomula_for_axioms (mmd:MinimalAST.ModuleDecl<'a,'b>) =
-        WPR.conjunction_of (WPR.conjectures_to_z3values mmd mmd.Axioms)
+        WPR.conjunction_of (WPR.conjectures_to_z3values mmd (MinimalAST.axioms_decls_to_formulas mmd.Axioms))
 
     let z3_formula_for_axioms_and_conjectures (mmd:MinimalAST.ModuleDecl<'a,'b>) =
-        let all_invariants = MinimalAST.invariants_to_formulas mmd.Invariants
+        let all_invariants = MinimalAST.invariants_decls_to_formulas mmd.Invariants
         let conjectures = WPR.conjunction_of (WPR.conjectures_to_z3values mmd all_invariants)
         let axioms = z3_fomula_for_axioms mmd
         WPR.Z3And (axioms, conjectures)

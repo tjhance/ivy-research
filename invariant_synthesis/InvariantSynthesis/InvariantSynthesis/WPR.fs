@@ -197,6 +197,7 @@
             match v with
             | ValueConst c -> (Z3Hole, Z3Const c)
             | ValueStar t ->
+                printfn "Warning: Non-deterministic operation detected (ValueStar)."
                 let name = unique_name (AST.local_name "NDS")
                 let d = AST.default_var_decl name t
                 let ctx = Z3Forall (d, Z3Hole)
@@ -220,6 +221,7 @@
                 let (ctx, v) = aux v
                 (ctx, Z3Not v)
             | ValueSomeElse (d, v1, v2) ->
+                printfn "Warning: Non-deterministic operation detected (ValueSomeElse)."
                 let new_d = AST.default_var_decl (unique_name d.Name) d.Type
                 let renaming = Map.add d.Name new_d.Name Map.empty
                 let v1 = rename_value renaming v1
@@ -306,11 +308,12 @@
 
                 let new_d = AST.default_var_decl (unique_name d.Name) d.Type
                 let renaming_d = Map.add d.Name new_d.Name renaming
+                let vcond_new_d = rename_value renaming_d vcond
                 
                 let sif = aux renaming_d sif
-                let sif_d_assign = ValueSomeElse (qvar, vcond_qvar, ValueStar d.Type)
-                let sif = [NewBlock ([new_d], (VarAssign (new_d.Name, minimal_val2z3_val sif_d_assign))::sif)]
-                let sif = (Assume (minimal_val2z3_val (ValueNot (ValueForall (qvar, ValueNot vcond_qvar)))))::sif
+                let sif_d_assign = minimal_val2z3_val (ValueSomeElse (qvar, vcond_qvar, ValueStar d.Type))
+                let sif = [NewBlock ([new_d], (VarAssign (new_d.Name, sif_d_assign))::sif)]
+                let sif = (Assume (minimal_val2z3_val vcond_new_d))::sif
                 let sif = packIfNecessary sif
                 
                 [Parallel (sif, selse)]
@@ -466,12 +469,12 @@
                 fun acc v ->
                     try
                         (z3val2deterministic_formula (minimal_val2z3_val m v) false)::acc
-                    with :? ValueNotAllowed -> (*printfn "Illegal axiom/conjecture ignored..." ;*) acc
+                    with :? ValueNotAllowed -> printfn "Illegal axiom/conjecture ignored..." ; acc
             ) [] conj
 
     let wpr_for_action<'a,'b> (m:ModuleDecl<'a,'b>) f action uq_args =
         let action = minimal_action2wpr_action m action false
-        let axioms = conjectures_to_z3values m m.Axioms
+        let axioms = conjectures_to_z3values m (MinimalAST.axioms_decls_to_formulas m.Axioms)
         let res = weakest_precondition m axioms f action.Content
         if uq_args
         then

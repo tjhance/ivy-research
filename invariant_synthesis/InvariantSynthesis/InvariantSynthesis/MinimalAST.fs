@@ -35,13 +35,14 @@
         | Assume of Value
 
     type InvariantDecl = { Module: string; Formula: Value }
+    type AxiomDecl = InvariantDecl
     type ActionDecl = { Name: string; Args: List<VarDecl>; Output: VarDecl; Content: Statement }
     type MacroDecl = { Name: string; Args: List<VarDecl>; Output: Type; Value: Value ; Representation: RepresentationInfos }
     type InterpretedActionDecl<'a,'b> = AST.InterpretedActionDecl<'a,'b>
     [<NoEquality;NoComparison>]
     type ModuleDecl<'a,'b> =
         { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; InterpretedActions: List<InterpretedActionDecl<'a,'b>>;
-            Actions: List<ActionDecl>; Invariants: List<InvariantDecl>; Axioms: List<Value> }
+            Actions: List<ActionDecl>; Invariants: List<InvariantDecl>; Axioms: List<AxiomDecl> }
 
     // Utility functions
 
@@ -57,8 +58,9 @@
     let find_invariants (m:ModuleDecl<'a,'b>) module_name =
         List.filter (fun (d:InvariantDecl) -> AST.has_base_name d.Module module_name) m.Invariants
 
-    let invariants_to_formulas invs =
+    let invariants_decls_to_formulas invs =
         List.map (fun (d:InvariantDecl) -> d.Formula) invs
+    let axioms_decls_to_formulas = invariants_decls_to_formulas
 
     let rec map_vars_in_value v dico =
         match v with
@@ -385,7 +387,7 @@
 
         let actions = Set.fold convert_action [] all_actions
         let invariants = List.map (fun (d:AST.InvariantDecl) -> { Module=d.Module ; Formula=value2minimal m d.Formula }) m.Invariants
-        let axioms = List.map (value2minimal m) m.Axioms
+        let axioms = List.map (fun (d:AST.AxiomDecl) -> { Module=d.Module ; Formula=value2minimal m d.Formula }) m.Axioms
 
         { Name = m.Name; Types = m.Types; Funs = m.Funs; InterpretedActions = m.InterpretedActions;
             Actions = actions ; Invariants = invariants; Axioms = axioms }

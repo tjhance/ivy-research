@@ -5,6 +5,9 @@
     // TODO: Test on new examples (verdi_lock, leader election...)
     // TODO: Optimize computation of WPR: use mutable AST for formulas so substitutions can be done in constant time
 
+    // TODO: Refactor: Make a new AST 'DeterministicAST' and get rid of all non-determinitstic cases in WPR, Interpreter & Marking
+    // TODO: Refactor: Remove old "implications" system
+
     // TODO: "while" loops
     // TODO: "if some" with multiple var decls
     // TODO: Allow multiple return values for actions.
@@ -107,6 +110,7 @@
     type MacroDecl = { Name: string; Args: List<VarDecl>; Output: Type; Value: Value ; Representation: RepresentationInfos }
 
     type InvariantDecl = { Module: string; Formula: Value }
+    type AxiomDecl = InvariantDecl
 
     [<NoEquality;NoComparison>]
     type InterpretedActionDecl<'a,'b> = { Name: string; Args: List<Type>; Output: Type; Effect: 'a -> 'b -> List<ConstValue> -> ConstValue ; Representation: RepresentationInfos }
@@ -114,7 +118,7 @@
     [<NoEquality;NoComparison>]
     type ModuleDecl<'a,'b> =
         { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; InterpretedActions: List<InterpretedActionDecl<'a,'b>>; Exports: List<string*string>;
-            Actions: List<ActionDecl>; Macros: List<MacroDecl>; Invariants: List<InvariantDecl>; Implications: List<ImplicationRule> ; Axioms: List<Value> }
+            Actions: List<ActionDecl>; Macros: List<MacroDecl>; Invariants: List<InvariantDecl>; Implications: List<ImplicationRule> ; Axioms: List<AxiomDecl> }
 
 
     let empty_module name =
@@ -347,19 +351,22 @@
         let filter_macros (m:MacroDecl) =
             let (bn,_) = decompose_name m.Name
             not (is_provenance_excluded bn)
-        let filter_invariants (i:InvariantDecl) =
-            not (is_provenance_excluded i.Module)
+        let filter_axioms (a:AxiomDecl) =
+            not (is_provenance_excluded a.Module)
         let filter_exports (prov,_) =
             not (is_provenance_excluded prov)
-        // TODO: filter implications & axioms
+        let filter_invariants (i:InvariantDecl) =
+            not (is_provenance_excluded i.Module)
+
         let t = List.filter filter_types m.Types
         let f = List.filter filter_funs m.Funs
         let a = List.filter filter_actions m.Actions
         let ma = List.filter filter_macros m.Macros
         let i = List.filter filter_invariants m.Invariants
         let e = List.filter filter_exports m.Exports
+        let ax = List.filter filter_axioms m.Axioms
         { ModuleDecl.Name=m.Name ; Types=t; Funs=f; Actions=a; Macros=ma; Invariants=i; Exports=e;
-            Implications=m.Implications; InterpretedActions=m.InterpretedActions; Axioms=m.Axioms }
+            Implications=m.Implications; InterpretedActions=m.InterpretedActions; Axioms=ax }
 
     // Functions on types
 
