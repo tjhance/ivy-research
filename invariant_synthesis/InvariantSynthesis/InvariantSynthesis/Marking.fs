@@ -46,6 +46,8 @@
         let mds = Seq.map (fun ad -> ad.md) ads
         let ufmis = Seq.map (fun ad -> ad.ufmi) ads
         { md = op1 mds ; ufmi = op2 ufmis }
+
+    let remove_all_var_marks m = { m with v = Set.empty }
     
     let marks_union_many = marks_reduce Set.unionMany Set.unionMany Set.unionMany
     let marks_union m1 m2 = marks_union_many ([m1;m2] |> List.toSeq)

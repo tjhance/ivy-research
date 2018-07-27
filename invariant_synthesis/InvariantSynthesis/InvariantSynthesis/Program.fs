@@ -80,14 +80,14 @@ let manual_counterexample (md:ModuleDecl) decls possible_actions mmds verbose =
     else
         Some (action, infos, env, cs, MinimalAST.ValueConst (ConstBool true), tr)
     
-let manual_allowed_path (md:ModuleDecl) decls env cs m um' =
+let manual_allowed_path (md:ModuleDecl) decls env cs m um =
     printfn "Please modify some constraints on the environment to change the final formula value."
     printfn ""
     printfn "Constraints you can't change:"
     printfn "%s" (Printer.marks_to_string decls env m)
     printfn ""
     printfn "Constraints you should change (at least one):"
-    printfn "%s" (Printer.marks_to_string decls env um')
+    printfn "%s" (Printer.marks_to_string decls env um)
 
     printfn ""
     let str = read_until_line_jump ()
@@ -151,8 +151,8 @@ let auto_counterexample (md:ModuleDecl) decls main_module mmds =
         Some (action, infos, env, [], formula, tr)
 
 let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) formula
-    action (m:Marking.Marks) other_actions prev_allowed only_terminating_run =
-    Solver.find_allowed_execution md mmd env formula action m other_actions prev_allowed only_terminating_run
+    action (m:Marking.Marks) all_actions prev_allowed only_terminating_run =
+    Solver.find_allowed_execution md mmd env formula action m all_actions prev_allowed only_terminating_run
 
 
 // ----- MAIN -----
@@ -261,15 +261,15 @@ let main argv =
 
                 printfn "Going back through the action..."
                 let (m,um,ad) = Marking.marks_before_statement mmd infos true false tr (m,um,ad)
+                let (m,um) = (Marking.remove_all_var_marks m, Marking.remove_all_var_marks um)
                 if verbose
                 then
                     printfn "%A" m
                     printfn "%A" um
                     printfn "%A" ad
 
-                let m = Solver.simplify_marks md mmd env m (Marking.empty_marks)//Formula.simplify_marks m.Types infos md.Implications decls env m
-                let um = Solver.simplify_marks md mmd env um (Marking.empty_marks) //Formula.simplify_marks m.Types infos md.Implications decls env um
-                let f = Formula.formula_from_marks env m [] false
+                // Printing intermediate result
+                let f = Formula.formula_from_marks env (Solver.simplify_marks md mmd env m (Marking.empty_marks)) [] false
                 let f = Formula.simplify_value f
                 printfn "%s" (Printer.value_to_string decls f 0)
                 printfn ""
@@ -299,25 +299,28 @@ let main argv =
 
                             if b_al
                             then
-                                let (m_al,_,ad_al) =
-                                    Marking.marks_before_statement mmd infos_allowed finished_exec true tr_allowed (m_al,um_al,ad_al)
+                                let (m_al,_,ad_al) = Marking.marks_before_statement mmd infos_allowed finished_exec true tr_allowed (m_al,um_al,ad_al)
+                                let m_al = Marking.remove_all_var_marks m_al
                                 if ad_al.md
                                 then printfn "Warning: Some marks still are model-dependent! Generated invariant could be weaker than expected."
-                                let m_al = Solver.simplify_marks md mmd env_allowed m_al m
 
-                                // Printing & Minimization
-                                let f_al = Formula.formula_from_marks env m [(m_al,env_allowed)] true
+                                // Printing
+                                let f_al = Formula.formula_from_marks env m [((Solver.simplify_marks md mmd env_allowed m_al m),env_allowed)] true
                                 let f_al = Formula.simplify_value f_al
                                 printfn "%s" (Printer.value_to_string decls f_al 0)
-                                printfn "Proceed to minimization? (n:no/y:yes)"
+
+                                // Minimization (optional)
+                                printfn "Try to minimize this existential part now (can weaken the final invariant)? (n:no/y:yes)"
                                 let m_al =
                                     let line = Console.ReadLine ()
                                     if line = "y"
-                                    then Solver.wpr_based_minimization md mmd infos env name (Map.toList mmds) formula m [(m_al, env_allowed)] (Solver.MinimizeAltExec)
+                                    then
+                                        let m_al = Solver.wpr_based_minimization md mmd infos env name (Map.toList mmds) formula m [(m_al, env_allowed)] (Solver.MinimizeAltExec)
+                                        let f_al = Formula.formula_from_marks env m [((Solver.simplify_marks md mmd env_allowed m_al m),env_allowed)] true
+                                        let f_al = Formula.simplify_value f_al
+                                        printfn "%s" (Printer.value_to_string decls f_al 0)
+                                        m_al
                                     else m_al
-                                let f_al = Formula.formula_from_marks env m [(m_al,env_allowed)] true
-                                let f_al = Formula.simplify_value f_al
-                                printfn "%s" (Printer.value_to_string decls f_al 0)
 
                                 allowed_paths := (m_al,env_allowed)::(!allowed_paths)
                             else printfn "ERROR: Illegal execution!"
@@ -333,7 +336,7 @@ let main argv =
                 else
                     printfn "These conditions are sufficient to break the invariant!"
 
-                printfn "Proceed to minimization? (n:no/s:safe/h:hard/[0-9]:sbv)"
+                printfn "Minimize universal part? (n:no/s:safe/h:hard/[0-9]:sbv)"
                 let m =
                     let line = Console.ReadLine ()
                     if line = "h"
@@ -345,6 +348,17 @@ let main argv =
                     else
                         let boundary = int(Convert.ToUInt32 (line))
                         Solver.sbv_based_minimization md mmd infos env (Map.toList mmds) init_actions m (!allowed_paths) boundary
+                let m = Solver.simplify_marks md mmd env m (Marking.empty_marks)
+
+                if List.length (!allowed_paths) > 0
+                then
+                    printfn "Minimize existential parts? (n:no/y:yes)"
+                    if Console.ReadLine () = "y"
+                    then
+                        let allowed_paths' = List.map (fun (m_al,env_al) -> (Solver.wpr_based_minimization md mmd infos env name (Map.toList mmds) formula m [(m_al, env_al)] (Solver.MinimizeAltExec),env_al)) (!allowed_paths)
+                        allowed_paths := allowed_paths'
+                    let allowed_paths' = List.map (fun (m_al,env_al) -> (Solver.simplify_marks md mmd env_al m_al m,env_al)) (!allowed_paths)
+                    allowed_paths := allowed_paths'
 
                 let f = Formula.formula_from_marks env m (!allowed_paths) false
                 let f = Formula.simplify_value f
@@ -353,5 +367,5 @@ let main argv =
                 printfn "Invariant to add:"
                 printfn "%s" (Printer.value_to_string decls f 0)
                 ignore (Console.ReadLine())
-    
+
     0

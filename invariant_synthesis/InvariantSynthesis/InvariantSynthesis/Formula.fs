@@ -62,6 +62,7 @@
             let couples = Seq.filter (fun (a,b) -> not (value_equal a b)) couples
             Set.ofSeq couples
 
+    // Note: this function is not used anymore (Z3 is used instead)
     let simplify_marks types infos (impls:List<AST.ImplicationRule>) (decls:Model.Declarations) (env:Model.Environment) (m:Marking.Marks) =
 
         let value_equal cv1 cv2 = AST.value_equal cv1 cv2
