@@ -289,7 +289,7 @@
         WPR.Z3Not f
         
     let sbv_based_minimization (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) infos (env:Model.Environment) actions init_actions (m:Marking.Marks) (alt_exec:List<Marking.Marks*Model.Environment>) boundary =
-        // TODO: FIX IT!
+
         let save_m = m
         let m = expand_marks md mmd infos env m // We expand marks!
 

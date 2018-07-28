@@ -95,9 +95,9 @@
             match v with
             | Z3Const cv -> expr_of_cv ctx lvars lenums cv
             | Z3Var str ->
-                if Map.containsKey str lvars
-                then ctx.Context.MkConst (Map.find str lvars)
-                else Map.find str qvars
+                if Map.containsKey str qvars
+                then Map.find str qvars
+                else ctx.Context.MkConst (Map.find str lvars)
             | Z3Fun (str, vs) ->
                 let exprs = List.map (aux qvars) vs
                 let fd = Map.find str ctx.Funs
@@ -127,12 +127,12 @@
                 let eelse = aux qvars velse
                 ctx.Context.MkITE (ec, eif, eelse)
             | Z3Forall (d, v) ->
-                let cst = ctx.Context.MkConst (d.Name, sort_of_type ctx.Context ctx.Sorts d.Type)
+                let cst = ctx.Context.MkFreshConst (d.Name, sort_of_type ctx.Context ctx.Sorts d.Type)
                 let qvars = Map.add d.Name cst qvars
                 let e = aux qvars v
                 ctx.Context.MkForall ([|cst|], e) :> Expr
             | Z3Exists (d, v) ->
-                let cst = ctx.Context.MkConst (d.Name, sort_of_type ctx.Context ctx.Sorts d.Type)
+                let cst = ctx.Context.MkFreshConst (d.Name, sort_of_type ctx.Context ctx.Sorts d.Type)
                 let qvars = Map.add d.Name cst qvars
                 let e = aux qvars v
                 ctx.Context.MkExists ([|cst|], e) :> Expr

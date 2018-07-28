@@ -473,7 +473,7 @@
             ) [] conj
 
     let wpr_for_action<'a,'b> (m:ModuleDecl<'a,'b>) f action negate =
-        let action = minimal_action2wpr_action m action false
+        let action = minimal_action2wpr_action m action (not negate) // If negate is true, we must not rename args since the args of the function will be colloected later.
         let axioms = conjectures_to_z3values m (MinimalAST.axioms_decls_to_formulas m.Axioms)
         let res = weakest_precondition m axioms f action.Content
         if not negate
