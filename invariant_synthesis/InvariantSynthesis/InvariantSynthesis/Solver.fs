@@ -222,13 +222,14 @@
         let ms = decompose_marks m
         let ms = List.filter is_mark_valid ms
         Marking.marks_union_many ms
+        // TODO: marks (=constraints) should be partially sorted by decreasing order of "strength" (for instance, `<' is weaker than `succ')
 
     type MinimizationMode = Safe | Hard | MinimizeAltExec
     let wpr_based_minimization (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) infos (env:Model.Environment) action
         all_actions formula (m:Marking.Marks) (alt_exec:List<Marking.Marks*Model.Environment>) (mode:MinimizationMode) =
         
         let save_m = m
-        let m = expand_marks md mmd infos env m // We expand marks!
+        let m = expand_marks md mmd infos env m // We expand marks so some weak constraints can be kept instead of stronger constraints
         
         // Unsat core!
         let f =
@@ -249,7 +250,7 @@
                 assert (List.length alt_exec = 1)
                 let (m', env) = List.head alt_exec
                 let save_m = m'
-                let m' = expand_marks md mmd infos env (Marking.marks_union m m') // We expand marks!
+                let m' = expand_marks md mmd infos env (Marking.marks_union m m')
                 (save_m,Marking.marks_diff m' m, env)
             else (save_m, m, env)
 
@@ -268,8 +269,6 @@
         | (Z3Utils.SolverResult.SAT _, _) ->
             printfn "Core is SAT."
             save_m
-        // TODO: run unsat core only for constraints on functions, and then run unsat core for disequalities on the result?
-        // Alternatively, constraints should be sorted by order of "strength"
 
     let has_k_exec_counterexample_formula formula actions init_actions boundary =
 
@@ -291,7 +290,7 @@
     let sbv_based_minimization (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) infos (env:Model.Environment) actions init_actions (m:Marking.Marks) (alt_exec:List<Marking.Marks*Model.Environment>) boundary =
 
         let save_m = m
-        let m = expand_marks md mmd infos env m // We expand marks!
+        let m = expand_marks md mmd infos env m // We expand marks so some weak constraints can be kept instead of stronger constraints
 
         let axioms = z3_fomula_for_axioms mmd
         let give_k_invariant m =
