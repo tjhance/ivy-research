@@ -6,7 +6,6 @@
     // TODO: Optimize computation of WPR: use mutable AST for formulas so substitutions can be done in constant time
 
     // TODO: Refactor: Make a new AST 'DeterministicAST' and get rid of all non-determinitstic cases in WPR, Interpreter & Marking
-    // TODO: Refactor: Remove old "implications" system
 
     // TODO: "while" loops
     // TODO: "if some" with multiple var decls
@@ -32,16 +31,6 @@
     type TypeDecl = { Name: string; Infos: TypeDeclInfo }
     type FunDecl = { Name: string; Input: List<Type>; Output: Type; Representation: RepresentationInfos }
     type VarDecl = { Name: string; Type: Type; Representation: RepresentationInfos }
-
-    type PatternValue =
-        | PatternConst of bool
-        | PatternVar of string
-
-    type Pattern =
-        | FunPattern of PatternValue * string * List<PatternValue>
-        | ValueDiffPattern of Type * PatternValue * PatternValue
-
-    type ImplicationRule = Set<Pattern> * Set<Pattern>
 
     let default_representation : RepresentationInfos = { DisplayName = None; Flags = Set.empty }
 
@@ -118,7 +107,7 @@
     [<NoEquality;NoComparison>]
     type ModuleDecl<'a,'b> =
         { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; InterpretedActions: List<InterpretedActionDecl<'a,'b>>; Exports: List<string*string>;
-            Actions: List<ActionDecl>; Macros: List<MacroDecl>; Invariants: List<InvariantDecl>; Implications: List<ImplicationRule> ; Axioms: List<AxiomDecl> }
+            Actions: List<ActionDecl>; Macros: List<MacroDecl>; Invariants: List<InvariantDecl>; Axioms: List<AxiomDecl> }
 
 
     let empty_module name =
@@ -129,7 +118,6 @@
             Actions=[];
             Macros=[];
             Invariants=[];
-            Implications=[];
             InterpretedActions=[];
             Axioms=[];
             Exports=[]
@@ -289,53 +277,6 @@
         | ExprExists (d,v) -> ValueExists (d,v)
         | ExprImply (e1, e2) -> ValueImply (expr_to_value e1, expr_to_value e2)
         | ExprInterpreted (str, args) -> ValueInterpreted (str, List.map expr_to_value args)
-
-    let value_to_pattern_value v =
-        match v with
-        | ValueConst (ConstBool b) -> PatternConst b
-        | ValueVar str -> PatternVar str
-        | _ -> failwith "Invalid pattern value."
-
-    let type_of_pattern_value dico pv =
-        match pv with
-        | PatternConst _ -> Bool
-        | PatternVar str -> Map.find str dico
-
-    let value_to_pattern dico v =
-        match v with
-        | ValueNot (ValueEqual (v1, v2)) ->
-            let pv1 = value_to_pattern_value v1
-            let pv2 = value_to_pattern_value v2
-            let t1 = type_of_pattern_value dico pv1
-            let t2 = type_of_pattern_value dico pv2
-            if t1 <> t2 then failwith "ValueDiffPattern has incoherent types!"
-            else
-                ValueDiffPattern (t1, pv1, pv2)
-        | ValueEqual (ValueFun (str,vs), v) ->
-            let pv = value_to_pattern_value v
-            let pvs = List.map value_to_pattern_value vs
-            FunPattern (pv, str, pvs)
-        | ValueFun (str,vs) ->
-            let pvs = List.map value_to_pattern_value vs
-            FunPattern (PatternConst true, str, pvs)
-        | ValueNot (ValueFun (str,vs)) ->
-            let pvs = List.map value_to_pattern_value vs
-            FunPattern (PatternConst false, str, pvs)
-        | _ -> failwith "Invalid pattern."
-
-    let rec value_to_set_of_patterns dico v =
-        match v with
-        | ValueAnd (v1, v2) ->
-            Set.union (value_to_set_of_patterns dico v1) (value_to_set_of_patterns dico v2)
-        | v -> Set.singleton (value_to_pattern dico v)
-
-    let rec value_to_implication_rule dico v =
-        match v with
-        | ValueImply (v1, v2) ->
-            let s1 = value_to_set_of_patterns dico v1
-            let s2 = value_to_set_of_patterns dico v2
-            (s1, s2)
-        | _ -> failwith "Invalid implication rule."
         
     let expand_macro (macro:MacroDecl) args =
         let dico = List.fold2 (fun acc (d:VarDecl) v -> Map.add d.Name v acc) Map.empty macro.Args args
@@ -370,7 +311,7 @@
         let e = List.filter filter_exports m.Exports
         let ax = List.filter filter_axioms m.Axioms
         { ModuleDecl.Name=m.Name ; Types=t; Funs=f; Actions=a; Macros=ma; Invariants=i; Exports=e;
-            Implications=m.Implications; InterpretedActions=m.InterpretedActions; Axioms=ax }
+            InterpretedActions=m.InterpretedActions; Axioms=ax }
 
     // Functions on types
 

@@ -33,6 +33,14 @@
         | AST.ConstInt _ -> true
         | AST.ConstEnumerated _ -> false
 
+    let all_diffs_for_type types infos t =
+        if is_model_dependent_type t then Set.empty
+        else
+            let couples = Model.all_values_ext types infos [t;t]
+            let couples = Seq.map Helper.lst_to_couple couples
+            let couples = Seq.filter (fun (a,b) -> not (AST.value_equal a b)) couples
+            Set.ofSeq couples 
+
     let marks_count m =
         (Set.count m.f) + (Set.count m.v) + (Set.count m.d)
 

@@ -70,7 +70,6 @@ and parsed_element =
     | Macro of string * var_decl list * parsed_expression * bool (* Infix? *)
     | Axiom of parsed_expression
     | Conjecture of parsed_expression
-    | Rule of parsed_expression
     | AbstractAction of string * var_decl list * var_decl opt
     | Implement of string * parsed_statement
     | Action of action_decl

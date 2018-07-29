@@ -55,7 +55,6 @@ rule read ignore_nls =
   | "derived" { DEFINITION }
   | "interpret" { INTERPRET }
   | "export" { EXPORT }
-  | "#rule"  { RULE }
   | "~="     { DIFFERENT }
   | "->"     { RIGHT_ARROW }
   | ":="     { ASSIGN }

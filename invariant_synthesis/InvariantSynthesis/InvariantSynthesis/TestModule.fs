@@ -38,18 +38,6 @@
                 Input=[Uninterpreted("incrementable.t")]; Representation = default_representation} ;
             ]
 
-        let impl =
-            List.concat
-                [
-                    Formula.binary_relation_implication "incrementable.succ" true "incrementable.t.<" true ;
-                    Formula.reflexive "incrementable.succ" false "incrementable.t" ;
-                    Formula.reflexive "incrementable.t.<" false "incrementable.t" ;
-                    Formula.transitive "incrementable.t.<" true ;
-                    Formula.transitive "incrementable.t.<" false ;
-                    Formula.antisymetric "incrementable.t.<" true "incrementable.t" ;
-                    Formula.antisymetric "incrementable.t.<" false "incrementable.t"
-                ]
-
         let relation_formula name vars =
             ValueEqual (ValueFun(name,vars), ValueConst (ConstBool true)) ;
 
@@ -136,7 +124,7 @@
         let queue_module : ModuleDecl =
             {
                 Name=name; Types=types; Funs=funs;
-                Actions=actions; Macros=[]; Implications=impl;
+                Actions=actions; Macros=[];
                 Invariants=invariants; InterpretedActions=[];
                 Axioms = []; Exports=exports
             }

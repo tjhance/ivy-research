@@ -208,7 +208,7 @@
             is_formula_valid f
 
         let fm = List.map (fun (k,_) -> k) (Map.toList env.f) |> Set.ofList
-        let diffs = Set.unionMany (List.map (fun t -> Formula.all_diffs_for_type md.Types infos t) (AST.all_uninterpreted_types md.Types))
+        let diffs = Set.unionMany (List.map (fun t -> Marking.all_diffs_for_type md.Types infos t) (AST.all_uninterpreted_types md.Types))
         let m = { Marking.empty_marks with Marking.d = diffs ; Marking.f = fm }
         let ms = decompose_marks m
         let ms = List.filter is_mark_valid ms

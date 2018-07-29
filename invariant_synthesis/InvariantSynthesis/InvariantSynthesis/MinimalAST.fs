@@ -2,7 +2,6 @@
 
     type Type = AST.Type
     type RepresentationInfos = AST.RepresentationInfos
-    type ImplicationRule = AST.ImplicationRule
 
     type VarDecl = AST.VarDecl
     type FunDecl = AST.FunDecl

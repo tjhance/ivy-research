@@ -63,7 +63,6 @@ open Prime
         | Macro of string * var_decl list * parsed_expression * bool (* Infix? *)
         | Axiom of parsed_expression
         | Conjecture of parsed_expression
-        | Rule of parsed_expression
         | AbstractAction of string * var_decl list * var_decl option
         | Implement of string * parsed_statement
         | Action of action_decl
@@ -176,7 +175,6 @@ open Prime
                 Macro (str, args, rewrite_expr dico expr, infix)
             | Axiom (expr) -> Axiom (rewrite_expr dico expr)
             | Conjecture expr -> Conjecture (rewrite_expr dico expr)
-            | Rule expr -> Rule (rewrite_expr dico expr)
             | AbstractAction (str, args, ret_opt) ->
                 test dico str
                 let args = rewrite_args_strict dico args
@@ -638,17 +636,6 @@ open Prime
         let gt = { AST.MacroDecl.Name = compose_name type_name ">" ; AST.MacroDecl.Args = args ; AST.MacroDecl.Output = AST.Bool ;
             AST.MacroDecl.Representation = { rep with DisplayName=Some ">" } ; AST.MacroDecl.Value = AST.ValueNot (AST.ValueOr (lt_val, eq_val)) }
 
-        // Note: We add default axioms to < : it should be a total strict order
-        let impl =
-            List.concat
-                [
-                    Formula.reflexive lt.Name false type_name ;
-                    Formula.transitive lt.Name true ;
-                    Formula.transitive lt.Name false ;
-                    Formula.antisymetric lt.Name true type_name ;
-                    Formula.antisymetric lt.Name false type_name
-                ]
-
         // We also add these axioms to the module
         let z = local_name "z"
         let var_z = AST.default_var_decl z t
@@ -669,7 +656,7 @@ open Prime
         let axioms = [axiom1;axiom2;axiom3;axiom4]
         let axioms = List.map (fun a -> { AST.AxiomDecl.Module=module_name ; AST.Formula=a }) axioms
 
-        { m with Funs=lt::m.Funs ; Macros=leq::geq::gt::m.Macros ; Implications=impl@m.Implications ; Axioms=axioms@m.Axioms }
+        { m with Funs=lt::m.Funs ; Macros=leq::geq::gt::m.Macros ; Axioms=axioms@m.Axioms }
 
     // Convert a list of ivy parser AST elements to a global AST.ModuleDecl.
     // Also add and/or adjust references to types, functions, variables or actions of the module.
@@ -757,11 +744,6 @@ open Prime
                     let v = AST.expr_to_value expr
                     let d = { AST.InvariantDecl.Module = base_name ; AST.InvariantDecl.Formula = v }
                     ({ m with AST.Invariants=(d::m.Invariants) }, tmp_elements)
-                | Rule expr ->
-                    let (dico, expr) = p2a_expr m base_name Map.empty Map.empty (Some AST.Bool) expr
-                    let v = AST.expr_to_value expr
-                    let ir = AST.value_to_implication_rule dico v
-                    ({ m with AST.Implications=(ir::m.Implications) }, tmp_elements)
                 | AbstractAction (name, args, ret_opt) ->
                     let name = compose_name base_name name
                     let args = p2a_args m base_name args Map.empty
