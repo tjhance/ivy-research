@@ -267,9 +267,10 @@ let main argv =
                     printfn "%A" m
                     printfn "%A" um
                     printfn "%A" ad
+                let common_cvs = Formula.concrete_values_of_marks env m
 
                 // Printing intermediate result
-                let f = Formula.formula_from_marks env (Solver.simplify_marks md mmd env m (Marking.empty_marks)) [] false
+                let f = Formula.generate_invariant env common_cvs (Solver.simplify_marks md mmd env m (Marking.empty_marks)) []
                 let f = Formula.simplify_value f
                 printfn "%s" (Printer.value_to_string decls f 0)
                 printfn ""
@@ -287,7 +288,7 @@ let main argv =
                         let allowed_path_opt =
                             if manual
                             then manual_allowed_path md decls env cs m um
-                            else auto_allowed_path md mmd env formula name m (Map.toList mmds) (!allowed_paths) (!only_terminating_exec)
+                            else auto_allowed_path md mmd env formula name m (Map.toList mmds) common_cvs (!allowed_paths) (!only_terminating_exec)
 
                         match allowed_path_opt with
                         | Some (infos_allowed, env_allowed) ->
@@ -305,7 +306,7 @@ let main argv =
                                 then printfn "Warning: Some marks still are model-dependent! Generated invariant could be weaker than expected."
 
                                 // Printing
-                                let f_al = Formula.formula_from_marks env m [((Solver.simplify_marks md mmd env_allowed m_al m),env_allowed)] true
+                                let f_al = Formula.generate_semi_generalized_formula common_cvs (0,Map.empty) env_allowed (Solver.simplify_marks md mmd env_allowed m_al m)
                                 let f_al = Formula.simplify_value f_al
                                 printfn "%s" (Printer.value_to_string decls f_al 0)
 
@@ -315,8 +316,8 @@ let main argv =
                                     let line = Console.ReadLine ()
                                     if line = "y"
                                     then
-                                        let m_al = Solver.wpr_based_minimization md mmd infos env name (Map.toList mmds) formula m [(m_al, env_allowed)] (Solver.MinimizeAltExec)
-                                        let f_al = Formula.formula_from_marks env m [((Solver.simplify_marks md mmd env_allowed m_al m),env_allowed)] true
+                                        let m_al = Solver.wpr_based_minimization md mmd infos env name (Map.toList mmds) formula m common_cvs [(m_al, env_allowed)] (Solver.MinimizeAltExec)
+                                        let f_al = Formula.generate_semi_generalized_formula common_cvs (0,Map.empty) env_allowed (Solver.simplify_marks md mmd env_allowed m_al m)
                                         let f_al = Formula.simplify_value f_al
                                         printfn "%s" (Printer.value_to_string decls f_al 0)
                                         m_al
@@ -340,14 +341,14 @@ let main argv =
                 let m =
                     let line = Console.ReadLine ()
                     if line = "h"
-                    then Solver.wpr_based_minimization md mmd infos env name (Map.toList mmds) formula m (!allowed_paths) (Solver.Hard)
+                    then Solver.wpr_based_minimization md mmd infos env name (Map.toList mmds) formula m common_cvs (!allowed_paths) (Solver.Hard)
                     else if line = "s"
-                    then Solver.wpr_based_minimization md mmd infos env name (Map.toList mmds) formula m (!allowed_paths) (Solver.Safe)
+                    then Solver.wpr_based_minimization md mmd infos env name (Map.toList mmds) formula m common_cvs (!allowed_paths) (Solver.Safe)
                     else if line = "n"
                     then m
                     else
                         let boundary = int(Convert.ToUInt32 (line))
-                        Solver.sbv_based_minimization md mmd infos env (Map.toList mmds) init_actions m (!allowed_paths) boundary
+                        Solver.sbv_based_minimization md mmd infos env (Map.toList mmds) init_actions m common_cvs (!allowed_paths) boundary
                 let m = Solver.simplify_marks md mmd env m (Marking.empty_marks)
 
                 if List.length (!allowed_paths) > 0
@@ -355,12 +356,12 @@ let main argv =
                     printfn "Minimize existential parts? (n:no/y:yes)"
                     if Console.ReadLine () = "y"
                     then
-                        let allowed_paths' = List.map (fun (m_al,env_al) -> (Solver.wpr_based_minimization md mmd infos env name (Map.toList mmds) formula m [(m_al, env_al)] (Solver.MinimizeAltExec),env_al)) (!allowed_paths)
+                        let allowed_paths' = List.map (fun (m_al,env_al) -> (Solver.wpr_based_minimization md mmd infos env name (Map.toList mmds) formula m common_cvs [(m_al, env_al)] (Solver.MinimizeAltExec),env_al)) (!allowed_paths)
                         allowed_paths := allowed_paths'
                     let allowed_paths' = List.map (fun (m_al,env_al) -> (Solver.simplify_marks md mmd env_al m_al m,env_al)) (!allowed_paths)
                     allowed_paths := allowed_paths'
 
-                let f = Formula.formula_from_marks env m (!allowed_paths) false
+                let f = Formula.generate_invariant env common_cvs m (!allowed_paths)
                 let f = Formula.simplify_value f
 
                 printfn ""

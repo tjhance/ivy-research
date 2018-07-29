@@ -240,54 +240,49 @@
         | ExistingVar of string
         | ExistingFun of string * List<ConstValue>
 
-    let formula_from_marks (env:Model.Environment) (m:Marking.Marks)
-        (alt_exec:List<Marking.Marks*Model.Environment>) only_alt_exec =
-      
-        // Associate a var to each value
-        let next_name_nb = ref 0
-        let new_var_name () =
-            let c = (char)(65 + !next_name_nb)
-            next_name_nb := !next_name_nb + 1
+    let formula_for_marks (env:Model.Environment) (mapping:int*Map<ConstValue,ValueAssociation>) (generalize:Set<ConstValue>) (m:Marking.Marks) =
+
+        let var_name nb =
+            let c = (char)(65 + nb)
             c.ToString()
-            
-        let vars_map = ref Map.empty
 
-        // Associates an existing variable to a value
-        let associate_existing_var (env:Model.Environment) str =
-            let cv = Map.find str env.v
-            if not (Map.containsKey cv !vars_map) then
-                vars_map := Map.add cv (ExistingVar str) !vars_map
+        let add_mapping_for_cv (m:Marking.Marks) (next_var,cmap) cv =
+            if Marking.is_model_dependent_value cv then
+                if Map.containsKey cv cmap then failwith "Concrete value is already mapped!"
+                let rec aux_f mfs =
+                    match mfs with
+                    | [] -> (next_var+1, Map.add cv (New (var_name next_var)) cmap)
+                    | (str,cvs)::mfs ->
+                        if AST.value_equal (Map.find (str,cvs) env.f) cv
+                        then (next_var, Map.add cv (ExistingFun (str,cvs)) cmap)
+                        else aux_f mfs
+                let rec aux_v mvs =
+                    match mvs with
+                    | [] -> aux_f (m.f |> Set.toList)
+                    | str::mvs ->
+                        if AST.value_equal (Map.find str env.v) cv
+                        then (next_var, Map.add cv (ExistingVar str) cmap)
+                        else aux_v mvs
+                aux_v (m.v |> Set.toList)
+            else
+                (next_var, Map.add cv (VAConst cv) cmap)
 
-        // Associates an existing function to a value
-        let associate_existing_fun (env:Model.Environment) (str,cvs) =
-            let cv = Map.find (str,cvs) env.f
-            if not (Map.containsKey cv !vars_map) then
-                vars_map := Map.add cv (ExistingFun (str, cvs)) !vars_map
+        let cv2association (_,mapping) cv =
+            try Map.find cv mapping
+            with :? System.Collections.Generic.KeyNotFoundException -> VAConst cv
 
-        // Return the associated var or CREATES a new existentially quantified var
-        let value2var no_generalization cv =
-            match cv with
-            | cv when not (Marking.is_model_dependent_value cv) -> VAConst cv
-            | cv ->
-                try
-                    Map.find cv !vars_map
-                with :? System.Collections.Generic.KeyNotFoundException ->
-                    if no_generalization
-                    then
-                        vars_map := Map.add cv (VAConst cv) !vars_map
-                        VAConst cv
-                    else
-                        let name = new_var_name ()
-                        vars_map := Map.add cv (New name) !vars_map
-                        New name
+        let rec cv2value (i,mapping) cv =
+            let a = cv2association (i,mapping) cv
+            match a with
+            | VAConst cv -> ValueConst cv
+            | New str -> ValueVar str
+            | ExistingVar str -> ValueVar str
+            | ExistingFun (str, cvs) ->
+                let vs = List.map (cv2value (i,mapping)) cvs
+                ValueFun (str, vs)
 
-        let value_assigned cv =
-            match cv with
-            | cv when not (Marking.is_model_dependent_value cv) -> false
-            | cv -> Map.containsKey cv !vars_map
-
-        let all_new_vars_decl_assigned () : Set<VarDecl> =
-            let content = (Map.toList !vars_map)
+        let all_new_vars (_,mapping) : Set<VarDecl> =
+            let content = (Map.toList mapping)
             let content = List.filter (fun (_,assoc) -> match assoc with New _ -> true | _ -> false) content
             let vars =
                 List.map
@@ -298,115 +293,111 @@
                     ) content
             Set.ofList vars
 
-        let rec value_of_association no_generalization va =
-            match va with
-            | VAConst cv -> ValueConst cv
-            | New str -> ValueVar str
-            | ExistingVar str -> ValueVar str
-            | ExistingFun (str, cvs) ->
-                let vs = List.map (fun cv -> value_of_association no_generalization (value2var no_generalization cv)) cvs
-                ValueFun (str, vs)
+        let replace_new_by_existing (i,mapping) =
+            let aux _ a =
+                match a with
+                | VAConst cv -> VAConst cv
+                | New str -> ExistingVar str
+                | ExistingVar str -> ExistingVar str
+                | ExistingFun (str, cvs) -> ExistingFun (str, cvs)
+            let mapping = Map.map aux mapping
+            (i, mapping)
 
-        let constraints_for (m:Marking.Marks,env:Model.Environment) no_generalization =
-            // Browse the constraints to associate an existing var to values when possible
-            Set.iter (associate_existing_var env) m.v
-            let v' = // We remove trivial equalities
-                Set.filter
-                    (
-                        fun str ->
-                            let cv = Map.find str env.v
-                            value2var no_generalization cv <> ExistingVar str
-                    ) m.v
-            let m = {m with v=v'}
+        let mapping = Set.fold (fun (i,acc) cv -> (i,Map.remove cv acc)) mapping generalize
+        let mapping = Set.fold (add_mapping_for_cv m) mapping generalize
 
-            // Browse the constraints to associate an existing fun to values when possible
-            Set.iter (associate_existing_fun env) m.f
-            let f' = // We remove trivial equalities
-                Set.filter
-                    (
-                        fun (str, cvs) ->
-                            let cv = Map.find (str, cvs) env.f
-                            value2var no_generalization cv <> ExistingFun (str, cvs)
-                    ) m.f
-            let m = {m with f=f'}
+        // We remove trivial equalities
+        let v' =
+            Set.filter
+                (
+                    fun str ->
+                        let cv = Map.find str env.v
+                        cv2association mapping cv <> ExistingVar str
+                ) m.v
+        let m = {m with v=v'}
+        let f' =
+            Set.filter
+                (
+                    fun (str, cvs) ->
+                        let cv = Map.find (str, cvs) env.f
+                        cv2association mapping cv <> ExistingFun (str, cvs)
+                ) m.f
+        let m = {m with f=f'}
 
-            // Replace value by var in each var/fun marked constraint
-            let constraints_var =
-                Set.map
-                    (
-                        fun str ->
-                            let cv = Map.find str env.v
-                            ValueEqual (ValueVar str, value_of_association no_generalization (value2var no_generalization cv))
-                    ) m.v
-            let constraints_fun =
-                Set.map
-                    (
-                        fun (str,cvs) ->
-                            let cv = Map.find (str,cvs) env.f
-                            let cvs = List.map (fun cv -> value_of_association no_generalization (value2var no_generalization cv)) cvs
-                            ValueEqual (ValueFun (str, cvs), value_of_association no_generalization (value2var no_generalization cv))
-                    ) m.f
-            let constraints = Set.union constraints_var constraints_fun
+        // Build constraints
+        let constraints_var =
+            Set.map
+                (
+                    fun str ->
+                        let cv = Map.find str env.v
+                        ValueEqual (ValueVar str, cv2value mapping cv)
+                ) m.v
+        let constraints_fun =
+            Set.map
+                (
+                    fun (str,cvs) ->
+                        let cv = Map.find (str,cvs) env.f
+                        let vs = List.map (cv2value mapping) cvs
+                        ValueEqual (ValueFun (str, vs), cv2value mapping cv)
+                ) m.f
+        let constraints = Set.union constraints_var constraints_fun
 
-            // Add inequalities between vars
-            let ineq_constraints = // We don't need inequalities when one of the member is unused
-                Set.filter (fun (cv1,cv2) -> value_assigned cv1 && value_assigned cv2) m.d
-            let ineq_constraints =
-                Set.map
-                    (
-                        fun (cv1,cv2) ->
-                            let (cv1,cv2) = Helper.order_tuple (cv1,cv2)
-                            let v1 = value_of_association no_generalization (value2var no_generalization cv1)
-                            let v2 = value_of_association no_generalization (value2var no_generalization cv2)
-                            ValueNot (ValueEqual (v1, v2))
-                    ) ineq_constraints
-            let constraints = Set.union constraints ineq_constraints
-            constraints
+        // Add inequalities between vars
+        let ineq_constraints = // We don't need inequalities when one the values are not model-dependent
+                Set.filter (fun (cv1,cv2) -> Marking.is_model_dependent_value cv1 || Marking.is_model_dependent_value cv2) m.d
+        let ineq_constraints =
+            Set.map
+                (
+                    fun (cv1,cv2) ->
+                        let (cv1,cv2) = Helper.order_tuple (cv1,cv2)
+                        let v1 = cv2value mapping cv1
+                        let v2 = cv2value mapping cv2
+                        ValueNot (ValueEqual (v1, v2))
+                ) ineq_constraints
+        let constraints = Set.union constraints ineq_constraints
 
-        let constraints = constraints_for (m, env) only_alt_exec
-        let vars = all_new_vars_decl_assigned ()
-
-        let alt_constraints =
-            List.map 
-                (fun e ->
-                    let c = constraints_for e false
-                    (c, all_new_vars_decl_assigned ())
-                ) alt_exec
-        let alt_constraints = List.rev alt_constraints
-
-        let formula_for cs vars =
-            let cs = Set.toList cs
-            match cs with
-            | [] -> ValueConst (ConstBool true)
-            | h::constraints ->
-                let formula = List.fold (fun acc c -> ValueAnd (acc,c)) h constraints
-                Set.fold (fun acc vd -> ValueExists (vd, acc)) formula vars
-
-        // Alt parts
-        let (formulas, _) =
-            List.fold
-                (fun (formulas, declared_vars) (c, vars) ->
-                    let f = formula_for c (Set.difference vars declared_vars)
-                    (f::formulas, vars)
-                ) ([], vars) alt_constraints
-        
-        let formulas =
-            match formulas with
-            | [] ->  ValueConst (ConstBool false)
-            | h::formulas -> List.fold (fun acc c -> ValueOr (acc,c)) h formulas
-
-        // Main part
-        let formula =
-            match Set.toList constraints with
+        // Buld formula and list of vars to quantify
+        let new_vars = all_new_vars mapping
+        let f =
+            match constraints |> Set.toList with
             | [] -> ValueConst (ConstBool true)
             | h::constraints -> List.fold (fun acc c -> ValueAnd (acc,c)) h constraints
 
-        // Whole formula
-        let formula =
-            if only_alt_exec
-            then formulas
-            else ValueImply (formula, formulas)
-        Set.fold (fun acc vd -> ValueForall (vd, acc)) formula vars
+        // Replace new vars by existing var in the mapping
+        let mapping = replace_new_by_existing mapping
+        (mapping, new_vars, f)
+
+    let concrete_values_of_marks (env:Model.Environment) (m:Marking.Marks) =
+        let add_cvs_var acc str =
+            Set.add (Map.find str env.v) acc
+        let add_cvs_fun acc (str,cvs) =
+            let acc = Set.add (Map.find (str,cvs) env.f) acc
+            Set.union acc (Set.ofList cvs)
+        let add_cvs_diff acc (cv1, cv2) =
+            Set.add cv1 (Set.add cv2 acc)
+        let res = Set.fold add_cvs_var Set.empty m.v
+        let res = Set.fold add_cvs_fun res m.f
+        Set.fold add_cvs_diff res m.d
+
+    let generate_semi_generalized_formula (do_not_generalize:Set<ConstValue>) mapping (env:Model.Environment) (m:Marking.Marks) =
+        let all_cvs = concrete_values_of_marks env m
+        let generalize = Set.difference all_cvs do_not_generalize
+        let (_,new_vars,f) = formula_for_marks env mapping generalize m
+        Set.fold (fun acc (d:VarDecl) -> ValueExists (d, acc)) f new_vars
+
+    let generate_semi_generalized_formulas (do_not_generalize:Set<ConstValue>) mapping alt_execs =
+        let fs = List.map (fun (m,env) -> generate_semi_generalized_formula do_not_generalize mapping env m) alt_execs
+        match fs with
+        | [] -> ValueConst (ConstBool false)
+        | h::fs -> List.fold (fun acc f -> ValueOr (acc,f)) h fs
+
+    let generate_invariant (env:Model.Environment) (common_cvs:Set<ConstValue>) (m:Marking.Marks) (alt_exec:List<Marking.Marks*Model.Environment>) =
+        let generalize = Set.union (concrete_values_of_marks env m) common_cvs
+        let (mapping, new_vars, f) = formula_for_marks env (0, Map.empty) generalize m
+        let f' = generate_semi_generalized_formulas common_cvs mapping alt_exec
+
+        let f = ValueImply (f,f')
+        Set.fold (fun acc (d:VarDecl) -> ValueForall (d, acc)) f new_vars
 
     let rec simplify_value f =
         match f with

@@ -16,24 +16,13 @@
         WPR.z3ctx2deterministic_formula (WPR.minimal_val2z3_val mmd formula) false
 
     let z3_formulas_for_constraints (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) (m:Marking.Marks) =
-        let var_constraint str = // Constraints on the arguments
-            let cv = Map.find str env.v
-            AST.ValueEqual (AST.ValueVar str, AST.ValueConst cv)
-        let vcs = List.map var_constraint (m.v |> Set.toList)
-        let fun_constraint (str, cvs) =
-            let cv = Map.find (str, cvs) env.f
-            let vs = List.map (fun cv -> AST.ValueConst cv) cvs
-            AST.ValueEqual (AST.ValueFun (str, vs), AST.ValueConst cv)
-        let fcs = List.map fun_constraint (m.f |> Set.toList)
-        let diff_constraint (cv1, cv2) =
-            AST.ValueNot (AST.ValueEqual (AST.ValueConst cv1, AST.ValueConst cv2))
-        let dcs = List.map diff_constraint (m.d |> Set.toList)
-        let cs = vcs@fcs@dcs
+        let cs = List.map (fun m -> let (_,_,f) = Formula.formula_for_marks env (0,Map.empty) Set.empty m in f) (decompose_marks m)
         let cs = List.map (MinimalAST.value2minimal md) cs
         List.map (fun c -> minimal_formula_to_z3 mmd c) cs
 
     let z3_formula_for_constraints (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) (m:Marking.Marks) =
-        WPR.conjunction_of (z3_formulas_for_constraints md mmd env m)
+        let (_,_,f) = Formula.formula_for_marks env (0,Map.empty) Set.empty m
+        minimal_formula_to_z3 mmd (MinimalAST.value2minimal md f)
 
     let z3_fomula_for_axioms (mmd:MinimalAST.ModuleDecl<'a,'b>) =
         WPR.conjunction_of (WPR.conjectures_to_z3values mmd (MinimalAST.axioms_decls_to_formulas mmd.Axioms))
@@ -138,8 +127,8 @@
         List.iter treat_formula formulas
         !counterexample
 
-    let not_already_allowed_state_formula (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) (m:Marking.Marks) allowed_execs =
-        let f = Formula.formula_from_marks env m allowed_execs true
+    let not_already_allowed_state_formula (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) common_cvs allowed_execs =
+        let f = Formula.generate_semi_generalized_formulas common_cvs (0, Map.empty) allowed_execs
         let f = AST.ValueNot f
         let f = MinimalAST.value2minimal md f
         minimal_formula_to_z3 mmd f
@@ -160,12 +149,14 @@
         WPR.wpr_for_action mmd (WPR.Z3Const (AST.ConstBool false)) action true
 
     let find_allowed_execution (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) formula
-        action (m:Marking.Marks) all_actions prev_allowed only_terminating_run =
+        action (m:Marking.Marks) all_actions common_cvs prev_allowed only_terminating_run =
+
+        if common_cvs <> (Formula.concrete_values_of_marks env m) then failwith "Some common values does not appear in any constraint..."
 
         // 1. Marked constraints
         let cs = z3_formula_for_constraints md mmd env m
         // 2. NOT previous allowed state
-        let f = not_already_allowed_state_formula md mmd env m prev_allowed
+        let f = not_already_allowed_state_formula md mmd common_cvs prev_allowed
         // 3. Possibly valid state
         let valid_run = wpr_based_valid_state_formula mmd all_actions formula
         // 4. If we only want a terminating run...
@@ -226,7 +217,7 @@
 
     type MinimizationMode = Safe | Hard | MinimizeAltExec
     let wpr_based_minimization (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) infos (env:Model.Environment) action
-        all_actions formula (m:Marking.Marks) (alt_exec:List<Marking.Marks*Model.Environment>) (mode:MinimizationMode) =
+        all_actions formula (m:Marking.Marks) common_cvs (alt_exec:List<Marking.Marks*Model.Environment>) (mode:MinimizationMode) =
         
         let save_m = m
         let m = expand_marks md mmd infos env m // We expand marks so some weak constraints can be kept instead of stronger constraints
@@ -235,7 +226,7 @@
         let f =
             match mode with
             | Safe | Hard ->
-                let f = not_already_allowed_state_formula md mmd env m alt_exec
+                let f = not_already_allowed_state_formula md mmd common_cvs alt_exec
                 let f = WPR.Z3And (f, wpr_based_valid_state_formula mmd all_actions formula)
                 if mode = Hard
                 then WPR.Z3And (f, terminating_or_failing_run_formula mmd action)
@@ -287,14 +278,14 @@
         let f = List.fold (fun f (action,mmd) -> WPR.wpr_for_action mmd f action false) f init_actions
         WPR.Z3Not f
         
-    let sbv_based_minimization (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) infos (env:Model.Environment) actions init_actions (m:Marking.Marks) (alt_exec:List<Marking.Marks*Model.Environment>) boundary =
+    let sbv_based_minimization (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) infos (env:Model.Environment) actions init_actions (m:Marking.Marks) common_cvs (alt_exec:List<Marking.Marks*Model.Environment>) boundary =
 
         let save_m = m
         let m = expand_marks md mmd infos env m // We expand marks so some weak constraints can be kept instead of stronger constraints
 
         let axioms = z3_fomula_for_axioms mmd
         let give_k_invariant m =
-            let f = minimal_formula_to_z3 mmd (MinimalAST.value2minimal md (Formula.formula_from_marks env m alt_exec false))
+            let f = minimal_formula_to_z3 mmd (MinimalAST.value2minimal md (Formula.generate_invariant env common_cvs m alt_exec))
             let f = WPR.Z3And (axioms, has_k_exec_counterexample_formula f actions init_actions boundary)
             match check_z3_formula md [] f 5000 with
             | SolverResult.UNKNOWN ->
