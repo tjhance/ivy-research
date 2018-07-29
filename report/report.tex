@@ -941,17 +941,28 @@ March-July 2018
 
     \section{Conclusion}
 
-    % Complexity matters!
-
-    % What remains to be done: optimisation, etc
-    % Lessons from this internship
-
-%\chapter{Annexes}
-    %\section{RML example: a leader election protocol}
-    %\section{Comparison of results on different examples}
+    This internship has been a very fulfulling experience for me. I have experimented an aspect of research
+    that I had not experienced during my last year's internship:
+    during the first half of the internship, I had to read articles and to experiment in order to find ideas.
+    My comprehension of the subject has really evolved during this time.
+    I explored many different problematics before focusing on the invariant synthesis.
+    For instance, one of my attempts was to try to add some more advanced typing to IVy, without loosing decidability.
+    In particular, I have studied \textit{session types} (it was even more interesting since there is a lot of session types experts in Carnegie Mellon University).
+    Finally, I gave up this idea since the linearity of session types seemed hardly reconciliable with the distributed and decentralized aspects of the protocols
+    that we wanted to prove.
 
 \bibliographystyle{unsrt}
 \bibliography{sample}
+
+\appendix 
+\chapter{Experimental results}
+%The complexity of the different operations has not been treated in this report.
+%Indeed, checking the satisfiability of EPR formulas is NEXPTIME-complete.
+%However, studying the worst case complexity is not very relevant here since it would be very different
+%from the complexity observed experimentaly.
+
+    \section{A queue}
+    % TODO
 
 \end{document}
 
