@@ -15,11 +15,6 @@
     let minimal_formula_to_z3 (mmd:MinimalAST.ModuleDecl<'a,'b>) formula =
         WPR.z3ctx2deterministic_formula (WPR.minimal_val2z3_val mmd formula) false
 
-    let z3_formulas_for_constraints (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) (m:Marking.Marks) =
-        let cs = List.map (fun m -> let (_,_,f) = Formula.formula_for_marks env (0,Map.empty) Set.empty m in f) (decompose_marks m)
-        let cs = List.map (MinimalAST.value2minimal md) cs
-        List.map (fun c -> minimal_formula_to_z3 mmd c) cs
-
     let z3_formula_for_constraints (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) (m:Marking.Marks) =
         let (_,_,f) = Formula.formula_for_marks env (0,Map.empty) Set.empty m
         minimal_formula_to_z3 mmd (MinimalAST.value2minimal md f)
@@ -208,7 +203,7 @@
             is_formula_valid f
 
         let fm = List.map (fun (k,_) -> k) (Map.toList env.f) |> Set.ofList
-        let diffs = Set.unionMany (List.map (fun t -> Marking.all_diffs_for_type md.Types infos t) (AST.all_uninterpreted_types md.Types))
+        let diffs = Set.unionMany (List.map (fun t -> Marking.all_potential_diffs_for_type md.Types infos t) (AST.all_uninterpreted_types md.Types))
         let m = { Marking.empty_marks with Marking.d = diffs ; Marking.f = fm }
         let ms = decompose_marks m
         let ms = List.filter is_mark_valid ms

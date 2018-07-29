@@ -36,8 +36,9 @@
                 (next_var, Map.add cv (VAConst cv) cmap)
 
         let cv2association (_,mapping) cv =
-            try Map.find cv mapping
-            with :? System.Collections.Generic.KeyNotFoundException -> VAConst cv
+            if Map.containsKey cv mapping
+            then Map.find cv mapping
+            else VAConst cv
 
         let rec cv2value (i,mapping) cv =
             let a = cv2association (i,mapping) cv
@@ -91,6 +92,8 @@
                         cv2association mapping cv <> ExistingFun (str, cvs)
                 ) m.f
         let m = {m with f=f'}
+        let d' = Set.filter (fun (cv1,cv2) -> Marking.is_model_dependent_value cv1 || Marking.is_model_dependent_value cv2) m.d
+        let m = {m with d=d'}
 
         // Build constraints
         let constraints_var =
@@ -109,10 +112,6 @@
                         ValueEqual (ValueFun (str, vs), cv2value mapping cv)
                 ) m.f
         let constraints = Set.union constraints_var constraints_fun
-
-        // Add inequalities between vars
-        let ineq_constraints = // We don't need inequalities when one the values are not model-dependent
-                Set.filter (fun (cv1,cv2) -> Marking.is_model_dependent_value cv1 || Marking.is_model_dependent_value cv2) m.d
         let ineq_constraints =
             Set.map
                 (
@@ -121,7 +120,7 @@
                         let v1 = cv2value mapping cv1
                         let v2 = cv2value mapping cv2
                         ValueNot (ValueEqual (v1, v2))
-                ) ineq_constraints
+                ) m.d
         let constraints = Set.union constraints ineq_constraints
 
         // Buld formula and list of vars to quantify

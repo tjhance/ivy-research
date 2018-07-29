@@ -22,12 +22,13 @@ object incrementable = {
     
     # Specifications of this abstract module
     object spec = {
-	property succ(X,Z) -> (X < Z & ~(X < Y & Y < Z))
+	
+		property succ(X,Z) -> (X < Z & ~(X < Y & Y < Z))
 
         instantiate total_order(t, <=) 
 
         after next {
-            ensure ~(output <= input) ;
+            ensure input < output ;
 			ensure succ(input, output);
         }
     }
@@ -35,10 +36,9 @@ object incrementable = {
     # Provide an implementation for this abstract module (=interface). Not needed if we just want to prove the lock protocol.
     object impl = {
 
-	interpret t -> int
+		interpret t -> int
 
-	#rule succ(X,Y) -> X < Y
-	definition succ(X,Y) = (Y = X + 1)
+		definition succ(X,Y) = (Y = X + 1)
 
         implement next {
             output := input + 1;
@@ -60,7 +60,7 @@ module unbounded_queue(data) =
 		next_e := 0;
     }
 
-    derived empty = next_e <= first_e
+    derived empty = first_e >= next_e
 
     action push (da:data) =
     {
@@ -86,23 +86,21 @@ module unbounded_queue(data) =
 
     object spec =
     {
-		function content_f(E:incrementable.t) : data
-		before push
-		{
-			content_f(next_e) := da;
-		}
+		#function content_f(E:incrementable.t) : data
+		#before push
+		#{
+		#	content_f(next_e) := da;
+		#}
 
-		conjecture first_e <= next_e
-		conjecture forall E,F,G. (content(E,G) & content(F,G)) -> E=F
-		conjecture ~empty -> first = content_f(first_e)
-		conjecture forall E,F. content(E,F) -> (~(next_e <= F) & first_e <= F)
-		conjecture forall E,F. empty -> ~content(E,F)
-		#conjecture forall E. (first_e <= E & ~next_e <= E) -> content(content_f(E), E) # Quote it to test interactive invariant construction tools
-		# Tests
-		#conjecture ~empty -> content(content_f(first_e),first_e)
-		#conjecture incrementable.succ(first_e, A) & ~next_e <= A -> content(content_f(A),A)
-		#conjecture ((forall Z. ~(first_e < Z & Z < A)) & first_e < A & ~next_e <= A) -> content(content_f(A),A)
-    }
+		conjecture ~empty -> content(first,first_e)
+		conjecture content(A,first_e) -> A=first
+		
+		# Invariants found
+		conjecture (A < q.next_e) & (q.first_e < A) & ~q.content(q.first, A) -> (exists B:data. q.content(B, A))
+		conjecture ~q.content(B, q.next_e)
+		conjecture ~(B >= q.next_e & q.content(A, B))
+		conjecture ~(q.content(A, D) & q.content(B, D) & A ~= B)
+	}
 
     export pop
     export push

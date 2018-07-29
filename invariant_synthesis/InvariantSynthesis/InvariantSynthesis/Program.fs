@@ -102,8 +102,6 @@ let manual_allowed_path (md:ModuleDecl) decls env cs m um =
 
 let auto_counterexample (md:ModuleDecl) decls main_module mmds =
 
-    //let action_args = (MinimalAST.find_action mmd action).Args
-
     let counterexample = ref None
     let first_loop = ref true
     let finished = ref false
@@ -363,9 +361,7 @@ let main argv =
 
                 let f = Formula.generate_invariant env common_cvs m (!allowed_paths)
                 let f = Formula.simplify_value f
-
-                printfn ""
-                printfn "Invariant to add:"
+                printfn "\nInvariant to add:"
                 printfn "%s" (Printer.value_to_string decls f 0)
                 ignore (Console.ReadLine())
 
