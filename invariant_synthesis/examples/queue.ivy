@@ -96,7 +96,7 @@ module unbounded_queue(data) =
 		conjecture content(A,first_e) -> A=first
 		
 		# Invariants found
-		conjecture (A < q.next_e) & (q.first_e < A) & ~q.content(q.first, A) -> (exists B:data. q.content(B, A))
+		conjecture (A < q.next_e) & (q.first_e < A) -> (exists B:data. q.content(B, A))
 		conjecture ~q.content(B, q.next_e)
 		conjecture ~(B >= q.next_e & q.content(A, B))
 		conjecture ~(q.content(A, D) & q.content(B, D) & A ~= B)

@@ -210,35 +210,19 @@
         Marking.marks_union_many ms
         // TODO: marks (=constraints) should be partially sorted by decreasing order of "strength" (for instance, `<' is weaker than `succ')
 
-    type MinimizationMode = Safe | Hard | MinimizeAltExec
     let wpr_based_minimization (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) infos (env:Model.Environment) action
-        all_actions formula (m:Marking.Marks) common_cvs (alt_exec:List<Marking.Marks*Model.Environment>) (mode:MinimizationMode) =
+        all_actions formula (m:Marking.Marks) common_cvs (alt_exec:List<Marking.Marks*Model.Environment>) only_consider_terminating_runs =
         
         let save_m = m
         let m = expand_marks md mmd infos env m // We expand marks so some weak constraints can be kept instead of stronger constraints
         
         // Unsat core!
+        let f = not_already_allowed_state_formula md mmd common_cvs alt_exec
+        let f = WPR.Z3And (f, wpr_based_valid_state_formula mmd all_actions formula)
         let f =
-            match mode with
-            | Safe | Hard ->
-                let f = not_already_allowed_state_formula md mmd common_cvs alt_exec
-                let f = WPR.Z3And (f, wpr_based_valid_state_formula mmd all_actions formula)
-                if mode = Hard
-                then WPR.Z3And (f, terminating_or_failing_run_formula mmd action)
-                else f
-            | MinimizeAltExec ->
-                let not_valid_run = wpr_based_invalid_state_formula mmd all_actions formula
-                let f = z3_formula_for_constraints md mmd env m
-                WPR.Z3And (f, not_valid_run)
-
-        let (save_m, m, env) =
-            if mode = MinimizeAltExec then
-                assert (List.length alt_exec = 1)
-                let (m', env) = List.head alt_exec
-                let save_m = m'
-                let m' = expand_marks md mmd infos env (Marking.marks_union m m')
-                (save_m,Marking.marks_diff m' m, env)
-            else (save_m, m, env)
+            if only_consider_terminating_runs
+            then WPR.Z3And (f, terminating_or_failing_run_formula mmd action)
+            else f
 
         let ms = decompose_marks m
         let labeled_ms = List.mapi (fun i m -> (sprintf "%i" i, m)) ms
@@ -253,8 +237,44 @@
             printfn "Can't resolve unSAT core!"
             save_m
         | (Z3Utils.SolverResult.SAT _, _) ->
-            printfn "Core is SAT."
+            printfn "Minimization impossible: the core is SAT."
             save_m
+    
+    let minimize_marks m eval_f =
+        if eval_f m
+        then
+            let keep_mark_if_necessary (m:Marking.Marks) m' =
+                let m' = Marking.marks_diff m m'
+                if eval_f m'
+                then m' else m
+            Some (List.fold keep_mark_if_necessary m (decompose_marks m))
+        else None
+
+    let wpr_based_minimization_existential_part (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) infos (env:Model.Environment)
+        all_actions formula (m:Marking.Marks) common_cvs env' m' =
+
+        let save_m' = m'
+        let m' = expand_marks md mmd infos env' (Marking.marks_union m m')
+        let m' = Marking.marks_diff m' (expand_marks md mmd infos env m)
+
+        let not_valid_state = wpr_based_invalid_state_formula mmd all_actions formula
+        let counterexample_state = z3_formula_for_constraints md mmd env m
+        let base_f = WPR.Z3And (not_valid_state, counterexample_state)
+        let give_correct_invariant m' =
+            let f = minimal_formula_to_z3 mmd (MinimalAST.value2minimal md (Formula.generate_invariant env common_cvs m [(m',env')]))
+            let f = WPR.Z3And (base_f, f)
+            match check_z3_formula md [] f 5000 with
+            | SolverResult.UNKNOWN ->
+                printfn "Can't decide of satisfiability!"
+                false
+            | SolverResult.UNSAT -> true
+            | SolverResult.SAT _ -> false
+
+        match minimize_marks m' give_correct_invariant with
+        | None ->
+            printfn "Minimization impossible: the core is SAT."
+            save_m'
+        | Some m' -> m'
 
     let has_k_exec_counterexample_formula formula actions init_actions boundary =
 
@@ -289,15 +309,8 @@
             | SolverResult.UNSAT -> true
             | SolverResult.SAT _ -> false
 
-        if give_k_invariant m
-        then
-            let keep_mark_if_necessary (m:Marking.Marks) m' =
-                let m' = Marking.marks_diff m m'
-                if give_k_invariant m'
-                then m' else m
-            List.fold keep_mark_if_necessary m (decompose_marks m)
-        else
+        match minimize_marks m give_k_invariant with
+        | None ->
             printfn "ERROR: The whole formula is not a k-invariant!"
             save_m
-
-        
+        | Some m -> m

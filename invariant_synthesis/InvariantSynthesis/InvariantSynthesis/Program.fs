@@ -314,7 +314,7 @@ let main argv =
                                     let line = Console.ReadLine ()
                                     if line = "y"
                                     then
-                                        let m_al = Solver.wpr_based_minimization md mmd infos env name (Map.toList mmds) formula m common_cvs [(m_al, env_allowed)] (Solver.MinimizeAltExec)
+                                        let m_al = Solver.wpr_based_minimization_existential_part md mmd infos env (Map.toList mmds) formula m common_cvs env_allowed m_al
                                         let f_al = Formula.generate_semi_generalized_formula common_cvs (0,Map.empty) env_allowed (Solver.simplify_marks md mmd env_allowed m_al m)
                                         let f_al = Formula.simplify_value f_al
                                         printfn "%s" (Printer.value_to_string decls f_al 0)
@@ -339,9 +339,9 @@ let main argv =
                 let m =
                     let line = Console.ReadLine ()
                     if line = "h"
-                    then Solver.wpr_based_minimization md mmd infos env name (Map.toList mmds) formula m common_cvs (!allowed_paths) (Solver.Hard)
+                    then Solver.wpr_based_minimization md mmd infos env name (Map.toList mmds) formula m common_cvs (!allowed_paths) true
                     else if line = "s"
-                    then Solver.wpr_based_minimization md mmd infos env name (Map.toList mmds) formula m common_cvs (!allowed_paths) (Solver.Safe)
+                    then Solver.wpr_based_minimization md mmd infos env name (Map.toList mmds) formula m common_cvs (!allowed_paths) false
                     else if line = "n"
                     then m
                     else
@@ -354,7 +354,7 @@ let main argv =
                     printfn "Minimize existential parts? (n:no/y:yes)"
                     if Console.ReadLine () = "y"
                     then
-                        let allowed_paths' = List.map (fun (m_al,env_al) -> (Solver.wpr_based_minimization md mmd infos env name (Map.toList mmds) formula m common_cvs [(m_al, env_al)] (Solver.MinimizeAltExec),env_al)) (!allowed_paths)
+                        let allowed_paths' = List.map (fun (m_al,env_al) -> (Solver.wpr_based_minimization_existential_part md mmd infos env (Map.toList mmds) formula m common_cvs env_al m_al,env_al)) (!allowed_paths)
                         allowed_paths := allowed_paths'
                     let allowed_paths' = List.map (fun (m_al,env_al) -> (Solver.simplify_marks md mmd env_al m_al m,env_al)) (!allowed_paths)
                     allowed_paths := allowed_paths'
