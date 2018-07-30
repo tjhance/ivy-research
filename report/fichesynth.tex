@@ -32,7 +32,6 @@
 
 %% Attention: pas plus d'un recto-verso!
 
-
 \begin{point}{General context}
   
   As distributed programs become more and more widespread, their verification is a major challenge.
@@ -75,16 +74,19 @@
   my approach is based on an analysis of the execution of the counterexample.
   More precisely, I compute a set of constraints that make the current invariant broken at the end of the counterexample,
   and I retropopagate this set of constraints through the execution of the counterexample.
-  These constraints are then generalized and the resulting formula is negated.
-  This approach also generates universal invariant. It is also quite complementary with the current method
-  since both can be combined in order to improve the result.
+  These constraints are then generalized into an existentially quantified formula, and this formula is negated
+  (it gives an universal invariant).
+  This approach is quite complementary with the current method since both can be combined in order to improve the result.
 
   Moreover, this new approach can be extended with an additional process of `weakening' that
   allows the generation of invariants of the form \(\forall^*\exists^*\) when there is no
   correct universal invariant that can capture the counterexample (in this case, the current method would fail).
-  An incorrect universal invariant \(I\) is first generated, and a state `witness' of this incorrectness is searched.
-  This state is `generalized' in a similar way as it was done for the counterexample, and then \(I\)
-  is weakened in order to allow this kind of state. This process is repeated until \(I\) become correct.
+  An incorrect universal invariant \(I\) is first generated, and it will be weakened until it becomes correct.
+  For that, a valid state that doesn't satisfy \(I\) is searched.
+  Such state is like a `witness' of this incorrectness of \(I\). Once we have one such state,
+  it is generalized in a similar way as it was done for the counterexample, and it is used to weaken \(I\)
+  (in order to have an invariant that does not exclude this kind of valid state).
+  This process is repeated until \(I\) become correct.
 
   I have implemented a proof of concept for this new approach, using the languages F\# and OCaml, and the SMT-solver Z3.
  
@@ -97,15 +99,14 @@
   and this set can then be minimized using the current method.
 
   While the current method will fail if no universal invariant exists,
-  my approach can also generate \(\forall^*\exists^*\) invariants (however, there is no guarantee of termination in this case).
+  my approach can also generate \(\forall^*\exists^*\) invariants (however, it might also not terminate in this case).
 
   The new invariants generated with my approach are always correct if the current invariants (those that we want to make inductive)
-  are also correct. In compariosn, symbolic bounded verification can help us to detect incorrect invariants, but if the boundary used is too small,
+  are also correct. Symbolic bounded verification can help us to detect incorrect invariants, but if the boundary used is too small,
   incorrect invariants can be generated.
 
-  I have tested this new approach on some basic examples, using my proof of concept.
-  It was able to successfully find an inductive invariant for an implementation of a queue,
-  while the current method would have failed.
+  I have tested this new approach on some basic examples, using the proof of concept that I have implemented.
+  It was able to successfully find an inductive invariant for a queue, while the current method would have failed.
 
 \end{point}
 
@@ -113,14 +114,14 @@
 \begin{point}{Review and prospects}
 
   My contribution is an improvement in the domain of the invariant synthesis.
-  However, it relies on some decidability properties like being able to find finite counterexamples (which sometimes does not even exist).
+  However, it relies on some decidability properties, like being able to find finite counterexamples (which sometimes does not even exist).
   It requires to have some restrictions concerning the implementation and the specifications.
   Thereby, it can be used for programs written using IVy, but not in the general case.
   For instance, it can't be used to find inductive invariants for F* programs (F* being another language that is used to write certified programs).
   
   Some recent papers describe some methods to implement and specify programs by staying in a decidable fragment of first order logic (see bibliography).
-  However, these methods can't be fully automated and they sometimes complexify the code. Moreover, it is sometimes not possible
-  to write very generic pieces of code, because it could break decidability.
+  However, these methods can't be fully automated and they sometimes complexify the code. Moreover, it is not always possible
+  to write generic pieces of code, because it could break decidability.
   I think these issues could be very problematic when implementing and certifying large-scale programs.
   Maybe we should look for a compromise, where we could benefit from a large expressivity in some fragments of code, and local decidability in some other fragments?
 
