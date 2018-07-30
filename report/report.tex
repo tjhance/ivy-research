@@ -962,7 +962,18 @@ March-July 2018
 %from the complexity observed experimentaly.
 
     \section{A queue}
-    % TODO
 
+    Here is an implementation and a specification of a queue.
+    The initial safety properties are the two first conjectures (free capital variables are quantified universally by default).\\\\
+    \includegraphics[width=17cm]{Queue1}\\
+    \includegraphics[width=17cm]{Queue2}\\
+
+    The four last conjectures have been found using my proof of concept (without any modification from the user).
+    The combination of all these invariants is inductive.
+
+    As we can see, one of these invariants has a \(\forall^*\exists^*\) prefix: it would not have been found using the current invariant synthesis tool of IVy.
+    We can also notice that the second invariant that has been found is strictly weaker than the third (it can be removed).
+    It is due to the fact that the second counterexample found was too specific: its structure has imposed some (useless) equality constraints.
+    However, generating the associated invariant and adding it to the set has permitted to find an other more general counterexample (the third).
 \end{document}
 
