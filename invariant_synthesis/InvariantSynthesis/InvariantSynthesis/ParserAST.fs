@@ -660,7 +660,8 @@ open Prime
 
     // Convert a list of ivy parser AST elements to a global AST.ModuleDecl.
     // Also add and/or adjust references to types, functions, variables or actions of the module.
-    let ivy_elements_to_ast_module name elements =
+
+    let ivy_elements_to_ast_module_ name elements =
         let rec aux m tmp_elements base_name elements =
 
             let implement_action (m,tmp_elements) (name, st) variant =
@@ -798,3 +799,10 @@ open Prime
         let init_tmp_elt = add_initializer "" empty_template_elements
         let (m,_) = aux (AST.empty_module name) init_tmp_elt "" elements
         m
+
+    let ivy_elements_to_ast_module name elements =
+      try 
+        ivy_elements_to_ast_module_ name elements
+      with
+        | NoMatch s -> failwith ("NoMatch: " + s)
+
