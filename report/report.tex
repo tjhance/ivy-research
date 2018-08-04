@@ -447,11 +447,11 @@ March-July 2018
     to stay in a decidable fragment of logic). Thus, we will restrain our search to these two types of invariant.
     In particular, when possible, we will try to synthetize universal invariants because they are easier to generate and will never cause any decidability issue.
     
-    As described in this article\cite{Karbyshev:2017:PIU:3065931.3022187}, a common way to find an inductive invariant is to start from the safety properties of the program
-    and try to sthrengthen them by adding new invariants (using one of the methods described in the next sections) until the resulting set of invariants form an inductive invariant
+    As described in this article\cite{Karbyshev:2017:PIU:3065931.3022187}, a common way to find an inductive invariant (see section 1.4) is to start from the safety properties of the program
+    and try to strengthen them by adding new invariants (using one of the methods described in the next sections) until the resulting set of invariants form an inductive invariant
     (thereafter, we will use the terms `invariant' or `set of invariants' indistinguishably: a set of invariants can be seen as a single invariant that is the conjunction of all the invariants of the set).
     This iterative process may not terminate, but it offers to the user an interactive way to find an inductive invariant:
-    if the current invariant is not inductive, a new conjecture is proposed to the user (in order to sthrengthen the current invariant).
+    if the current invariant is not inductive, a new conjecture is proposed to the user (in order to strengthen the current invariant).
     If this conjecture is simple enough, the user can understand it and adjust it as he wants (making it stronger, resolving decidabilities issues, etc.), and we repeat this process.
 
     Thus, the problem we want to solve is the following:
@@ -466,7 +466,7 @@ March-July 2018
 
     \section{Weakest precondition as a new invariant}
 
-    One possible way to sthrengthen an invariant \(I\) is to make the conjunction with its weakest precondition \(wp(\text{action}_1|\ldots|\text{action}_n,I)\).
+    One possible way to strengthen an invariant \(I\) is to make the conjunction with its weakest precondition \(wp(\text{action}_1|\ldots|\text{action}_n,I)\).
     If the initial invariant is not inductive, the result will be strictly stronger.
 
     Let's evaluate this method with the criteria above.\\
@@ -558,7 +558,7 @@ March-July 2018
     assigns to the variable \(x\) a value \(v\) such that \(\phi(v)\) is true and executes \textit{statement}. If no such value \(v\) exists,
     \textit{statement} is not executed.
 
-    Basically, this example defines the following:
+    This example defines the following:
     \begin{itemize}
         \item Two uninterpreted sorts \(a\) and \(b\).
         \item A relation \(f\) from \(a\) to \(b\) that will represent a partial function, and \(dom\) its domain. It might look curious to not directly define a function instead,
@@ -633,21 +633,21 @@ March-July 2018
 
     \section{Improving the result with symbolic bounded verification}
 
-    Symbolic bounded verification is a method to check whether a formula is a k-invariant or not:
+    Symbolic bounded verification is a method to check whether a formula is a \(k\)-invariant or not:
 
-    \begin{definition}[k-invariant]
-        A formula is a k-invariant if it is satisfied after any valid execution of k steps or less
+    \begin{definition}[\(k\)-invariant]
+        A formula is a \(k\)-invariant if it is satisfied after any valid execution of k steps or less
         (that is, any execution of the init action followed by at most k other actions).
     \end{definition}
     
-    In order to check whether a formula \(Q\) is a k-invariant or not, we can check the validity of the following formula:
+    In order to check whether a formula \(Q\) is a \(k\)-invariant or not, we can check the validity of the following formula:
 
     \( A \Rightarrow \bigwedge\limits_{j=0}^k wp(\text{init}; (\text{action}_1|\ldots|\text{action}_n)^j, Q) \)\\
     where \(A\) refers to the axioms and `\(\text{statement}^j\)' is the sequential composition of \(j\) copies of `statement'.
 
     In order to check the validity of this formula (for a given \(k\)), we can just check the satisfiability of its negation.
     According to the section 1.4, it is decidable (for \(A\) of the form \(\exists^*\forall^*\) and \(Q\) of the form \(\forall^*\exists^*\)).
-    Note that symbolic bounded verification does not allow us to find k-invariants, it can only be used to check whether a formula is a k-invariant or not.
+    Note that symbolic bounded verification does not allow us to find \(k\)-invariants, it can only be used to check whether a formula is a \(k\)-invariant or not.
 
     The naive counterexample generalization method can be improved by using symbolic bounded verification\cite{Padon:2016:ISV:2908080.2908118}:
     \begin{itemize}
@@ -852,7 +852,7 @@ March-July 2018
     By adding as a third condition the negation of \(F_v\), an other valid state can be searched.
     This process can potentially not terminate if a new valid state is always found. Indeed, it could be compared to the whole process of finding an inductive invariant:
     \begin{itemize}
-        \item To find an inductive invariant, we start from the safety properties and we sthrengthen them until there are no more counterexamples.
+        \item To find an inductive invariant, we start from the safety properties and we strengthen them until there are no more counterexamples.
         \item To generate a valid invariant from a non-monotonic counterexample, we first generate an universal invariant and we weaken it until there are no more valid states satisfying it.
     \end{itemize}
     However, this process of weakening is much more likely to terminate than the whole process of finding an inductive invariant, because the search space is more restricted:
@@ -866,7 +866,7 @@ March-July 2018
     The process of generalization of \(S_v\) is quite similar to the process of generalization of the counterexample \((S,E)\).
     First, we can compute a subset \(C_v\) of \(constr(S_v)\) by computing marks for some relevant executions starting in \(S_v\)
     (it will not be detailled here, but the idea is to find an execution that is as close to \(E\) as possible).
-    Note that symbolic bounded verification can't be used here: we don't want our formula to be a k-invariant (= to be satisfied by all valid k-executions),
+    Note that symbolic bounded verification can't be used here: we don't want our formula to be a \(k\)-invariant (= to be satisfied by all valid k-executions),
     but only to be satisfied by at least one valid execution.
     Then, we remove from \(C_v\) every constraint that is already in \(C\) in order to keep only constraints that are specific to \(S_v\).
 
