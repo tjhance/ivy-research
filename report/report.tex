@@ -299,7 +299,7 @@ March-July 2018
 
         Finally, by applying the following theorem, we can conclude that our formula is not satisfiable by any interpretation (over any domain):
         \begin{theorem}[Herbrand]
-            Any universally quantified first-order formula \(F\) is satisfiable iff it is satisfied by an interpretation over its Herbrand domain.
+            A universally quantified first-order formula \(F\) is satisfiable iff it is satisfied by an interpretation over its Herbrand domain.
         \end{theorem}
 
         This process can be used to decide the satisfiability of any EPR formula. Moreover, when a formula is satisfiable,
@@ -558,7 +558,7 @@ March-July 2018
     assigns to the variable \(x\) a value \(v\) such that \(\phi(v)\) is true and executes \textit{statement}. If no such value \(v\) exists,
     \textit{statement} is not executed.
 
-    This example defines the following:
+    In a nutshell, this example defines the following:
     \begin{itemize}
         \item Two uninterpreted sorts \(a\) and \(b\).
         \item A relation \(f\) from \(a\) to \(b\) that will represent a partial function, and \(dom\) its domain. It might look curious to not directly define a function instead,
@@ -656,7 +656,7 @@ March-July 2018
         but in practice taking \(k=5\) is sufficient to detect incorrect invariants almost everytime.
         \item It allows us to generate simpler and more general invariants. Indeed, instead of generating a formula that
         aggregates all constraints of \(constr(S)\), we are able to only keep a minimal number of constraints
-        such that the resulting invariant is still correct. It can be done quite efficiently by computing a minimal unSAT core using a SMT-solver.
+        such that the resulting invariant is still correct. It can be encoded as a minimal unSAT core problem and solved using a SMT-solver.
         \item If the program that we want to check is not correct (it doesn't match the specifications), symbolic bounded verification
         can sometimes allow us to find it out, while a naive counterexample generalization would just generate incorrect invariants.
     \end{itemize}\hfill
@@ -678,10 +678,10 @@ March-July 2018
 
     \section{Course of my internship}
 
-    I spent the first half of my 5-months internship to study the differents aspects of IVy. I wrote some basic protocols in order to get
+    I spent the first half of my 5-months internship studying the differents aspects of IVy. I wrote some basic protocols in order to get
     familiar with it, I read many articles in order to be aware of the state-of-the-art, etc.
 
-    Finally, I decided to work on the invariant synthesis, and more specifically the counterexample generalization:
+    Finally, I decided to work on the problem of invariant synthesis, and more specifically the counterexample generalization:
     \begin{itemize}
         \item I have proposed a new method to select the important constraints of the counterexample, based on an analysis of the execution of the counterexample.
         This approach is quite complementary with the preexisting IVy approach (symbolic bounded verification): both approaches can be combined. 
@@ -697,7 +697,7 @@ March-July 2018
     we want to highlight a subset of \(constr(S)\) (see section 2.3) as small as possible, such that there is no valid state (= state that can be reached after a valid run) that can satisfy these constraints
     (for non-monotonic counterexamples it is not always possible, but this case will be treated in section 3.3).
 
-    To solve this problem, the IVy approach is to use symbolic bounded verification (see section 2.5) to minimize the number of constraints (the problem is encoded as an unSAT core that can be minimized by a SMT-solver).
+    To solve this problem, the IVy approach is to use symbolic bounded verification (see section 2.5) to minimize the number of constraints (it can be encoded as a minimal unSAT core problem).
     My approach is very different:
     \begin{enumerate}
         \item We compute \(S'\) the state obtained after the execution of \(E\) from \(S\).
@@ -716,16 +716,16 @@ March-July 2018
         \SetKwSwitch{Match}{Case}{Other}{match}{}{case}{otherwise}{endcase}{end}
         \Fn{\MFV{S,V}}{
             \KwData{a state \(S\), a formula or a term \(V\)}
-            \KwResult{a set of marks \(M\) that points to some important constraints in \(constr(S)\)}
+            \KwResult{a set of marks \(M\) pointing to some important constraints in \(constr(S)\)}
 
             \Match{V}{
                 \uCase{symbol(\(t_1,\ldots,t_n\))}{
-                    Compute \(M_1,\ldots,M_n\) the marks for \(t_1,\ldots,t_n\)\;
-                    Compute \(v_1,\ldots,v_n\) the evaluation of \(t_1,\ldots,t_n\) in \(S\)\;
+                    Compute \(M_1=\) \MFV{\(S,t_1\)}\(,\ldots,M_n=\) \MFV{\(S,t_n\)}\;
+                    Compute \(v_1,\ldots,v_n\) the evaluations of \(t_1,\ldots,t_n\) in \(S\)\;
                     \KwRet{\(\{symbol(v_1,\ldots,v_n)\} \cup \bigcup M_k\)}\;
                 }
                 \uCase{\(t_1 = t_2\)}{
-                    Compute \(v_1,v_2\) the evaluation of \(t_1,t_2\) in \(S\)\;
+                    Compute \(v_1,v_2\) the evaluations of \(t_1,t_2\) in \(S\)\;
                     \uIf {\(v_1 = v_2\)} {
                         \KwRet{\MFV{\(S,t_1\)} \(\cup\) \MFV{\(S,t_2\)}}\;
                     }
@@ -737,7 +737,7 @@ March-July 2018
                     \KwRet{\MFV{\(S,F\)}}\;
                 }
                 \uCase{\(F_1 \lor F_2\)}{
-                    Compute \(b_1,b_2\) the evaluation of \(F_1,F_2\) in \(S\)\;
+                    Compute \(b_1,b_2\) the evaluations of \(F_1,F_2\) in \(S\)\;
                     \uIf {\(b_1\)} {
                         \KwRet{\MFV{\(S,F_1\)}}\;
                     }
