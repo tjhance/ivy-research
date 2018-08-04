@@ -455,7 +455,7 @@ March-July 2018
     If this conjecture is simple enough, the user can understand it and adjust it as he wants (making it stronger, resolving decidabilities issues, etc.), and we repeat this process.
 
     Thus, the problem we want to solve is the following:
-    given an invariant that is not inductive, we want to strenghten it by generating a new (correct) invariant as strong as possible, if possible without breaking the decidability of the system.
+    given an invariant that is not inductive, we want to strenghten it by generating a new (correct) invariant that is as strong as possible, if possible without breaking the decidability of the system.
     To be correct, an invariant must be satisfied by every state that can be obtained with a valid execution (beginning with the `init' action).
     The following criteria can be used to evaluate an algorithm that tries to solve this problem:
     \begin{enumerate}
@@ -684,7 +684,7 @@ March-July 2018
     Finally, I decided to work on the invariant synthesis, and more specifically the counterexample generalization:
     \begin{itemize}
         \item I have proposed a new method to select the important constraints of the counterexample, based on an analysis of the execution of the counterexample.
-        This approach is quite complementary with the current IVy approach (symbolic bounded verification): both approaches can be combined. 
+        This approach is quite complementary with the preexisting IVy approach (symbolic bounded verification): both approaches can be combined. 
         \item I have extended this method with an additional process that can generate correct invariants of the form \(\forall^*\exists^*\)
         when no correct universal invariant exists.
         \item I have implemented a proof of concept for these methods, using the languages F\# and OCaml and the SMT-Solver Z3\cite{z3ref}.        
@@ -704,7 +704,7 @@ March-July 2018
         \item We try to compute a subset \(C'\) of \(constr(S')\) (as small as possible) such that all states satisfying \(C'\) (modulo renaming of the concrete values)
         evaluate the current invariant to the same value (here, to false). More precisely, we compute a set of `marks', a `mark' being a pointer to an important constraint:
         it can have the form \(symbol(concrete\_value_1,\ldots,concrete\_value_n)\) or \(concrete\_value_1 \neq concrete\_value_2\).
-        \item We retropopagate these marks through the execution of \(E\) in order to obtain a subset \(C\) of \(constr(S)\) such that
+        \item We backpropagate these marks through the execution of \(E\) in order to obtain a subset \(C\) of \(constr(S)\) such that
         all states satisfying \(C\) (modulo renaming of the concrete values) can reproduce the execution \(E\) and satisfy \(C'\) at the end (and so, break the invariant).
     \end{enumerate}
 
@@ -771,7 +771,7 @@ March-July 2018
 
     \begin{algorithm}[H]
         \SetKwFunction{MFV}{Compute_marks}%
-        \SetKwFunction{RPM}{Retropopagate}%
+        \SetKwFunction{RPM}{Backpropagate}%
         \SetKwProg{Fn}{Function}{}{end}
         \SetKwSwitch{Match}{Case}{Other}{match}{}{case}{otherwise}{endcase}{end}
         \Fn{\RPM{M',E,S}}{
@@ -804,7 +804,7 @@ March-July 2018
     \(\{img=b_0 ; dom(a_1) ; \neg f(a_1,b_0)\} \quad \longrightarrow \quad \forall A:a.\ \neg (dom(A) \land \neg f(A,img))\)\\
     Note that this invariant is much simpler than the one produced by keeping all the constraints (naive generalization, see section 2.3), but it is still incorrect.\\
 
-    This approach has some advantages compared to the current IVy method:
+    This approach has some advantages compared to the preexisting IVy method:
     \begin{itemize}
         \item It doesn't need to use symbolic bounded verification, which can return an incorrect output if \(k\) is too small (and it can take too much time for bigger \(k\)).
         \item It can detect potential non-monotonicity in the code.
@@ -971,7 +971,7 @@ March-July 2018
     The four last conjectures have been found using my proof of concept (without any modification from the user).
     The combination of all these invariants is inductive.
 
-    As we can see, one of these invariants has a \(\forall^*\exists^*\) prefix: it would not have been found using the current invariant synthesis tool of IVy.
+    As we can see, one of these invariants has a \(\forall^*\exists^*\) prefix: it would not have been found using the preexisting invariant synthesis tool of IVy.
     We can also notice that the second invariant that has been found is strictly weaker than the third (it can be removed).
     It is due to the fact that the second counterexample found was too specific: its structure has imposed some (useless) equality constraints.
     However, generating the associated invariant and adding it to the set has permitted to find an other counterexample that has given a more general invariant (the third).
