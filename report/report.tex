@@ -133,7 +133,7 @@ March-July 2018
     \begin{itemize}
         \item Proof-assistants (Coq, F*, etc.):
         Powerful logics can be used for the specification,
-        however the user has to manually write the proof (in a interactive way).
+        however the user has to manually write the proofs (in a interactive way).
         \item SMT-solver based tools (dafny, F*, etc.):
         Logics and constructions are often restricted, but specifications can automatically be checked using a SMT-solver.
         Most of time, this process is undecidable,
@@ -295,11 +295,11 @@ March-July 2018
             \item With \(R(A,A)=\text{true}\): \(\forall y. \ R(y,y) \land \neg R(A,y)\) is false (with \( y \in \{A\} \))
         \end{itemize}
 
-        So our formula is not satisfiable by any interpretation over it's Herbrand domain.
+        So our formula is not satisfiable for any interpretation over it's Herbrand domain.
 
         Finally, by applying the following theorem, we can conclude that our formula is not satisfiable by any interpretation (over any domain):
         \begin{theorem}[Herbrand]
-            An universally quantified first-order formula \(F\) is satisfiable iff it is satisfied by an interpretation over it's Herbrand domain.
+            Any universally quantified first-order formula \(F\) is satisfiable iff it is satisfied by an interpretation over its Herbrand domain.
         \end{theorem}
 
         This process can be used to decide the satisfiability of any EPR formula. Moreover, when a formula is satisfiable,
@@ -345,10 +345,10 @@ March-July 2018
             \item For all \(s \in \text{sorts}\), \(D_s\) is a finite domain associated to the sort \(s\).
             \item For all \(s \in \text{symbols}\) (variable, function or relation), \(I_s\) is a valuation for the symbol \(s\) (using the domains \((D_s)_{s\in \text{sorts}}\)).
         \end{itemize}
-        A state is a structure that satisfy every axiom of the RML program.
+        A state is a structure that satisfies every axiom of the RML program.
     \end{definition}
 
-    In order to certify that a RML program never abort abnormally and satisfy its safety properties, we must provide IVy with an invariant \(I\) such that:
+    In order to certify that a RML program never aborts abnormally and satisfies its safety properties, we must provide IVy with an invariant \(I\) such that:
     \begin{enumerate}
         \item \(I\) is initially satisfied (after any execution of the `init' action starting from any state).
         \item Any state satisfying \(I\) also satisfy all the safety properties.
