@@ -702,8 +702,8 @@ March-July 2018
     \begin{enumerate}
         \item We compute \(S'\) the state obtained after the execution of \(E\) from \(S\).
         \item We try to compute a subset \(C'\) of \(constr(S')\) (as small as possible) such that all states satisfying \(C'\) (modulo renaming of the concrete values)
-        evaluate the current invariant to the same value (here, to false). More precisely, we compute a set of `marks', a `mark' being a pointer to an important constraint:
-        it can have the form \(symbol(concrete\_value_1,\ldots,concrete\_value_n)\) or \(concrete\_value_1 \neq concrete\_value_2\).
+        evaluate the current invariant to the same value (here, to false). More precisely, we compute a set of `marks', a `mark' being an element of the form \(symbol(concrete\_value_1,\ldots,concrete\_value_n)\) or \(concrete\_value_1 \neq concrete\_value_2\).
+        At a given state, a mark is directly associated to a constraint (it \textit{points} to a constraint).
         \item We backpropagate these marks through the execution of \(E\) in order to obtain a subset \(C\) of \(constr(S)\) such that
         all states satisfying \(C\) (modulo renaming of the concrete values) can reproduce the execution \(E\) and satisfy \(C'\) at the end (and so, break the invariant).
     \end{enumerate}
@@ -749,6 +749,7 @@ March-July 2018
                     }
                 }
                 \uCase{\(\forall x:a. F(x)\)}{
+                    \tcc{for a given execution, type \(a\) has a fixed domain}
                     \uIf {there exists \(x_f \in a\) such that \(F(x_f)\) evaluates to false} {
                         \KwRet{\MFV{\(S,F(x_f)\)}}\;
                     }
@@ -757,7 +758,7 @@ March-July 2018
                         \KwRet{\(\bigcup_{x_t \in a}\) \MFV{\(S,F(x_t)\)}}
                     }
                 }
-                \uCase{\(\ldots\)}{}
+                %\uCase{\(\ldots\)}{}
             }
         }
         %\caption{Computing marks for a term or a formula}
@@ -776,13 +777,13 @@ March-July 2018
         \SetKwSwitch{Match}{Case}{Other}{match}{}{case}{otherwise}{endcase}{end}
         \Fn{\RPM{M',E,S}}{
             \KwData{a set of marks \(M'\) computed after the execution of the deterministic statement \(E\) from the state \(S\)}
-            \KwResult{a new set of marks \(M\) that points to some important constraints in \(constr(S)\)}
+            \KwResult{a new set of marks \(M\) pointing to some important constraints in \(constr(S)\)}
 
             \Match{E}{
                 \uCase{skip}{\KwRet{\(M'\)}\;}
                 \uCase{\textbf{f}(\(\bar{x}\)) := \( t(\bar{x}) \)}{
                     \(M \leftarrow M'\)\;
-                    \For{$\bar{x_0}$ such that \textbf{f}(\(\bar{x_0}\)) \(\in M\)}{
+                    \For{$\bar{x_0}$ such that \textbf{f}(\(\bar{x_0}\)) \(\in M'\)}{
                         \(M \leftarrow (M\backslash\{\)\textbf{f}(\(\bar{x_0}\))\(\}) \cup \MFV(S,t(\bar{x_0}))\)\;
                     }
                     \KwRet{\(M\)}\;
@@ -802,9 +803,11 @@ March-July 2018
     For instance, after having applied this algorithm to the example of the section 2.4 (all primitives used in this example can be translated to RML),
     we can detect that the execution is not monotonic, and we obtain the following marked constraints:\\
     \(\{img=b_0 ; dom(a_1) ; \neg f(a_1,b_0)\} \quad \longrightarrow \quad \forall A:a.\ \neg (dom(A) \land \neg f(A,img))\)\\
-    Note that this invariant is much simpler than the one produced by keeping all the constraints (naive generalization, see section 2.3), but it is still incorrect.\\
+    Note that this invariant is much simpler than the one produced by keeping all the constraints (naive generalization, see section 2.3).
+    Though it is still incorrect in this case (because of non-monotonicity), it will be used to generate another valid invariant (see next sections).
+    For monotonic counterexamples, we have the guarantee that the invariant generated is correct.\\
 
-    This approach has some advantages compared to the preexisting IVy method:
+    This approach has some advantages compared to the preexisting method used by IVy:
     \begin{itemize}
         \item It doesn't need to use symbolic bounded verification, which can return an incorrect output if \(k\) is too small (and it can take too much time for bigger \(k\)).
         \item It can detect potential non-monotonicity in the code.
@@ -824,7 +827,7 @@ March-July 2018
     a second process is performed in order to know whether the generated conjecture is correct or not, and to fix it if it is not correct.
     
     In order to do that, we can try to find some valid states that satisfy all the constraints \(C\).
-    Such states would be the witnesses of the non-correctness of the universal invariant generated.
+    Such states would be the witnesses of the non-correctness of the generated universal invariant.
     Moreover, if we find such a state, we can use it to weaken the generated conjecture.
     Otherwise, we know that the universal invariant generated is already correct.
     In this section, we will see how to find such states, and in the next section we will see how to use them to weaken the conjecture.
@@ -908,17 +911,16 @@ March-July 2018
 
     Let's evaluate the method presented in this chapter using the same criteria as before.
 
-    \textbf{Reliability}: If we assume that the initial invariant is correct, then this algorithm always generate correct invariants.
+    \textbf{Reliability}: If we assume that the initial invariant is correct, then this algorithm always generates correct invariants.
     However, if there is no correct universal invariant that can capture the counterexample, this algorithm might not terminate (see section 3.3).\\
 
     \textbf{Decidability}: If there exists a correct universal invariant that can capture the counterexample, then such an invariant will be produced.
     Otherwise, an invariant of the form \(\forall^*\exists^*\) will be produced. It may cause some decidability issues that the user will have to solve
-    (it is challenge that the user will often have to face when using IVy, see section 1.5).\\
+    (it is a challenge that the user will often have to face when using IVy, see section 1.5).\\
 
     \textbf{Efficiency}: Invariants generated are quite small and simple because they only contains elements that have played an important role in the execution of the counterexample.
     Symbolic bounded verification can be used to improve the result.\\
 
-    Here is a table that compare the different methods of invariant synthesis:\\
     \begin{tabularx}{\textwidth}{|l|X|X|X|}
         \hline
             & Weakest precondition & \multicolumn{2}{c|}{Counterexample generalization}\\
@@ -941,15 +943,16 @@ March-July 2018
 
     \section{Conclusion}
 
-    This internship has been a very fulfulling experience for me. I have experimented an aspect of research
+    This internship has been a very fulfilling experience for me. I have experimented an aspect of research
     that I had not experienced during my last year's internship:
-    during the first half of the internship, I had to read articles and to experiment in order to find ideas.
+    during the first half of the internship, I had to find a precise problem to focus on and some ideas to solve it.
     My comprehension of the subject has really evolved during this time.
-    I explored many different problematics before focusing on the invariant synthesis.
+    I read many articles and explored many different problematics before focusing on the invariant synthesis.
+    
     For instance, one of my attempts was to try to add some more advanced typing to IVy, without loosing decidability.
     In particular, I have studied \textit{session types} (it was even more interesting since there is a lot of session types experts in Carnegie Mellon University).
     Finally, I gave up this idea since the linearity of session types seemed hardly reconciliable with the distributed and decentralized aspects of the protocols
-    that we wanted to prove.
+    that we wanted to prove. My ideas concerning the invariant synthesis came just after having implemented a queue and a lock protocol in IVy and having tried to prove them using the preexisting tools.
 
 \bibliographystyle{unsrt}
 \bibliography{sample}
