@@ -79,15 +79,20 @@ let manual_counterexample (md:ModuleDecl) decls possible_actions mmds verbose =
         Some (action, infos, env, cs, formula, tr)
     else
         Some (action, infos, env, cs, MinimalAST.ValueConst (ConstBool true), tr)
+
+let marks_to_string decls (env:Model.Environment) (m:Marking.Marks) =
+  let res = Set.fold (fun acc v -> sprintf "%s%s\n" acc (Printer.varmark_to_string decls env v)) "" m.v
+  let res = Set.fold (fun acc f -> sprintf "%s%s\n" acc (Printer.funmark_to_string decls env f)) res m.f
+  res
     
 let manual_allowed_path (md:ModuleDecl) decls (env:Model.Environment) cs m um =
     printfn "Please modify some constraints on the environment to change the final formula value."
     printfn ""
     printfn "Constraints you can't change:"
-    //printfn "%s" (Printer.marks_to_string decls env m)
+    printfn "%s" (marks_to_string decls env m)
     printfn ""
     printfn "Constraints you should change (at least one):"
-    //printfn "%s" (Printer.marks_to_string decls env um)
+    printfn "%s" (marks_to_string decls env um)
 
     printfn ""
     let str = read_until_line_jump ()

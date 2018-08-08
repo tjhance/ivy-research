@@ -133,12 +133,6 @@
         let v = ValueEqual (ValueFun (str, cvs), ValueConst value)
         value_to_string decls v 0
 
-    (*
-    let marks_to_string decls (env:Model.Environment) (m:Marking.Marks) =
-        let res = Set.fold (fun acc v -> sprintf "%s%s\n" acc (varmark_to_string decls env v)) "" m.v
-        let res = Set.fold (fun acc f -> sprintf "%s%s\n" acc (funmark_to_string decls env f)) res m.f
-        res
-    *)
 
     let print_model infos (env: Model.Environment) =
         let to_str v = match v with
