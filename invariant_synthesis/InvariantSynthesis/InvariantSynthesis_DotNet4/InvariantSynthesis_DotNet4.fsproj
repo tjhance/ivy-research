@@ -95,6 +95,9 @@
     <Compile Include="..\InvariantSynthesis\TInterpreter.fs">
       <Link>TInterpreter.fs</Link>
     </Compile>
+    <Compile Include="..\InvariantSynthesis\Printer.fs">
+      <Link>Printer.fs</Link>
+    </Compile>
     <Compile Include="..\InvariantSynthesis\Marking.fs">
       <Link>Marking.fs</Link>
     </Compile>
@@ -118,9 +121,6 @@
     </Compile>
     <Compile Include="..\InvariantSynthesis\TestModule.fs">
       <Link>TestModule.fs</Link>
-    </Compile>
-    <Compile Include="..\InvariantSynthesis\Printer.fs">
-      <Link>Printer.fs</Link>
     </Compile>
     <Compile Include="..\InvariantSynthesis\Program.fs">
       <Link>Program.fs</Link>

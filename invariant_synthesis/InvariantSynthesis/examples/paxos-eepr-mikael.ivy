@@ -108,4 +108,6 @@ conjecture (le(RA,RB) & RA~=RB & joined_round(N,RB)) -> left_round(N,RA)
 
 # (15)
 
-conjecture join_ack_msg(N,R,RP,V) -> joined_round(N,R)
+#conjecture join_ack_msg(N,R,RP,V) -> joined_round(N,R)
+
+#conjecture ~(join_ack_msg(A, C, D, E) & le(B, C) & le(D, B) & ~left_round(A, B) & propose_msg(B, E) & B ~= C & B ~= D & B ~= bot & bot ~= D)

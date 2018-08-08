@@ -80,14 +80,14 @@ let manual_counterexample (md:ModuleDecl) decls possible_actions mmds verbose =
     else
         Some (action, infos, env, cs, MinimalAST.ValueConst (ConstBool true), tr)
     
-let manual_allowed_path (md:ModuleDecl) decls env cs m um =
+let manual_allowed_path (md:ModuleDecl) decls (env:Model.Environment) cs m um =
     printfn "Please modify some constraints on the environment to change the final formula value."
     printfn ""
     printfn "Constraints you can't change:"
-    printfn "%s" (Printer.marks_to_string decls env m)
+    //printfn "%s" (Printer.marks_to_string decls env m)
     printfn ""
     printfn "Constraints you should change (at least one):"
-    printfn "%s" (Printer.marks_to_string decls env um)
+    //printfn "%s" (Printer.marks_to_string decls env um)
 
     printfn ""
     let str = read_until_line_jump ()
@@ -146,6 +146,7 @@ let auto_counterexample (md:ModuleDecl) decls main_module mmds =
         let action_args = (MinimalAST.find_action mmd action).Args
         printfn "Invariant n°%i: %s" i action
         let tr = TInterpreter.trace_action mmd infos env action (List.map (fun (d:VarDecl) -> MinimalAST.ValueVar d.Name) action_args) AST.impossible_var_factor
+        printfn "done trace"
         Some (action, infos, env, [], formula, tr)
 
 let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) formula
@@ -155,16 +156,22 @@ let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) 
 
 // ----- MAIN -----
 
-let analyse_example_ending mmd infos tr formula =
+let analyse_example_ending mmd decls infos tr formula =
+    printfn "moo"
     let env' = Trace.final_env tr
+    printfn "moo1"
     if Trace.is_fully_executed tr
     then
-        let (b,cfgs) = Marking.marks_for_value mmd infos env' Set.empty formula
+        printfn "moo3"
+        let (b,cfgs) = Marking.marks_for_value mmd decls infos env' Set.empty formula
+        printfn "moo4"
         let cfg = Marking.best_cfg cfgs
+        printfn "moo5"
         if b <> ConstBool true && b <> ConstBool false
         then failwith "Invalid execution!"
         (b = ConstBool true, true, cfg)
     else
+        printfn "moo6"
         (Trace.assume_failed tr, false, Marking.empty_config)
 
 [<EntryPoint>]
@@ -252,13 +259,15 @@ let main argv =
             match counterexample with
             | None -> ()
             | Some (name, infos, env, cs, formula, tr) ->
+                printfn "got counterexample"
                 let mmd = Map.find name mmds
                 let (b,finished_exec,(m,um,ad)) =
-                    analyse_example_ending mmd infos tr formula
+                    analyse_example_ending mmd decls infos tr formula
+                printfn "hi2"
                 if b then failwith "Invalid counterexample!"
 
                 printfn "Going back through the action..."
-                let (m,um,ad) = Marking.marks_before_statement mmd infos true false tr (m,um,ad)
+                let (m,um,ad) = Marking.marks_before_statement mmd decls infos true false tr (m,um,ad)
                 let (m,um) = (Marking.remove_all_var_marks m, Marking.remove_all_var_marks um)
                 if verbose
                 then
@@ -294,11 +303,11 @@ let main argv =
                             let tr_allowed = TInterpreter.trace_action mmd infos_allowed env_allowed name (List.map (fun (d:VarDecl) -> MinimalAST.ValueVar d.Name) args_decl) AST.impossible_var_factor
 
                             let (b_al,_,(m_al,um_al,ad_al)) =
-                                analyse_example_ending mmd infos_allowed tr_allowed formula
+                                analyse_example_ending mmd decls infos_allowed tr_allowed formula
 
                             if b_al
                             then
-                                let (m_al,_,ad_al) = Marking.marks_before_statement mmd infos_allowed finished_exec true tr_allowed (m_al,um_al,ad_al)
+                                let (m_al,_,ad_al) = Marking.marks_before_statement mmd decls infos_allowed finished_exec true tr_allowed (m_al,um_al,ad_al)
                                 let m_al = Marking.remove_all_var_marks m_al
                                 if ad_al.md
                                 then printfn "Warning: Some marks still are model-dependent! Generated invariant could be weaker than expected."

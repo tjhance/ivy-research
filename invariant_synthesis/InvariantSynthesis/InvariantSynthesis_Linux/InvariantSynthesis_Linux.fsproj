@@ -16,6 +16,7 @@
     <Compile Include="../InvariantSynthesis/Interpreter.fs" />
     <Compile Include="../InvariantSynthesis/Trace.fs" />
     <Compile Include="../InvariantSynthesis/TInterpreter.fs" />
+    <Compile Include="../InvariantSynthesis/Printer.fs" />
     <Compile Include="../InvariantSynthesis/Marking.fs" />
     <Compile Include="../InvariantSynthesis/Formula.fs" />
     <Compile Include="../InvariantSynthesis/WPR.fs" />
@@ -24,7 +25,6 @@
     <Compile Include="../InvariantSynthesis/ConstraintsParser.fs" />
     <Compile Include="../InvariantSynthesis/ParserAST.fs" />
     <Compile Include="../InvariantSynthesis/TestModule.fs" />
-    <Compile Include="../InvariantSynthesis/Printer.fs" />
     <Compile Include="../InvariantSynthesis/Program.fs" />
   </ItemGroup>
 
