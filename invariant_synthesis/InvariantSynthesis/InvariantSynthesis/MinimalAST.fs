@@ -124,6 +124,22 @@
 
     // Conversion functions
 
+    let rec simplify_value (v:Value) : Value =
+        match v with
+        | ValueNot (ValueNot s) -> simplify_value s
+
+        | ValueConst cv -> ValueConst cv
+        | ValueStar t -> ValueStar t
+        | ValueVar s -> ValueVar s
+        | ValueFun (s, l) -> ValueFun (s, List.map simplify_value l)
+        | ValueEqual (s, t) -> ValueEqual (simplify_value s, simplify_value t)
+        | ValueOr (s, t) -> ValueOr (simplify_value s, simplify_value t)
+        | ValueNot s -> ValueNot (simplify_value s)
+        | ValueSomeElse (d, s, t) -> ValueSomeElse (d, simplify_value s, simplify_value t)
+        | ValueIfElse (s,t,u) -> ValueIfElse (simplify_value s, simplify_value t, simplify_value u)
+        | ValueForall (d, v) -> ValueForall (d, simplify_value v)
+        | ValueInterpreted (s, l) -> ValueInterpreted (s, List.map simplify_value l)
+
     let value2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) (v:AST.Value) =
         let rec aux v =
             match v with
@@ -148,7 +164,7 @@
             | AST.ValueImply (v1, v2) ->
                 aux (AST.ValueOr (AST.ValueNot v1, v2))
             | AST.ValueInterpreted (str, vs) -> ValueInterpreted (str, List.map aux vs)
-        aux v
+        simplify_value (aux v)
 
     // Operations on temporary var names
 
