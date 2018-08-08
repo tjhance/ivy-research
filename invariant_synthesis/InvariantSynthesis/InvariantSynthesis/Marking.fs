@@ -143,7 +143,7 @@
 
     // uvar: variables that can browse an arbitrary large range (depending on the model)
     let rec marks_for_value mdecl decls infos env uvar v : ConstValue * Set<Marks * Marks * AdditionalData> =
-        printfn "marks_for_value: %s" (Printer.value_to_string decls (value2ast v) 0)
+        //printfn "marks_for_value: %s" (Printer.value_to_string decls (value2ast v) 0)
         let (v, cfgs) =
             match v with
             | ValueConst c -> (c, Set.singleton empty_config)
