@@ -146,7 +146,6 @@ let auto_counterexample (md:ModuleDecl) decls main_module mmds =
         let action_args = (MinimalAST.find_action mmd action).Args
         printfn "Invariant n°%i: %s" i action
         let tr = TInterpreter.trace_action mmd infos env action (List.map (fun (d:VarDecl) -> MinimalAST.ValueVar d.Name) action_args) AST.impossible_var_factor
-        printfn "done trace"
         Some (action, infos, env, [], formula, tr)
 
 let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) formula
@@ -157,21 +156,15 @@ let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) 
 // ----- MAIN -----
 
 let analyse_example_ending mmd decls infos tr formula =
-    printfn "moo"
     let env' = Trace.final_env tr
-    printfn "moo1"
     if Trace.is_fully_executed tr
     then
-        printfn "moo3"
         let (b,cfgs) = Marking.marks_for_value mmd decls infos env' Set.empty formula
-        printfn "moo4"
         let cfg = Marking.best_cfg cfgs
-        printfn "moo5"
         if b <> ConstBool true && b <> ConstBool false
         then failwith "Invalid execution!"
         (b = ConstBool true, true, cfg)
     else
-        printfn "moo6"
         (Trace.assume_failed tr, false, Marking.empty_config)
 
 [<EntryPoint>]
@@ -259,11 +252,9 @@ let main argv =
             match counterexample with
             | None -> ()
             | Some (name, infos, env, cs, formula, tr) ->
-                printfn "got counterexample"
                 let mmd = Map.find name mmds
                 let (b,finished_exec,(m,um,ad)) =
                     analyse_example_ending mmd decls infos tr formula
-                printfn "hi2"
                 if b then failwith "Invalid counterexample!"
 
                 printfn "Going back through the action..."

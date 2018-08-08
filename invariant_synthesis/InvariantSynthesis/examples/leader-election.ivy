@@ -1,0 +1,59 @@
+#lang ivy1.3
+
+type node
+type id
+
+function nid(N:node) : id
+relation le(X:id, Y:id)
+relation btw(X:node, Y:node, Z:node)
+relation leader(X:node)
+relation pnd(X:id, N:node)
+
+# unique ids
+axiom forall N : node . forall M : node . (N ~= M) -> (nid(N) ~= nid(M))
+
+# le_total_order
+axiom le(X, X)
+axiom (le(X,Y) & le(Y,Z)) -> le(X,Z)
+axiom (le(X,Y) & le(Y,X)) -> X = Y
+axiom le(X,Y) | le(Y,X)
+
+# ring_topology
+axiom btw(X,Y,Z) -> btw(Y,Z,X)
+axiom btw(W,X,Y) & btw(W,Y,Z) -> btw(W,X,Z)
+axiom btw(W,X,Y) -> ~btw(W,Y,X)
+axiom forall W : node . forall X : node . forall Y : node . (W ~= X & X ~= Y & Y ~= W) -> (btw(W,X,Y) | btw(W,Y,X))
+
+after init {
+  leader(X) := false;
+  pnd(X,Y) := false;
+}
+
+action send(n: node, m: node) = {
+  assume (X ~= n & X ~= m) -> btw(n,m,X); # next(n,m)
+  pnd(nid(n), m) := true;
+}
+
+action receive(i: id, n: node, m: node) = {
+  assume pnd(i, n);
+  pnd(i, n) := false;
+  if (nid(n) = i) {
+    leader(n) := true;
+  } else {
+    if (le(nid(n), i)) {
+      assume forall X : node . (X ~= n & X ~= m) -> btw(n,m,X); # next(n,m)
+      pnd(i, m) := true;
+    };
+  };
+}
+
+export send
+export receive
+
+# safety property
+conjecture ~(leader(N) & leader(M) & N ~= M)
+
+# other invariants
+conjecture forall N : node . forall M : node . ~(N ~= M & leader(N) & le(nid(N), nid(M)))
+conjecture forall N : node . forall M : node . ~(N ~= M & pnd(nid(N), N) & le(nid(N), nid(M)))
+conjecture ~(btw(N,M,O) & pnd(nid(M),N) & le(nid(M),nid(O)))

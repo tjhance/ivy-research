@@ -92,6 +92,9 @@ module unbounded_queue(data) =
 		#	content_f(next_e) := da;
 		#}
 
+		#conjecture ~(incrementable.succ(q.first_e, D) & q.content(A, D) & q.content(B, D) & A ~= B)
+		#conjecture ~(incrementable.succ(F, E) & incrementable.succ(q.first_e, F) & q.content(A, E) & q.content(B, E) & A ~= B)
+
 		conjecture ~empty -> content(first,first_e)
 		conjecture content(A,first_e) -> A=first
 		
@@ -100,6 +103,7 @@ module unbounded_queue(data) =
 		conjecture ~q.content(B, q.next_e)
 		conjecture ~(B >= q.next_e & q.content(A, B))
 		conjecture ~(q.content(A, D) & q.content(B, D) & A ~= B)
+
 	}
 
     export pop

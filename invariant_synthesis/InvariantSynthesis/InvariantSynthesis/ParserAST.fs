@@ -349,7 +349,7 @@ open Prime
                 let str = local_name str
                 let t = conciliate_types3 (Map.tryFind str local_vars_types) ret_val (try_p2a_type m base_name t)
                 match t with
-                | None -> failwith "Can't resolve local types: many matches !"
+                | None -> failwith "(QVar) Can't resolve local types: many matches !"
                 | Some t -> (Map.add str t local_vars_types, AST.ExprVar str)
 
             | VarFunMacroAction (str, es) ->
@@ -385,7 +385,7 @@ open Prime
                         | _ -> failwith "Invalid description."
                     else if List.length results = 0
                     then raise (NoMatch (sprintf "Can't find any var/fun/macro/action %s that match the required return and args types!" str))
-                    else failwith "Can't resolve local types: many matches !"
+                    else failwith "(VarFunMacroAction) Can't resolve local types: many matches !"
 
             | Equal (e1, e2) ->
                 if not (types_match ret_val (Some AST.Bool)) then raise (NoMatch "Equal operator should have boolean return type!")
@@ -399,7 +399,7 @@ open Prime
                     (local_vars_types, AST.ExprEqual (Helper.lst_to_couple res_es))
                 else if List.length results = 0
                 then raise (NoMatch "Can't test equality on args of diffrent types!")
-                else failwith "Can't resolve local types: many matches !"
+                else failwith "(Equal) Can't resolve local types: many matches !"
 
             | Or (e1, e2) -> proceed_operator AST.Bool [AST.Bool;AST.Bool] [e1;e2] (fun res_es -> AST.ExprOr (Helper.lst_to_couple res_es))
             | And (e1, e2) -> proceed_operator AST.Bool [AST.Bool;AST.Bool] [e1;e2] (fun res_es -> AST.ExprAnd (Helper.lst_to_couple res_es))
@@ -449,7 +449,7 @@ open Prime
                     (local_vars_types, AST.ExprIfElse (res_e, AST.expr_to_value res_eif, AST.expr_to_value res_eelse))
                 else if List.length results = 0
                 then raise (NoMatch "If-Else expressions must have same value type on each branch!")
-                else failwith "Can't resolve local types: many matches !"
+                else failwith "(ExprIfElse) Can't resolve local types: many matches !"
 
         aux local_vars_types v ret_val
 
