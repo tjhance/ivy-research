@@ -252,6 +252,8 @@ let main argv =
             match counterexample with
             | None -> ()
             | Some (name, infos, env, cs, formula, tr) ->
+                Printer.print_model infos env
+
                 let mmd = Map.find name mmds
                 let (b,finished_exec,(m,um,ad)) =
                     analyse_example_ending mmd decls infos tr formula

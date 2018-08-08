@@ -139,3 +139,20 @@
         let res = Set.fold (fun acc f -> sprintf "%s%s\n" acc (funmark_to_string decls env f)) res m.f
         res
     *)
+
+    let print_model infos (env: Model.Environment) =
+        let to_str v = match v with
+                            | ConstInt (_,v) -> v.ToString()
+                            | _ -> failwith "print_model expected ConstInt"
+
+        printfn "%A\n" infos
+        Map.iter (fun (name, l) -> fun value ->
+          match value with
+          | ConstBool v ->
+            if v then
+              printfn "%s(%s)" name (String.concat ", " (List.map to_str l))
+          | ConstInt (_,i) ->
+            printfn "%s(%s) = %d" name (String.concat ", " (List.map to_str l)) i
+          | _ -> failwith "print_model expected bool or int"
+        ) env.f
+        printfn "%A\n" env.v
