@@ -340,10 +340,10 @@ March-July 2018
     \section{Checking a RML program}
 
     \begin{definition}[Structure \& State]
-        For a given RML program, a structure (or interpretation) is a pair \(((D_s)_{s\in \text{sorts}}, (I_s)_{s\in \text{symbols}})\) where:
+        For a given RML program, a structure (or interpretation) is a pair \(((D_s)_{s\in \text{sorts}}, (V_s)_{s\in \text{symbols}})\) where:
         \begin{itemize}
             \item For all \(s \in \text{sorts}\), \(D_s\) is a finite domain associated to the sort \(s\).
-            \item For all \(s \in \text{symbols}\) (variable, function or relation), \(I_s\) is a valuation for the symbol \(s\) (using the domains \((D_s)_{s\in \text{sorts}}\)).
+            \item For all \(s \in \text{symbols}\) (variable, function or relation), \(V_s\) is a valuation for the symbol \(s\) (using the domains \((D_s)_{s\in \text{sorts}}\)).
         \end{itemize}
         A state is a structure that satisfies every axiom of the RML program.
     \end{definition}
