@@ -342,7 +342,7 @@ March-July 2018
     \begin{definition}[Structure \& State]
         For a given RML program, a structure (or interpretation) is a pair \(((D_s)_{s\in \text{sorts}}, (V_s)_{s\in \text{symbols}})\) where:
         \begin{itemize}
-            \item For all \(s \in \text{sorts}\), \(D_s\) is a finite domain associated to the sort \(s\).
+            \item For all \(s \in \text{sorts}\), \(D_s\) is a domain associated to the sort \(s\).
             \item For all \(s \in \text{symbols}\) (variable, function or relation), \(V_s\) is a valuation for the symbol \(s\) (using the domains \((D_s)_{s\in \text{sorts}}\)).
         \end{itemize}
         A state is a structure that satisfies every axiom of the RML program.
@@ -515,7 +515,7 @@ March-July 2018
     A counterexample is a pair \( (S,E) \) where \(S\) is a state that satisfies the current invariant and \(E\) is a deterministic statement that describes the execution of an action,
     starting from \(S\) and leading to a new state \(S'\) that doesn't satisfy the current invariant.
     \end{definition}
-    Thanks to the finite model property of EPR (section 1.3.2), we are always able to find a finite counterexample when the current invariant is not inductive
+    Thanks to the finite model property of EPR (section 1.3.2), we are always able to find a finite counterexample (i.e. a counterexample with finite domains) when the current invariant is not inductive
     (section 1.4 explains how to check the inductiveness of an invariant).
 
     Let \( (S,E) \) be a finite counterexample.
