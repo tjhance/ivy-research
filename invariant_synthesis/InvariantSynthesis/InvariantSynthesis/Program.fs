@@ -182,7 +182,7 @@ let main argv =
         match Array.tryLast argv with
         | None -> ""
         | Some str ->
-            if str.EndsWith(".ivy")
+            if str.EndsWith(".ivy") || str.EndsWith(".mik")
             then str else ""
 
     let (md:ModuleDecl) =
