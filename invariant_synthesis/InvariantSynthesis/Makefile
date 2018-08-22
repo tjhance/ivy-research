@@ -1,7 +1,7 @@
 all: bin/InvariantSynthesis.exe
 
 SRCS = \
-	InvariantSynthesis_DotNet4/Config.fs \
+	InvariantSynthesis_Linux/Config.fs \
 	InvariantSynthesis/Helper.fs \
 	InvariantSynthesis/AST.fs \
 	InvariantSynthesis/MinimalAST.fs \
