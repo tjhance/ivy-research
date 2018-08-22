@@ -12,6 +12,11 @@
         | AST.ConstBool b1, AST.ConstBool b2 -> AST.ConstBool (b1 || b2)
         | _ -> raise TypeError
 
+    let value_and v1 v2 =
+        match v1, v2 with
+        | AST.ConstBool b1, AST.ConstBool b2 -> AST.ConstBool (b1 && b2)
+        | _ -> raise TypeError
+
     let value_not v =
         match v with
         | AST.ConstBool b -> AST.ConstBool (not b)
@@ -39,6 +44,10 @@
             let cv1 = evaluate_value m infos env v1
             let cv2 = evaluate_value m infos env v2
             value_or cv1 cv2
+        | ValueAnd (v1, v2) -> 
+            let cv1 = evaluate_value m infos env v1
+            let cv2 = evaluate_value m infos env v2
+            value_and cv1 cv2
         | ValueNot v -> 
             let cv = evaluate_value m infos env v
             value_not cv

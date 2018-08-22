@@ -196,6 +196,19 @@
                     | AST.ConstBool true, AST.ConstBool true -> Set.union cfgs1 cfgs2
                     | _, _ -> raise TypeError
                 (AST.ConstBool eval, cfgs)
+            | ValueAnd (v1, v2) ->
+                let (cv1, cfgs1) = marks_for_value mdecl decls infos env uvar v1
+                let (cv2, cfgs2) = marks_for_value mdecl decls infos env uvar v2
+                let eval = (bool_of_cv cv1) && (bool_of_cv cv2)
+                let cfgs =
+                    match cv1, cv2 with
+                    | AST.ConstBool true, AST.ConstBool true -> union_of_cfg_possibilities [cfgs1;cfgs2]
+                    | AST.ConstBool false, AST.ConstBool true -> cfgs1
+                    | AST.ConstBool true, AST.ConstBool false -> cfgs2
+                    | AST.ConstBool false, AST.ConstBool false -> Set.union cfgs1 cfgs2
+                    | _, _ -> raise TypeError
+                (AST.ConstBool eval, cfgs)
+
             | ValueNot v ->
                 let (cv,cfgs) = marks_for_value mdecl decls infos env uvar v
                 (value_not cv, cfgs)

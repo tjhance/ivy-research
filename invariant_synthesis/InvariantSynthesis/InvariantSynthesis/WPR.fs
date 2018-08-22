@@ -217,6 +217,11 @@
                 let (ctx2, v2) = aux v2
                 let ctx = replace_holes_with ctx2 ctx1
                 (ctx, Z3Or (v1, v2))
+            | ValueAnd (v1, v2) ->
+                let (ctx1, v1) = aux v1
+                let (ctx2, v2) = aux v2
+                let ctx = replace_holes_with ctx2 ctx1
+                (ctx, Z3And (v1, v2))
             | ValueNot v ->
                 let (ctx, v) = aux v
                 (ctx, Z3Not v)

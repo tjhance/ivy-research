@@ -16,6 +16,7 @@
         | ValueFun of string * List<Value>
         | ValueEqual of Value * Value
         | ValueOr of Value * Value
+        | ValueAnd of Value * Value
         | ValueNot of Value
         | ValueSomeElse of VarDecl * Value * Value
         | ValueIfElse of Value * Value * Value
@@ -75,6 +76,8 @@
             ValueEqual (map_vars_in_value v1 dico, map_vars_in_value v2 dico)
         | ValueOr (v1, v2) ->
             ValueOr (map_vars_in_value v1 dico, map_vars_in_value v2 dico)
+        | ValueAnd (v1, v2) ->
+            ValueAnd (map_vars_in_value v1 dico, map_vars_in_value v2 dico)
         | ValueNot v ->
             ValueNot (map_vars_in_value v dico)
         | ValueSomeElse (d, v1, v2) ->
@@ -93,7 +96,7 @@
         | ValueConst _ | ValueStar _ -> Set.empty
         | ValueVar str -> Set.singleton str
         | ValueFun (_, vs) -> Set.unionMany (List.map free_vars_of_value vs)
-        | ValueEqual (v1, v2) | ValueOr (v1, v2) -> Set.union (free_vars_of_value v1) (free_vars_of_value v2)
+        | ValueEqual (v1, v2) | ValueOr (v1, v2) | ValueAnd (v1, v2) -> Set.union (free_vars_of_value v1) (free_vars_of_value v2)
         | ValueNot v -> free_vars_of_value v
         | ValueSomeElse (d, v1, v2) -> 
             let fv = Set.union (free_vars_of_value v1) (free_vars_of_value v2)
@@ -113,6 +116,7 @@
         | ValueFun (str, vs) -> AST.ValueFun (str, List.map value2ast vs)
         | ValueEqual (v1, v2) -> AST.ValueEqual (value2ast v1, value2ast v2)
         | ValueOr (v1, v2) -> AST.ValueOr (value2ast v1, value2ast v2)
+        | ValueAnd (v1, v2) -> AST.ValueAnd (value2ast v1, value2ast v2)
         | ValueNot v -> AST.ValueNot (value2ast v)
         | ValueSomeElse (d, v1, v2) -> AST.ValueSomeElse (d, value2ast v1, value2ast v2)
         | ValueIfElse (c, v1, v2) -> AST.ValueIfElse (value2ast c, value2ast v1, value2ast v2)
@@ -134,6 +138,7 @@
         | ValueFun (s, l) -> ValueFun (s, List.map simplify_value l)
         | ValueEqual (s, t) -> ValueEqual (simplify_value s, simplify_value t)
         | ValueOr (s, t) -> ValueOr (simplify_value s, simplify_value t)
+        | ValueAnd (s, t) -> ValueAnd (simplify_value s, simplify_value t)
         | ValueNot s -> ValueNot (simplify_value s)
         | ValueSomeElse (d, s, t) -> ValueSomeElse (d, simplify_value s, simplify_value t)
         | ValueIfElse (s,t,u) -> ValueIfElse (simplify_value s, simplify_value t, simplify_value u)

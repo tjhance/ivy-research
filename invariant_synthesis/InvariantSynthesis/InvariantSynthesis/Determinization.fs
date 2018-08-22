@@ -24,6 +24,10 @@
                 let (ds1, ass1, v1) = aux v1
                 let (ds2, ass2, v2) = aux v2
                 (ds1@ds2, ass1@ass2, ValueOr (v1,v2))
+            | ValueAnd (v1, v2) ->
+                let (ds1, ass1, v1) = aux v1
+                let (ds2, ass2, v2) = aux v2
+                (ds1@ds2, ass1@ass2, ValueAnd (v1,v2))
             | ValueNot v ->
                 let (ds,ass,v) = aux v
                 (ds, ass, ValueNot v)
