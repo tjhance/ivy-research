@@ -62,6 +62,9 @@
         | ValueForall (d,v) ->
             let possible_values = Model.all_values m.Types infos d.Type |> Seq.toList
             AST.ConstBool (List.forall (fun cv -> eval_value_with m infos env v [d.Name] [cv] = AST.ConstBool true) possible_values)
+        | ValueExists (d,v) ->
+            let possible_values = Model.all_values m.Types infos d.Type |> Seq.toList
+            AST.ConstBool (List.exists (fun cv -> eval_value_with m infos env v [d.Name] [cv] = AST.ConstBool true) possible_values)
         | ValueInterpreted (str, vs) ->
             let lst = List.map (evaluate_value m infos env) vs
             (find_interpreted_action m str).Effect infos env lst

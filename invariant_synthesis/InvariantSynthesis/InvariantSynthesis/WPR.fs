@@ -255,6 +255,15 @@
                 fail_if_ctx_depends_on ctx (Set.singleton new_d.Name)
                 let v = Z3Forall (new_d, v)
                 (ctx, v)
+            | ValueExists (d, v) ->
+                let new_d = AST.default_var_decl (unique_name d.Name) d.Type
+                let renaming = Map.add d.Name new_d.Name Map.empty
+                let v = rename_value renaming v
+
+                let (ctx, v) = aux v
+                fail_if_ctx_depends_on ctx (Set.singleton new_d.Name)
+                let v = Z3Exists (new_d, v)
+                (ctx, v)
             | ValueInterpreted (str, _) ->
                 aux (ValueStar (MinimalAST.find_interpreted_action m str).Output)
         let (ctx, v) = aux v

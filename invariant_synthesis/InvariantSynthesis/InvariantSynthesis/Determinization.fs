@@ -49,6 +49,10 @@
                 let (ds,ass,v) = aux v
                 fail_if_assumptions_depend_on ass d.Name
                 (ds,ass,ValueForall(d,v))
+            | ValueExists (d, v) ->
+                let (ds,ass,v) = aux v
+                fail_if_assumptions_depend_on ass d.Name
+                (ds,ass,ValueExists(d,v))
             | ValueInterpreted (str, _) ->
                 aux (ValueStar (find_interpreted_action md str).Output)
         aux v

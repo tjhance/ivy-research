@@ -21,6 +21,7 @@
         | ValueSomeElse of VarDecl * Value * Value
         | ValueIfElse of Value * Value * Value
         | ValueForall of VarDecl * Value
+        | ValueExists of VarDecl * Value
         | ValueInterpreted of string * List<Value>
 
     type Statement =
@@ -88,6 +89,9 @@
         | ValueForall (d,v) ->
             let dico = Map.remove d.Name dico
             ValueForall (d, map_vars_in_value v dico)
+        | ValueExists (d,v) ->
+            let dico = Map.remove d.Name dico
+            ValueExists (d, map_vars_in_value v dico)
         | ValueInterpreted (str, vs) ->
             ValueInterpreted (str, List.map (fun v -> map_vars_in_value v dico) vs)
 
@@ -106,6 +110,9 @@
         | ValueForall (d, v) -> 
             let fv = free_vars_of_value v
             Set.remove d.Name fv
+        | ValueExists (d, v) -> 
+            let fv = free_vars_of_value v
+            Set.remove d.Name fv
         | ValueInterpreted (_, vs) -> Set.unionMany (List.map free_vars_of_value vs)
 
     let rec value2ast v =
@@ -121,6 +128,7 @@
         | ValueSomeElse (d, v1, v2) -> AST.ValueSomeElse (d, value2ast v1, value2ast v2)
         | ValueIfElse (c, v1, v2) -> AST.ValueIfElse (value2ast c, value2ast v1, value2ast v2)
         | ValueForall (d, v) -> AST.ValueForall (d, value2ast v)
+        | ValueExists (d, v) -> AST.ValueExists (d, value2ast v)
         | ValueInterpreted (str, vs) -> AST.ValueInterpreted (str, List.map value2ast vs)
 
     let type_of_value (m:AST.ModuleDecl<'a,'b>) v dico =
@@ -143,6 +151,7 @@
         | ValueSomeElse (d, s, t) -> ValueSomeElse (d, simplify_value s, simplify_value t)
         | ValueIfElse (s,t,u) -> ValueIfElse (simplify_value s, simplify_value t, simplify_value u)
         | ValueForall (d, v) -> ValueForall (d, simplify_value v)
+        | ValueExists (d, v) -> ValueExists (d, simplify_value v)
         | ValueInterpreted (s, l) -> ValueInterpreted (s, List.map simplify_value l)
 
     let value2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) (v:AST.Value) =

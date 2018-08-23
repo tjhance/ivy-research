@@ -252,6 +252,8 @@
                     let possibilities = List.filter (fun (b, _) -> b = AST.ConstBool false) all_possibilities
                     let possibilities = Set.unionMany (List.map (fun (_,cfgs) -> cfgs) possibilities)
                     (AST.ConstBool false, possibilities)
+            | ValueExists (decl, v) ->
+                marks_for_value mdecl decls infos env uvar (ValueNot (ValueForall (decl, ValueNot v)))
             | ValueInterpreted (str, vs) ->
                 let res = List.map (marks_for_value mdecl decls infos env uvar) vs
                 let (cvs, cfgs) = List.unzip res
