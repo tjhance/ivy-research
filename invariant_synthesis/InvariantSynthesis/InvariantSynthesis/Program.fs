@@ -172,6 +172,143 @@ let analyse_example_ending mmd decls infos tr formula =
     else
         (Trace.assume_failed tr, false, Marking.empty_config)
 
+let do_analysis init_actions md decls build_mmd manual verbose =
+    // Choose the action to analyze
+    printfn "Please enter the name of the module containing the actions to analyze:"
+    let main_module = Console.ReadLine ()
+    let possible_actions = List.filter (fun (prov,_) -> prov = main_module) md.Exports
+    let possible_actions = List.map (fun (_,str) -> str) possible_actions
+
+    if not (List.isEmpty possible_actions)
+    then
+        // Build minimal ASTs
+        let mmds = List.fold (fun acc action -> Map.add action (build_mmd action) acc) Map.empty possible_actions
+
+        // Let's go!
+
+        let counterexample =
+            if manual
+            then manual_counterexample md decls possible_actions mmds verbose
+            else auto_counterexample md decls main_module mmds
+
+        match counterexample with
+        | None -> ()
+        | Some (name, infos, env, cs, formula, tr) ->
+            Printer.print_model infos env
+
+            let mmd = Map.find name mmds
+            let (b,finished_exec,(m,um,ad)) =
+                analyse_example_ending mmd decls infos tr formula
+            if b then failwith "Invalid counterexample!"
+
+            printfn "Going back through the action..."
+            let (m,um,ad) = Marking.marks_before_statement mmd decls infos true false tr (m,um,ad)
+            let (m,um) = (Marking.remove_all_var_marks m, Marking.remove_all_var_marks um)
+            if verbose
+            then
+                printfn "%A" m
+                printfn "%A" um
+                printfn "%A" ad
+            let common_cvs = Formula.concrete_values_of_marks env m
+
+            // Printing intermediate result
+            let f = Formula.generate_invariant env common_cvs (Solver.simplify_marks md mmd env m (Marking.empty_marks)) []
+            let f = Formula.simplify_value f
+            printfn "%s" (Printer.value_to_string decls f 0)
+            printfn ""
+
+            let allowed_paths = ref []
+            if ad.md
+            then
+                printfn "This invariant may be too strong!"
+                printfn "(Some model-dependent marks have been ignored)"
+                printfn "Would you like to weaken the invariant with an allowed execution? (y/n)"
+                let answer = ref (Console.ReadLine())
+                let only_terminating_exec = ref true
+                while !answer = "y" do
+
+                    let allowed_path_opt =
+                        if manual
+                        then manual_allowed_path md decls env cs m um
+                        else auto_allowed_path md mmd env formula name m (Map.toList mmds) common_cvs (!allowed_paths) (!only_terminating_exec)
+
+                    match allowed_path_opt with
+                    | Some (infos_allowed, env_allowed) ->
+                        let args_decl = (MinimalAST.find_action mmd name).Args
+                        let tr_allowed = TInterpreter.trace_action mmd infos_allowed env_allowed name (List.map (fun (d:VarDecl) -> MinimalAST.ValueVar d.Name) args_decl) AST.impossible_var_factor
+
+                        let (b_al,_,(m_al,um_al,ad_al)) =
+                            analyse_example_ending mmd decls infos_allowed tr_allowed formula
+
+                        if b_al
+                        then
+                            let (m_al,_,ad_al) = Marking.marks_before_statement mmd decls infos_allowed finished_exec true tr_allowed (m_al,um_al,ad_al)
+                            let m_al = Marking.remove_all_var_marks m_al
+                            if ad_al.md
+                            then printfn "Warning: Some marks still are model-dependent! Generated invariant could be weaker than expected."
+
+                            // Printing
+                            let f_al = Formula.generate_semi_generalized_formula common_cvs (0,Map.empty) env_allowed (Solver.simplify_marks md mmd env_allowed m_al m)
+                            let f_al = Formula.simplify_value f_al
+                            printfn "%s" (Printer.value_to_string decls f_al 0)
+
+                            // Minimization (optional)
+                            printfn "Try to minimize this existential part now (can weaken the final invariant)? (n:no/y:yes)"
+                            let m_al =
+                                let line = Console.ReadLine ()
+                                if line = "y"
+                                then
+                                    let m_al = Solver.wpr_based_minimization_existential_part md mmd infos env (Map.toList mmds) formula m common_cvs env_allowed m_al
+                                    let f_al = Formula.generate_semi_generalized_formula common_cvs (0,Map.empty) env_allowed (Solver.simplify_marks md mmd env_allowed m_al m)
+                                    let f_al = Formula.simplify_value f_al
+                                    printfn "%s" (Printer.value_to_string decls f_al 0)
+                                    m_al
+                                else m_al
+
+                            allowed_paths := (m_al,env_allowed)::(!allowed_paths)
+                        else printfn "ERROR: Illegal execution!"
+                    | None ->
+                        printfn "No more allowed execution found!"
+                        if !only_terminating_exec = true
+                        then
+                            printfn "Extending the search domain to non-terminating runs..."
+                            only_terminating_exec := false
+        
+                    printfn "Would you like to weaken the invariant with an allowed execution? (y/n)"
+                    answer := Console.ReadLine()
+            else
+                printfn "These conditions are sufficient to break the invariant!"
+
+            printfn "Minimize universal part? (n:no/s:safe/h:hard/[0-9]:sbv)"
+            let m =
+                let line = Console.ReadLine ()
+                if line = "h"
+                then Solver.wpr_based_minimization md mmd infos env name (Map.toList mmds) formula m common_cvs (!allowed_paths) true
+                else if line = "s"
+                then Solver.wpr_based_minimization md mmd infos env name (Map.toList mmds) formula m common_cvs (!allowed_paths) false
+                else if line = "n"
+                then m
+                else
+                    let boundary = int(Convert.ToUInt32 (line))
+                    Solver.sbv_based_minimization md mmd infos env (Map.toList mmds) init_actions m common_cvs (!allowed_paths) boundary
+            let m = Solver.simplify_marks md mmd env m (Marking.empty_marks)
+
+            if List.length (!allowed_paths) > 0
+            then
+                printfn "Minimize existential parts? (n:no/y:yes)"
+                if Console.ReadLine () = "y"
+                then
+                    let allowed_paths' = List.map (fun (m_al,env_al) -> (Solver.wpr_based_minimization_existential_part md mmd infos env (Map.toList mmds) formula m common_cvs env_al m_al,env_al)) (!allowed_paths)
+                    allowed_paths := allowed_paths'
+                let allowed_paths' = List.map (fun (m_al,env_al) -> (Solver.simplify_marks md mmd env_al m_al m,env_al)) (!allowed_paths)
+                allowed_paths := allowed_paths'
+
+            let f = Formula.generate_invariant env common_cvs m (!allowed_paths)
+            let f = Formula.simplify_value f
+            printfn "\nInvariant to add:"
+            printfn "%s" (Printer.value_to_string decls f 0)
+            ignore (Console.ReadLine())
+
 [<EntryPoint>]
 let main argv =
 
@@ -236,140 +373,5 @@ let main argv =
     let init_actions = List.map (fun str -> (str,build_mmd str)) init_actions
 
     while true do
-        // Choose the action to analyze
-        printfn "Please enter the name of the module containing the actions to analyze:"
-        let main_module = Console.ReadLine ()
-        let possible_actions = List.filter (fun (prov,_) -> prov = main_module) md.Exports
-        let possible_actions = List.map (fun (_,str) -> str) possible_actions
-
-        if not (List.isEmpty possible_actions)
-        then
-            // Build minimal ASTs
-            let mmds = List.fold (fun acc action -> Map.add action (build_mmd action) acc) Map.empty possible_actions
-
-            // Let's go!
-
-            let counterexample =
-                if manual
-                then manual_counterexample md decls possible_actions mmds verbose
-                else auto_counterexample md decls main_module mmds
-
-            match counterexample with
-            | None -> ()
-            | Some (name, infos, env, cs, formula, tr) ->
-                Printer.print_model infos env
-
-                let mmd = Map.find name mmds
-                let (b,finished_exec,(m,um,ad)) =
-                    analyse_example_ending mmd decls infos tr formula
-                if b then failwith "Invalid counterexample!"
-
-                printfn "Going back through the action..."
-                let (m,um,ad) = Marking.marks_before_statement mmd decls infos true false tr (m,um,ad)
-                let (m,um) = (Marking.remove_all_var_marks m, Marking.remove_all_var_marks um)
-                if verbose
-                then
-                    printfn "%A" m
-                    printfn "%A" um
-                    printfn "%A" ad
-                let common_cvs = Formula.concrete_values_of_marks env m
-
-                // Printing intermediate result
-                let f = Formula.generate_invariant env common_cvs (Solver.simplify_marks md mmd env m (Marking.empty_marks)) []
-                let f = Formula.simplify_value f
-                printfn "%s" (Printer.value_to_string decls f 0)
-                printfn ""
-
-                let allowed_paths = ref []
-                if ad.md
-                then
-                    printfn "This invariant may be too strong!"
-                    printfn "(Some model-dependent marks have been ignored)"
-                    printfn "Would you like to weaken the invariant with an allowed execution? (y/n)"
-                    let answer = ref (Console.ReadLine())
-                    let only_terminating_exec = ref true
-                    while !answer = "y" do
-
-                        let allowed_path_opt =
-                            if manual
-                            then manual_allowed_path md decls env cs m um
-                            else auto_allowed_path md mmd env formula name m (Map.toList mmds) common_cvs (!allowed_paths) (!only_terminating_exec)
-
-                        match allowed_path_opt with
-                        | Some (infos_allowed, env_allowed) ->
-                            let args_decl = (MinimalAST.find_action mmd name).Args
-                            let tr_allowed = TInterpreter.trace_action mmd infos_allowed env_allowed name (List.map (fun (d:VarDecl) -> MinimalAST.ValueVar d.Name) args_decl) AST.impossible_var_factor
-
-                            let (b_al,_,(m_al,um_al,ad_al)) =
-                                analyse_example_ending mmd decls infos_allowed tr_allowed formula
-
-                            if b_al
-                            then
-                                let (m_al,_,ad_al) = Marking.marks_before_statement mmd decls infos_allowed finished_exec true tr_allowed (m_al,um_al,ad_al)
-                                let m_al = Marking.remove_all_var_marks m_al
-                                if ad_al.md
-                                then printfn "Warning: Some marks still are model-dependent! Generated invariant could be weaker than expected."
-
-                                // Printing
-                                let f_al = Formula.generate_semi_generalized_formula common_cvs (0,Map.empty) env_allowed (Solver.simplify_marks md mmd env_allowed m_al m)
-                                let f_al = Formula.simplify_value f_al
-                                printfn "%s" (Printer.value_to_string decls f_al 0)
-
-                                // Minimization (optional)
-                                printfn "Try to minimize this existential part now (can weaken the final invariant)? (n:no/y:yes)"
-                                let m_al =
-                                    let line = Console.ReadLine ()
-                                    if line = "y"
-                                    then
-                                        let m_al = Solver.wpr_based_minimization_existential_part md mmd infos env (Map.toList mmds) formula m common_cvs env_allowed m_al
-                                        let f_al = Formula.generate_semi_generalized_formula common_cvs (0,Map.empty) env_allowed (Solver.simplify_marks md mmd env_allowed m_al m)
-                                        let f_al = Formula.simplify_value f_al
-                                        printfn "%s" (Printer.value_to_string decls f_al 0)
-                                        m_al
-                                    else m_al
-
-                                allowed_paths := (m_al,env_allowed)::(!allowed_paths)
-                            else printfn "ERROR: Illegal execution!"
-                        | None ->
-                            printfn "No more allowed execution found!"
-                            if !only_terminating_exec = true
-                            then
-                                printfn "Extending the search domain to non-terminating runs..."
-                                only_terminating_exec := false
-            
-                        printfn "Would you like to weaken the invariant with an allowed execution? (y/n)"
-                        answer := Console.ReadLine()
-                else
-                    printfn "These conditions are sufficient to break the invariant!"
-
-                printfn "Minimize universal part? (n:no/s:safe/h:hard/[0-9]:sbv)"
-                let m =
-                    let line = Console.ReadLine ()
-                    if line = "h"
-                    then Solver.wpr_based_minimization md mmd infos env name (Map.toList mmds) formula m common_cvs (!allowed_paths) true
-                    else if line = "s"
-                    then Solver.wpr_based_minimization md mmd infos env name (Map.toList mmds) formula m common_cvs (!allowed_paths) false
-                    else if line = "n"
-                    then m
-                    else
-                        let boundary = int(Convert.ToUInt32 (line))
-                        Solver.sbv_based_minimization md mmd infos env (Map.toList mmds) init_actions m common_cvs (!allowed_paths) boundary
-                let m = Solver.simplify_marks md mmd env m (Marking.empty_marks)
-
-                if List.length (!allowed_paths) > 0
-                then
-                    printfn "Minimize existential parts? (n:no/y:yes)"
-                    if Console.ReadLine () = "y"
-                    then
-                        let allowed_paths' = List.map (fun (m_al,env_al) -> (Solver.wpr_based_minimization_existential_part md mmd infos env (Map.toList mmds) formula m common_cvs env_al m_al,env_al)) (!allowed_paths)
-                        allowed_paths := allowed_paths'
-                    let allowed_paths' = List.map (fun (m_al,env_al) -> (Solver.simplify_marks md mmd env_al m_al m,env_al)) (!allowed_paths)
-                    allowed_paths := allowed_paths'
-
-                let f = Formula.generate_invariant env common_cvs m (!allowed_paths)
-                let f = Formula.simplify_value f
-                printfn "\nInvariant to add:"
-                printfn "%s" (Printer.value_to_string decls f 0)
-                ignore (Console.ReadLine())
-
+        do_analysis init_actions md decls build_mmd manual verbose
     0
