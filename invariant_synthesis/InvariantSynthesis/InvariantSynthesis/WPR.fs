@@ -193,6 +193,14 @@
                     v1
                 else if cond = Z3Const (AST.ConstBool false) then
                     v2
+                else if v1 = Z3Const (AST.ConstBool true) then
+                    aux (Z3Or (cond, v2))
+                else if v1 = Z3Const (AST.ConstBool false) then
+                    aux (Z3And (Z3Not cond, v2))
+                else if v2 = Z3Const (AST.ConstBool true) then
+                    aux (Z3Or (Z3Not cond, v1))
+                else if v2 = Z3Const (AST.ConstBool false) then
+                    aux (Z3And (cond, v1))
                 else
                     Z3IfElse (cond, v1, v2)
             | Z3Forall (d, v) -> Z3Forall (d, aux v)
