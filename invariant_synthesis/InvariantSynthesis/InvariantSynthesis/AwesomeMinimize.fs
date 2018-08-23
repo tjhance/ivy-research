@@ -62,12 +62,18 @@ module AwesomeMinimize
           | [x] -> x
           | x :: rest -> Z3Or (x, or_list rest)
 
-  let minimize (v: Z3Value) : Z3Value =
+  let minimize (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) actions init_actions (v: Z3Value) : Z3Value =
     let v = simplify_z3_value v
     let v = push_negations_down v
 
+    let axioms = Solver.z3_formula_for_axioms mmd
+    let k = 3
     let is_valid (v: Z3Value) : bool =
-      failwith "is_valid not impl"
+      let f = WPR.Z3And (axioms, Solver.has_k_exec_counterexample_formula v actions init_actions k)
+      match Solver.check_z3_formula md [] f 5000 with
+        | Solver.SolverResult.UNKNOWN -> failwith "got UNKNOWN"
+        | Solver.SolverResult.UNSAT -> true
+        | Solver.SolverResult.SAT _ -> false
 
     let minimize_part v =
       let pieces = ref (get_disjuncts v)

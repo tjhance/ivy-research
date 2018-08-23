@@ -19,13 +19,13 @@
         let (_,_,f) = Formula.formula_for_marks env (0,Map.empty) Set.empty m
         minimal_formula_to_z3 mmd (MinimalAST.value2minimal md f)
 
-    let z3_fomula_for_axioms (mmd:MinimalAST.ModuleDecl<'a,'b>) =
+    let z3_formula_for_axioms (mmd:MinimalAST.ModuleDecl<'a,'b>) =
         WPR.conjunction_of (WPR.conjectures_to_z3values mmd (MinimalAST.axioms_decls_to_formulas mmd.Axioms))
 
     let z3_formula_for_axioms_and_conjectures (mmd:MinimalAST.ModuleDecl<'a,'b>) =
         let all_invariants = MinimalAST.invariants_decls_to_formulas mmd.Invariants
         let conjectures = WPR.conjunction_of (WPR.conjectures_to_z3values mmd all_invariants)
-        let axioms = z3_fomula_for_axioms mmd
+        let axioms = z3_formula_for_axioms mmd
         WPR.Z3And (axioms, conjectures)
 
     [<NoComparison>]
@@ -298,7 +298,7 @@
         let save_m = m
         let m = expand_marks md mmd infos env m // We expand marks so some weak constraints can be kept instead of stronger constraints
 
-        let axioms = z3_fomula_for_axioms mmd
+        let axioms = z3_formula_for_axioms mmd
         let give_k_invariant m =
             let f = minimal_formula_to_z3 mmd (MinimalAST.value2minimal md (Formula.generate_invariant env common_cvs m alt_exec))
             let f = WPR.Z3And (axioms, has_k_exec_counterexample_formula f actions init_actions boundary)

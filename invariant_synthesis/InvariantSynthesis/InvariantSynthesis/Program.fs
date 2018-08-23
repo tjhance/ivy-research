@@ -202,7 +202,8 @@ let do_analysis1 init_actions md decls build_mmd manual verbose =
             let wpr = WPR.simplify_z3_value wpr
             printfn "wpr: %s" (Printer.z3value_to_string decls wpr)
 
-            let mini = AwesomeMinimize.minimize wpr
+            let actions = Map.toList mmds
+            let mini = AwesomeMinimize.minimize md mmd actions init_actions wpr
             printfn "minimized: %s" (Printer.z3value_to_string decls mini)
 
 
