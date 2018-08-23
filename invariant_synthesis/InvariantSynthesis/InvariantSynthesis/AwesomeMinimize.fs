@@ -156,7 +156,7 @@ module AwesomeMinimize
 
       traverse_and_edit_tree tree
       let result = m_to_z3 tree
-      printfn "trying to minimize %s" (Printer.z3value_to_string decls result)
+      printfn "got result %s" (Printer.z3value_to_string decls result)
       result
 
     let minimized = and_list (List.map minimize_part (get_conjuncts v))

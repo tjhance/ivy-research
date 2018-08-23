@@ -126,7 +126,52 @@
         value_to_string decls (MinimalAST.value2ast v) 0
 
     let z3value_to_string (decls:Model.Declarations) (v: WPR.Z3Value) : string =
-        mvalue_to_string decls (WPR.z3value_to_value v)
+      let rec get_conjuncts (v: WPR.Z3Value) =
+          match v with
+              | WPR.Z3And (a, b) -> List.append (get_conjuncts a) (get_conjuncts b)
+              | _ -> [v]
+
+      let rec get_disjuncts (v: WPR.Z3Value) =
+          match v with
+              | WPR.Z3Or (a, b) -> List.append (get_conjuncts a) (get_conjuncts b)
+              | _ -> [v]
+
+      let name_map : Map<string, string> ref = ref Map.empty
+      let i = ref 0
+      let new_name () =
+        let j = !i
+        i := j + 1
+        string (char (int 'A' + int (j % 26))) + (if j < 26 then "" else (string (j / 26)))
+      let get_name (x:string) =
+        if Map.containsKey x !name_map then
+          Map.find x !name_map
+        else
+          let n = new_name()
+          name_map := Map.add x n !name_map
+          n
+
+      let rec aux v =
+          let forall_exists symbol (vdecl: AST.VarDecl) v =
+            let name = match vdecl.Representation.DisplayName with | None -> vdecl.Name | Some s -> s
+            let u = symbol + " " + get_name name + ":" + type_to_string vdecl.Type + " " + aux v
+            "(" + u + ")"
+
+          match v with
+            | WPR.Z3Const c -> value_to_string decls (AST.ValueConst c) 0
+            | WPR.Z3Var s -> get_name s
+            | WPR.Z3Fun (s, vs) -> s + "(" + (String.concat ", " (List.map aux vs)) + ")"
+            | WPR.Z3Equal (a, b) -> aux a + " = " + aux b
+            | WPR.Z3Or _ -> "(" + (String.concat " | " (List.map aux (get_disjuncts v)))
+            | WPR.Z3Imply (a, b) -> "(" + aux a + " -> " + aux b + ")"
+            | WPR.Z3And (a, b) -> "(" + (String.concat " & " (List.map aux (get_conjuncts v)))
+            | WPR.Z3Not (WPR.Z3Equal (a, b)) -> aux a + " ~= " + aux b
+            | WPR.Z3Not a -> "~" + aux a
+            | WPR.Z3IfElse (a,b,c) -> "(if " + aux a + " then " + aux b + " else " + aux c + ")"
+            | WPR.Z3Forall (de, b) -> forall_exists "∀" de b
+            | WPR.Z3Exists (de, b) -> forall_exists "∃" de b
+            | WPR.Z3Hole -> "_"
+
+      aux v
 
     let varmark_to_string decls (env:Model.Environment) str =
         let value = Map.find str env.v
