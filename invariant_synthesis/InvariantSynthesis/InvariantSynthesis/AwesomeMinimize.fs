@@ -4,51 +4,49 @@ module AwesomeMinimize
   open MinimalAST
 
   let push_negations_down (v: Z3Value) =
-      let rec aux f neg = match f with
-                            | Z3Const _
-                            | Z3Var _
-                            | Z3Fun _
-                            | Z3Equal _
-                            | Z3IfElse _ ->
-                                if neg then
-                                  Z3Not f
-                                else
-                                  f
-                            | Z3Or (a, b) ->
-                                if neg then
-                                  Z3And (aux a neg, aux b neg)
-                                else
-                                  Z3Or (aux a neg, aux b neg)
-                            | Z3And (a, b) ->
-                                if neg then
-                                  Z3Or (aux a neg, aux b neg)
-                                else
-                                  Z3And (aux a neg, aux b neg)
-                            | Z3Imply (a, b) -> aux (Z3Or (Z3Not a, b)) neg
-                            | Z3Not a -> aux a (not neg)
-                            | Z3Forall (de, b) ->
-                                if neg then
-                                  Z3Exists (de, aux b neg)
-                                else
-                                  Z3Forall (de, aux b neg)
-                            | Z3Exists (de, b) ->
-                                if neg then
-                                  Z3Forall (de, aux b neg)
-                                else
-                                  Z3Exists (de, aux b neg)
-                            | Z3Hole -> failwith "fail: push_negations_down Z3Hole"
+      let rec aux f neg =
+          let mneg x = if neg then Z3Not x else x
+          match f with
+            | Z3Const _ -> mneg f
+            | Z3Var _ -> mneg f
+            | Z3Fun (f, args) -> mneg (Z3Fun (f, List.map (fun r -> aux r false) args))
+            | Z3Equal (a, b) -> mneg (Z3Equal (aux a false, aux b false))
+            | Z3IfElse (a, b, c) -> mneg (Z3IfElse (aux a false, aux b false, aux c false))
+            | Z3Or (a, b) ->
+                if neg then
+                  Z3And (aux a neg, aux b neg)
+                else
+                  Z3Or (aux a neg, aux b neg)
+            | Z3And (a, b) ->
+                if neg then
+                  Z3Or (aux a neg, aux b neg)
+                else
+                  Z3And (aux a neg, aux b neg)
+            | Z3Imply (a, b) -> aux (Z3Or (Z3Not a, b)) neg
+            | Z3Not a -> aux a (not neg)
+            | Z3Forall (de, b) ->
+                if neg then
+                  Z3Exists (de, aux b neg)
+                else
+                  Z3Forall (de, aux b neg)
+            | Z3Exists (de, b) ->
+                if neg then
+                  Z3Forall (de, aux b neg)
+                else
+                  Z3Exists (de, aux b neg)
+            | Z3Hole -> failwith "fail: push_negations_down Z3Hole"
       aux v false
 
 
-  let rec get_conjuncts (v: Z3Value) =
+  let rec get_conjuncts_including_forall (v: Z3Value) =
       match v with
-          | Z3And (a, b) -> List.append (get_conjuncts a) (get_conjuncts b)
-          | Z3Forall (de, b) -> List.map (fun x -> Z3Forall (de, x)) (get_conjuncts b)
+          | Z3And (a, b) -> List.append (get_conjuncts_including_forall a) (get_conjuncts_including_forall b)
+          | Z3Forall (de, b) -> List.map (fun x -> Z3Forall (de, x)) (get_conjuncts_including_forall b)
           | _ -> [v]
 
   let rec get_disjuncts (v: Z3Value) =
       match v with
-          | Z3Or (a, b) -> List.append (get_conjuncts a) (get_conjuncts b)
+          | Z3Or (a, b) -> List.append (get_disjuncts a) (get_disjuncts b)
           | _ -> [v]
 
   let rec and_list (v: Z3Value list) : Z3Value =
@@ -112,7 +110,7 @@ module AwesomeMinimize
     let v = push_negations_down v
 
     let axioms = Solver.z3_formula_for_axioms mmd
-    let k = 2
+    let k = 1
     let is_valid (v: Z3Value) : bool =
       let f = Z3And (axioms, Solver.has_k_exec_counterexample_formula v actions init_actions k)
       printfn ""
@@ -159,5 +157,5 @@ module AwesomeMinimize
       printfn "got result %s" (Printer.z3value_to_string decls result)
       result
 
-    let minimized = and_list (List.map minimize_part (get_conjuncts v))
+    let minimized = and_list (List.map minimize_part (get_conjuncts_including_forall v))
     minimized
