@@ -202,6 +202,10 @@ let do_analysis1 init_actions md decls build_mmd manual verbose =
             let wpr = WPR.simplify_z3_value wpr
             printfn "wpr: %s" (Printer.z3value_to_string decls wpr)
 
+            let mini = AwesomeMinimize.minimize wpr
+            printfn "minimized: %s" (Printer.z3value_to_string decls mini)
+
+
 let do_analysis init_actions md decls build_mmd manual verbose =
     // Choose the action to analyze
     printfn "Please enter the name of the module containing the actions to analyze:"

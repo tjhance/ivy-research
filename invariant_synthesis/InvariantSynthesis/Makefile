@@ -20,6 +20,7 @@ SRCS = \
 	InvariantSynthesis/ConstraintsParser.fs \
 	InvariantSynthesis/ParserAST.fs \
 	InvariantSynthesis/TestModule.fs \
+	InvariantSynthesis/AwesomeMinimize.fs \
 	InvariantSynthesis/Program.fs
 
 
