@@ -494,3 +494,20 @@
         then
             List.fold (fun acc (d:VarDecl) -> Z3Forall (d,acc)) res action.Args
         else Z3Not res
+
+    let z3value_to_value (f: Z3Value) : Value =
+        let rec aux f = match f with
+                        | Z3Const c -> ValueConst c
+                        | Z3Var s -> ValueVar s
+                        | Z3Fun (s, vs) -> ValueFun (s, List.map aux vs)
+                        | Z3Equal (a, b) -> ValueEqual (aux a, aux b)
+                        | Z3Or (a, b) -> ValueOr (aux a, aux b)
+                        | Z3And (a, b) -> ValueAnd (aux a, aux b)
+                        | Z3Imply (a, b) -> ValueOr (ValueNot (aux a), aux b)
+                        | Z3Not a -> ValueNot (aux a)
+                        | Z3IfElse (a,b,c) -> ValueIfElse (aux a, aux b, aux c)
+                        | Z3Forall (de, b) -> ValueForall (de, aux b)
+                        | Z3Exists (de, b) -> ValueExists (de, aux b)
+                        | Z3Hole -> failwith "can't convert Z3Hole"
+
+        aux f

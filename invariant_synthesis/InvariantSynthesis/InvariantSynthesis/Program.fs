@@ -172,6 +172,35 @@ let analyse_example_ending mmd decls infos tr formula =
     else
         (Trace.assume_failed tr, false, Marking.empty_config)
 
+let do_analysis1 init_actions md decls build_mmd manual verbose =
+    // Choose the action to analyze
+    printfn "Please enter the name of the module containing the actions to analyze:"
+    let main_module = Console.ReadLine ()
+    let possible_actions = List.filter (fun (prov,_) -> prov = main_module) md.Exports
+    let possible_actions = List.map (fun (_,str) -> str) possible_actions
+
+    if not (List.isEmpty possible_actions)
+    then
+        // Build minimal ASTs
+        let mmds = List.fold (fun acc action -> Map.add action (build_mmd action) acc) Map.empty possible_actions
+
+        // Let's go!
+
+        let counterexample =
+            if manual
+            then manual_counterexample md decls possible_actions mmds verbose
+            else auto_counterexample md decls main_module mmds
+
+        match counterexample with
+        | None -> ()
+        | Some (action_name, infos, env, cs, formula, tr) ->
+            printfn "invariant violated: %s" (Printer.mvalue_to_string decls formula)
+
+            let mmd = Map.find action_name mmds
+
+            let wpr = WPR.wpr_for_action mmd (Solver.minimal_formula_to_z3 mmd formula) action_name false
+            printfn "wpr: %s" (Printer.z3value_to_string decls wpr)
+
 let do_analysis init_actions md decls build_mmd manual verbose =
     // Choose the action to analyze
     printfn "Please enter the name of the module containing the actions to analyze:"
@@ -372,6 +401,8 @@ let main argv =
     let init_actions = List.sortWith init_actions_cmp (Set.toList init_actions)
     let init_actions = List.map (fun str -> (str,build_mmd str)) init_actions
 
-    while true do
-        do_analysis init_actions md decls build_mmd manual verbose
+    do_analysis1 init_actions md decls build_mmd manual verbose
+
+    //while true do
+    //    do_analysis init_actions md decls build_mmd manual verbose
     0

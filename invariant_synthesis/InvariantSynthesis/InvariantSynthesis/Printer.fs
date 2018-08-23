@@ -96,11 +96,11 @@
             add_parenthesis_if_needed str 7 prec
         | ValueForall (vd, f) ->
             let decls = Model.add_var_declaration vd decls
-            let str = sprintf "F %s. %s" (var_decl_to_string vd) (value_to_string decls f 1)
+            let str = sprintf "∀ %s. %s" (var_decl_to_string vd) (value_to_string decls f 1)
             add_parenthesis_if_needed str 1 prec
         | ValueExists (vd, f) ->
             let decls = Model.add_var_declaration vd decls
-            let str = sprintf "E %s. %s" (var_decl_to_string vd) (value_to_string decls f 1)
+            let str = sprintf "∃ %s. %s" (var_decl_to_string vd) (value_to_string decls f 1)
             add_parenthesis_if_needed str 1 prec
         | ValueImply (f1,f2) ->
             let str = sprintf "%s -> %s" (value_to_string decls f1 2) (value_to_string decls f2 2)
@@ -121,6 +121,12 @@
     -> : 2
     F E : 1
     *)
+
+    let mvalue_to_string (decls:Model.Declarations) (v: MinimalAST.Value) : string =
+        value_to_string decls (MinimalAST.value2ast v) 0
+
+    let z3value_to_string (decls:Model.Declarations) (v: WPR.Z3Value) : string =
+        mvalue_to_string decls (WPR.z3value_to_value v)
 
     let varmark_to_string decls (env:Model.Environment) str =
         let value = Map.find str env.v

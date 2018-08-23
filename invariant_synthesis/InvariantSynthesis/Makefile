@@ -11,10 +11,10 @@ SRCS = \
 	InvariantSynthesis/Interpreter.fs \
 	InvariantSynthesis/Trace.fs \
 	InvariantSynthesis/TInterpreter.fs \
+	InvariantSynthesis/WPR.fs \
 	InvariantSynthesis/Printer.fs \
 	InvariantSynthesis/Marking.fs \
 	InvariantSynthesis/Formula.fs \
-	InvariantSynthesis/WPR.fs \
 	InvariantSynthesis/Z3Utils.fs \
 	InvariantSynthesis/Solver.fs \
 	InvariantSynthesis/ConstraintsParser.fs \
