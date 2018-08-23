@@ -185,7 +185,16 @@
             | Z3And (v1, v2) -> Z3And (aux v1, aux v2)
             | Z3Imply (v1, v2) -> Z3Imply (aux v1, aux v2)
             | Z3Not v -> Z3Not (aux v)
-            | Z3IfElse (f, v1, v2) -> Z3IfElse (aux f, aux v1, aux v2)
+            | Z3IfElse (f, v1, v2) ->
+                let cond = aux f
+                let v1 = aux v1
+                let v2 = aux v2
+                if cond = Z3Const (AST.ConstBool true) then
+                    v1
+                else if cond = Z3Const (AST.ConstBool false) then
+                    v2
+                else
+                    Z3IfElse (cond, v1, v2)
             | Z3Forall (d, v) -> Z3Forall (d, aux v)
             | Z3Exists (d, v) -> Z3Exists (d, aux v)
             | Z3Hole -> Z3Hole

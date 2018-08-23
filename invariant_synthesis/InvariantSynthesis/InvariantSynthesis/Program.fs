@@ -199,6 +199,7 @@ let do_analysis1 init_actions md decls build_mmd manual verbose =
             let mmd = Map.find action_name mmds
 
             let wpr = WPR.wpr_for_action mmd (Solver.minimal_formula_to_z3 mmd formula) action_name false
+            let wpr = WPR.simplify_z3_value wpr
             printfn "wpr: %s" (Printer.z3value_to_string decls wpr)
 
 let do_analysis init_actions md decls build_mmd manual verbose =
