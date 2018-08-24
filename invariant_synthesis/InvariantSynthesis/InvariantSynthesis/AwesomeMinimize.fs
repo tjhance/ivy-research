@@ -110,12 +110,12 @@ module AwesomeMinimize
     let v = push_negations_down v
 
     let axioms = Solver.z3_formula_for_axioms mmd
-    let k = 1
+    let k = 3
     let is_valid (v: Z3Value) : bool =
       let f = Z3And (axioms, Solver.has_k_exec_counterexample_formula v actions init_actions k)
       printfn ""
       printfn "formula: %s" (Printer.z3value_to_string decls v)
-      //printfn "formula: %s" (Printer.z3value_to_string decls f)
+      printfn "formula to check sat of: %s" (Printer.z3value_to_string decls f)
       match Solver.check_z3_formula md [] f 5000 with
         | Solver.SolverResult.UNKNOWN -> failwith "got UNKNOWN"
         | Solver.SolverResult.UNSAT -> printfn "unsat\n"; true

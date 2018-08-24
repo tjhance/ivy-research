@@ -172,6 +172,79 @@ let analyse_example_ending mmd decls infos tr formula =
     else
         (Trace.assume_failed tr, false, Marking.empty_config)
 
+let eq a b = WPR.Z3Equal (a,b)
+let ne a b = WPR.Z3Not (WPR.Z3Equal (a,b))
+let a = WPR.Z3Var "A"
+let b = WPR.Z3Var "B"
+let c = WPR.Z3Var "C"
+let aid = WPR.Z3Var "AID"
+let bid = WPR.Z3Var "BID"
+let cid = WPR.Z3Var "CID"
+let int_to_node i = match i with | 0 -> a | 1 -> b | 2 -> c | _ -> failwith "fail"
+let int_to_id i = match i with | 0 -> aid | 1 -> bid | 2 -> cid | _ -> failwith "fail"
+let leader a = WPR.Z3Fun ("leader", [int_to_node a])
+let pnd b c = WPR.Z3Fun ("pnd", [int_to_id b; int_to_node c])
+let nid a = WPR.Z3Fun ("nid", [int_to_node a])
+let btw a b c = WPR.Z3Fun ("btw", [int_to_node a; int_to_node b; int_to_node c])
+let n a = WPR.Z3Not a
+let le a b = WPR.Z3Not (WPR.Z3Fun ("id.<", [b; a]))
+let testing =
+    WPR.Z3Forall ({Name="A"; Type=Uninterpreted "node"; Representation={DisplayName=None; Flags=Set.empty}},
+      WPR.Z3Forall ({Name="B"; Type=Uninterpreted "node"; Representation={DisplayName=None; Flags=Set.empty}},
+        WPR.Z3Forall ({Name="C"; Type=Uninterpreted "node"; Representation={DisplayName=None; Flags=Set.empty}},
+          WPR.Z3Forall ({Name="AID"; Type=Uninterpreted "id"; Representation={DisplayName=None; Flags=Set.empty}},
+            WPR.Z3Forall ({Name="BID"; Type=Uninterpreted "id"; Representation={DisplayName=None; Flags=Set.empty}},
+              WPR.Z3Forall ({Name="CID"; Type=Uninterpreted "id"; Representation={DisplayName=None; Flags=Set.empty}},
+                n (
+                          AwesomeMinimize.and_list [
+                            ne a b;
+                            ne b c;
+                            ne c a;
+                            ne aid bid;
+                            ne bid cid;
+                            ne aid cid;
+                            n (leader 0);
+                            n (leader 1);
+                            n (leader 2);
+                            le aid aid;
+                            le bid bid;
+                            le cid cid;
+                            le aid cid;
+                            le cid bid;
+                            le aid bid;
+                            n (le cid aid);
+                            n (le bid cid);
+                            n (le bid aid);
+                            pnd 0 0;
+                            n (pnd 0 1);
+                            n (pnd 0 2);
+                            n (pnd 1 1);
+                            n (pnd 1 1);
+                            n (pnd 1 1);
+                            n (pnd 2 2);
+                            n (pnd 2 2);
+                            n (pnd 2 2);
+                            ne (nid 0) (int_to_id 0);
+                            ne (nid 0) (int_to_id 1);
+                            eq (nid 0) (int_to_id 2);
+                            ne (nid 1) (int_to_id 0);
+                            eq (nid 1) (int_to_id 1);
+                            ne (nid 1) (int_to_id 2);
+                            eq (nid 2) (int_to_id 0);
+                            ne (nid 2) (int_to_id 1);
+                            ne (nid 2) (int_to_id 2);
+                            n (btw 0 0 0);
+                            n (btw 0 0 1);
+                            n (btw 0 0 2);
+                            n (btw 0 1 0);
+                            n (btw 0 1 1);
+                            btw 0 1 2;
+                            n (btw 0 2 0);
+                            n (btw 0 2 1);
+                            n (btw 0 2 2);
+                          ]
+                        )))))))
+
 let do_analysis1 init_actions md decls build_mmd manual verbose =
     // Choose the action to analyze
     printfn "Please enter the name of the module containing the actions to analyze:"
@@ -200,6 +273,7 @@ let do_analysis1 init_actions md decls build_mmd manual verbose =
 
             let wpr = WPR.wpr_for_action mmd (Solver.minimal_formula_to_z3 mmd formula) action_name false
             let wpr = WPR.simplify_z3_value wpr
+            let wpr = testing
             printfn "wpr: %s" (Printer.z3value_to_string decls wpr)
 
             let actions = Map.toList mmds
