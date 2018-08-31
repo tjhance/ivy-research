@@ -42,8 +42,15 @@
     type InterpretedActionDecl<'a,'b> = AST.InterpretedActionDecl<'a,'b>
     [<NoEquality;NoComparison>]
     type ModuleDecl<'a,'b> =
-        { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; InterpretedActions: List<InterpretedActionDecl<'a,'b>>;
-            Actions: List<ActionDecl>; Invariants: List<InvariantDecl>; Axioms: List<AxiomDecl> }
+        {
+          Name: string;
+          Types: List<TypeDecl>;
+          Funs: List<FunDecl>;
+          InterpretedActions: List<InterpretedActionDecl<'a,'b>>;
+          Actions: List<ActionDecl>;
+          Invariants: List<InvariantDecl>;
+          Axioms: List<AxiomDecl> 
+        }
 
     // Utility functions
 
