@@ -125,7 +125,7 @@
     let mvalue_to_string (decls:Model.Declarations) (v: MinimalAST.Value) : string =
         value_to_string decls (MinimalAST.value2ast v) 0
 
-    let z3value_to_string (decls:Model.Declarations) (v: WPR.Z3Value) : string =
+    let z3value_to_string_ (v: WPR.Z3Value) pretty : string =
       let rec get_conjuncts (v: WPR.Z3Value) =
           match v with
               | WPR.Z3And (a, b) -> List.append (get_conjuncts a) (get_conjuncts b)
@@ -157,7 +157,7 @@
             "(" + u + ")"
 
           match v with
-            | WPR.Z3Const c -> value_to_string decls (AST.ValueConst c) 0
+            | WPR.Z3Const c -> const_value_to_string c
             | WPR.Z3Var s -> get_name s
             | WPR.Z3Fun (s, vs) -> s + "(" + (String.concat ", " (List.map aux vs)) + ")"
             | WPR.Z3Equal (a, b) -> aux a + " = " + aux b
@@ -171,7 +171,18 @@
             | WPR.Z3Exists (de, b) -> forall_exists "∃" de b
             | WPR.Z3Hole -> "_"
 
-      aux v
+      if pretty then
+        match v with
+          | WPR.Z3And _ -> "AND\n" + String.concat "" (List.map (fun v -> "    " + aux v + "\n") (get_conjuncts v))
+          | _ -> aux v
+      else
+        aux v
+
+    let z3value_to_string (v: WPR.Z3Value) : string =
+      z3value_to_string_ v false
+
+    let z3value_to_string_pretty (v: WPR.Z3Value) : string =
+      z3value_to_string_ v true
 
     let varmark_to_string decls (env:Model.Environment) str =
         let value = Map.find str env.v

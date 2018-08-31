@@ -114,15 +114,15 @@ module AwesomeMinimize
     let is_valid (v: Z3Value) : bool =
       let f = Z3And (axioms, Solver.has_k_exec_counterexample_formula v actions init_actions k)
       printfn ""
-      printfn "formula: %s" (Printer.z3value_to_string decls v)
-      printfn "formula to check sat of: %s" (Printer.z3value_to_string decls f)
+      printfn "formula: %s" (Printer.z3value_to_string v)
+      printfn "formula to check sat of: %s" (Printer.z3value_to_string f)
       match Solver.check_z3_formula md [] f 5000 with
         | Solver.SolverResult.UNKNOWN -> failwith "got UNKNOWN"
         | Solver.SolverResult.UNSAT -> printfn "unsat\n"; true
         | Solver.SolverResult.SAT _ -> printfn "sat\n"; false
 
     let minimize_part v =
-      printfn "trying to minimize %s" (Printer.z3value_to_string decls v)
+      printfn "trying to minimize %s" (Printer.z3value_to_string v)
       let tree = z3_to_m v
 
       let rec traverse_and_edit_tree subtree : unit =
@@ -154,7 +154,7 @@ module AwesomeMinimize
 
       traverse_and_edit_tree tree
       let result = m_to_z3 tree
-      printfn "got result %s" (Printer.z3value_to_string decls result)
+      printfn "got result %s" (Printer.z3value_to_string result)
       result
 
     let minimized = and_list (List.map minimize_part (get_conjuncts_including_forall v))

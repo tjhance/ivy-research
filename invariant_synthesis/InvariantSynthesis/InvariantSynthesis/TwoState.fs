@@ -22,15 +22,23 @@ module TwoState
     let empty_context : Context = { cx_var_map = Map.empty ; cx_fun_map = Map.empty }
 
     let cx_lookup_var (s: string) (cx: Context) : string =
+      if not (Map.containsKey s cx.cx_var_map) then
+        failwith ("could not look up var: " + s)
       fst (Map.find s cx.cx_var_map)
 
     let cx_lookup_var_type (s: string) (cx: Context) : Type =
+      if not (Map.containsKey s cx.cx_var_map) then
+        failwith ("could not look up var: " + s)
       snd (Map.find s cx.cx_var_map)
 
     let cx_lookup_fun (s: string) (cx: Context) : string =
+      if not (Map.containsKey s cx.cx_fun_map) then
+        failwith ("could not look up fun: " + s)
       fst (Map.find s cx.cx_fun_map)
 
     let cx_lookup_fun_type (s: string) (cx: Context) : FunType =
+      if not (Map.containsKey s cx.cx_fun_map) then
+        failwith ("could not look up fun: " + s)
       snd (Map.find s cx.cx_fun_map)
 
     let cx_add_var (s: string) (t: string) (ty: Type) (cx: Context) : Context =
@@ -73,16 +81,16 @@ module TwoState
 
 
     let name_id = ref 0
-    let new_name () =
+    let new_name (basename: string) =
       let id = !name_id
       name_id := !name_id + 1
-      "__x" + id.ToString()
+      "__" + basename + "_" + id.ToString()
 
     let funs_are_equal_expr (fn1 : string) (fn2 : string) (ty: FunType) =
       let (arg_types, _) = ty
       let vars =
         List.map (fun ty ->
-          let name = new_name()
+          let name = new_name "x"
           let decl = AST.default_var_decl name ty
           name, decl
         ) arg_types
@@ -93,32 +101,32 @@ module TwoState
         )
       List.fold (fun expr -> fun (_, decl) -> Z3Forall (decl, expr)) inner vars
 
-    let make_two_state_for_stmt (mmd : ModuleDecl<'a,'b>) (args: List<VarDecl>) (content: Statement) =
+    let make_two_state_for_stmt (decls : Declarations) (args: List<VarDecl>) (content: Statement) =
       let assumptions = ref []
       let add_assumption (z: Z3Value) =
         assumptions := z :: !assumptions
       let skolem_vars : Map<string, Type> ref = ref Map.empty
       let skolem_funs : Map<string, FunType> ref = ref Map.empty
       
-      let new_skolem_var (ty : Type) : string =
-        let name = new_name()
+      let new_skolem_var (basename : string) (ty : Type) : string =
+        let name = new_name basename
         skolem_vars := Map.add name ty !skolem_vars
         name
 
-      let new_skolem_fun (ty : FunType) : string =
-        let name = new_name()
+      let new_skolem_fun (basename : string) (ty : FunType) : string =
+        let name = new_name basename
         skolem_funs := Map.add name ty !skolem_funs
         name
 
-      let new_var (ty: Type) : string * VarDecl =
-        let name = new_name()
+      let new_var (basename : string) (ty: Type) : string * VarDecl =
+        let name = new_name basename
         (name, AST.default_var_decl name ty)
 
       let expression (cx : Context) (v : Value) : Z3Value =
         let rec aux cx v : Z3Value =
           match v with
             | ValueConst c -> Z3Const c
-            | ValueStar ty -> Z3Var (new_skolem_var ty)
+            | ValueStar ty -> Z3Var (new_skolem_var "star" ty)
             | ValueVar v -> Z3Var (cx_lookup_var v cx)
             | ValueFun (fname, args) -> Z3Fun (cx_lookup_fun fname cx, List.map (aux cx) args)
             | ValueEqual (a, b) -> Z3Equal (aux cx a, aux cx  b)
@@ -126,8 +134,8 @@ module TwoState
             | ValueAnd (a, b) -> Z3And (aux cx a, aux cx b)
             | ValueNot a -> Z3Not (aux cx a)
             | ValueSomeElse (decl, cond, default_v) ->
-                let v = new_skolem_var decl.Type
-                let (qv, qvdecl) = new_var decl.Type
+                let v = new_skolem_var decl.Name decl.Type
+                let (qv, qvdecl) = new_var decl.Name decl.Type
                 let z3_default_v = aux cx default_v
                 add_assumption (
                   Z3Or (
@@ -140,8 +148,8 @@ module TwoState
                 )
                 Z3Var v
             | ValueIfElse (a, b, c) -> Z3IfElse (aux cx a, aux cx b, aux cx c)
-            | ValueForall (de, v) -> Z3Forall (de, aux cx v)
-            | ValueExists (de, v) -> Z3Forall (de, aux cx v)
+            | ValueForall (de, v) -> Z3Forall (de, aux (cx_add_var de.Name de.Name de.Type cx) v)
+            | ValueExists (de, v) -> Z3Exists (de, aux (cx_add_var de.Name de.Name de.Type cx) v)
             | ValueInterpreted _ -> failwith "TODO implement ValueInterpeted"
         aux cx v
 
@@ -157,7 +165,7 @@ module TwoState
             if var_then = var_else then
               var_then, ty
             else
-              let v = new_skolem_var ty
+              let v = new_skolem_var var_name ty
               add_assumption (Z3Equal (Z3Var v, Z3IfElse (Z3Var cond_var, Z3Var var_then, Z3Var var_else)))
               v, ty
           ) cx_orig.cx_var_map
@@ -173,11 +181,11 @@ module TwoState
             if fun_then = fun_else then
               fun_then, ty
             else
-              let f = new_skolem_fun ty
+              let f = new_skolem_fun fun_name ty
               let arg_types = fst ty
               let new_vars =
                 List.map (fun arg_ty ->
-                  new_var arg_ty
+                  new_var "x" arg_ty
                 ) arg_types
               let inner_assumption =
                 (Z3Equal (
@@ -203,7 +211,7 @@ module TwoState
           | NewBlock (var_decls, stmts) ->
             let cx =
               List.fold (fun cx -> fun (var_decl : VarDecl) ->
-                let v = new_skolem_var var_decl.Type
+                let v = new_skolem_var var_decl.Name var_decl.Type
                 cx_add_var var_decl.Name v var_decl.Type cx
               ) cx var_decls
             List.fold (fun cx -> fun stmt ->
@@ -217,7 +225,7 @@ module TwoState
               match z3value with
                 | Z3Var name -> name
                 | _ ->
-                  let v = new_skolem_var ty
+                  let v = new_skolem_var "x" ty
                   add_assumption (Z3Equal (Z3Var v, z3value))
                   v
             cx_update_var varname value_var ty cx
@@ -228,12 +236,12 @@ module TwoState
             let new_vars =
               List.map (fun (arg : VarDecl) ->
                 let ty = arg.Type
-                let v, vdecl = new_var ty
+                let v, vdecl = new_var arg.Name ty
                 cx_ := cx_add_var arg.Name v ty !cx_
                 (v, vdecl)
               ) args
             let z3value = expression !cx_ value
-            let new_fn = new_skolem_fun fun_ty
+            let new_fn = new_skolem_fun funname fun_ty
             let inner_assumption =
               Z3Equal (
                 Z3Fun (new_fn, List.map (fun (v,_) -> Z3Var v) new_vars),
@@ -251,7 +259,7 @@ module TwoState
               match z3value with
                 | Z3Var name -> name
                 | _ ->
-                  let v = new_skolem_var AST.Bool
+                  let v = new_skolem_var "cond" AST.Bool
                   add_assumption (Z3Equal (Z3Var v, z3value))
                   v
 
@@ -270,7 +278,7 @@ module TwoState
         cx_fun_map =
           Map.ofList (List.map (fun (fundecl : AST.FunDecl) ->
             (fundecl.Name, (fundecl.Name, (fundecl.Input, fundecl.Output)))
-          ) mmd.Funs);
+          ) decls.f);
         cx_var_map =
           Map.ofList (List.map (fun (vardecl : AST.VarDecl) ->
             (vardecl.Name, (vardecl.Name, vardecl.Type))
@@ -282,7 +290,7 @@ module TwoState
         {
           cx_fun_map = Map.ofList (List.map (fun (fundecl : AST.FunDecl) ->
             (fundecl.Name, Map.find fundecl.Name cx.cx_fun_map)
-          ) mmd.Funs);
+          ) decls.f);
           cx_var_map = Map.empty;
         }
 
@@ -294,8 +302,8 @@ module TwoState
         funs = !skolem_funs;
       }
 
-    let make_two_state_for_action (mmd : ModuleDecl<'a,'b>) (action: ActionDecl) =
-      make_two_state_for_stmt mmd action.Args action.Content
+    let make_two_state_for_action (decls : Declarations) (action: ActionDecl) =
+      make_two_state_for_stmt decls action.Args action.Content
 
     let rename_states (ts: TwoState) (name_map : Map<string, string * string>) : TwoState =
       let map_ : Map<string, string> ref = ref Map.empty
@@ -365,7 +373,7 @@ module TwoState
         funs = !funs;
       }
 
-    let composeChoice (mmd: ModuleDecl<'a,'b>) (twoStates : List<TwoState>) =
+    let composeChoice (decls: Declarations) (twoStates : List<TwoState>) (actions : List<ActionDecl>) =
       match twoStates with
         | [] -> failwith "expected at least one action"
         | [x] -> x
@@ -373,17 +381,17 @@ module TwoState
           let state_names =
             Map.ofList (List.map (fun (fundecl : FunDecl) ->
               let fn = fundecl.Name
-              let n1 = new_name()
-              let n2 = new_name()
+              let n1 = new_name fn
+              let n2 = new_name fn
               if List.forall (fun ts -> cx_lookup_var fn ts.pre = cx_lookup_var fn ts.post) twoStates then
                 (fn, (n1, n1))
               else
                 (fn, (n1, n2))
-            ) mmd.Funs)
+            ) decls.f)
 
           let twoStates = List.map (fun ts -> rename_states ts state_names) twoStates
 
-          let whichActionVars = List.map (fun _ -> AST.default_var_decl (new_name()) AST.Bool) mmd.Actions
+          let whichActionVars = List.map (fun (action : ActionDecl) -> AST.default_var_decl (new_name ("action_" + action.Name)) AST.Bool) actions
           let oneActionFormula = or_list (List.map (fun (var : AST.VarDecl) -> Z3Var var.Name) whichActionVars)
 
           let actionFormulas =
@@ -426,16 +434,21 @@ module TwoState
         | [x] -> x
         | x :: y -> composeSequentially x (composeListSequentially y)
  
-    let make_two_state_for_actions (mmd : ModuleDecl<'a,'b>) (actions : List<ActionDecl>) =
-      let twoStates = List.map (fun action -> make_two_state_for_action mmd action) actions
-      composeChoice mmd twoStates
+    let make_two_state_for_actions (decls : Declarations) (actions : List<ActionDecl>) =
+      let twoStates = List.map (fun action -> make_two_state_for_action decls action) actions
+      composeChoice decls twoStates actions
 
-    let make_two_state_for_k_exec (mmd: ModuleDecl<'a,'b>) (init_actions : List<ActionDecl>) (k : int) =
+    let make_two_state_for_k_exec mmds decls init_actions (k : int) =
+      let axioms = (List.head mmds).Axioms
       composeListSequentially (List.concat
         [
-          (List.map (fun (axiom:AxiomDecl) -> make_two_state_for_stmt mmd [] (Assume axiom.Formula)) mmd.Axioms);
-          (List.map (fun action -> make_two_state_for_action mmd action) init_actions);
+          (List.map (fun (axiom:AxiomDecl) ->
+            make_two_state_for_stmt (List.head mmds) [] (Assume axiom.Formula)) axioms);
+          (List.map (fun action ->
+            let mmd = Map.find action.Name mmds
+            make_two_state_for_action decls (find_action mmd action)) init_actions);
           (List.init k (fun _ -> composeChoice mmd (List.map (fun action -> make_two_state_for_action mmd action) mmd.Actions)));
+          (List.init k (fun _ -> make_two_state_for_actions 
         ])
 
     let subst (v : Z3Value) (cx : Context) =
@@ -455,7 +468,14 @@ module TwoState
           | Z3Hole -> Z3Hole
       aux Set.empty v
 
-    let make_sat_problem_for_k_exec (mmd: ModuleDecl<'a,'b>) (init_actions : List<ActionDecl>) (k : int) (invariant : Z3Value) =
-      let ts = make_two_state_for_k_exec mmd init_actions k
+    let make_sat_problem_for_k_exec mmds decls (init_actions : List<string>) (k : int) (invariant : Z3Value) =
+      let ts = make_two_state_for_k_exec mmds decls init_actions k
       let inv_formula = subst (Z3Not invariant) ts.post
       (Z3And (ts.formula, inv_formula), ts.vars, ts.funs)
+
+    let is_k_invariant mmds decls init_actions (k : int) (invariant : Z3Value) =
+      let init_actions = List.map fst init_actions
+      let sat_prob, _, _ = make_sat_problem_for_k_exec mmds decls init_actions k invariant
+
+      printfn "%s\n" (Printer.z3value_to_string_pretty sat_prob)
+
