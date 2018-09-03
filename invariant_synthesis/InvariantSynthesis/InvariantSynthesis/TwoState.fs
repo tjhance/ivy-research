@@ -319,22 +319,23 @@ module TwoState
       make_two_state_for_stmt mmd action.Args action.Content
 
     let rename_states (ts: TwoState) (name_map : Map<string, string * string>) : TwoState =
+      (*
       printfn "ts.pre"
       Map.iter (fun key -> fun (s, ty) -> printfn "%s -> %s" key s) ts.pre.cx_fun_map
       printfn "ts.post"
       Map.iter (fun key -> fun (s, ty) -> printfn "%s -> %s" key s) ts.post.cx_fun_map
       printfn "name map"
       Map.iter (fun key -> fun (a, b) -> printfn "%s -> (%s, %s)" key a b) name_map
+      *)
 
       let map_ : Map<string, string> ref = ref Map.empty
       let extra_equals = ref []
       let funs = ref ts.funs
-      printfn "hi"
       Map.iter (fun fun_name -> fun (pre_fun_name, post_fun_name) ->
         let cur_pre = fst (Map.find fun_name ts.pre.cx_fun_map)
         let cur_post = fst (Map.find fun_name ts.post.cx_fun_map)
-        printfn "cur_pre %s" cur_pre
-        printfn "cur_post %s" cur_post
+        (*printfn "cur_pre %s" cur_pre
+        printfn "cur_post %s" cur_post*)
         let ty = Map.find cur_pre ts.funs
         if pre_fun_name = post_fun_name then
           if cur_pre <> cur_post then
@@ -360,7 +361,6 @@ module TwoState
             funs := Map.add pre_fun_name ty !funs
             funs := Map.add post_fun_name ty !funs
       ) name_map
-      printfn "moo"
 
       let map = !map_
 
@@ -369,8 +369,8 @@ module TwoState
           | Z3Const c -> Z3Const c
           | Z3Var v -> Z3Var v
           | Z3Fun (f, args) ->
-            printfn "fun is %s" f
-            Z3Fun (Map.find f map, List.map aux args)
+              let name = if Map.containsKey f map then Map.find f map else f
+              Z3Fun (name, List.map aux args)
           | Z3Equal (a, b) -> Z3Equal (aux a, aux b)
           | Z3Or (a, b) -> Z3Or (aux a, aux b)
           | Z3And (a, b) -> Z3And (aux a, aux b)
@@ -382,20 +382,14 @@ module TwoState
           | Z3Hole -> Z3Hole
       
       let equal_formulas = List.map (fun (a, b, ty) -> funs_are_equal_expr a b ty) !extra_equals
-      printfn "hoohoo"
       let all_formulas = (aux ts.formula) :: equal_formulas
-      printfn "hoohoo2"
       let full_formula = and_list all_formulas
-
-      printfn "llama"
 
       let map_cx (cx: Context) : Context =
         {
           cx_var_map = cx.cx_var_map;
           cx_fun_map = Map.map (fun _ -> fun (t, ty) -> (Map.find t map, ty)) cx.cx_fun_map;
         }
-
-      printfn "eek"
 
       {
         pre = map_cx ts.pre
