@@ -257,6 +257,8 @@ let do_analysis1 init_actions md decls build_mmd manual verbose =
         // Build minimal ASTs
         let mmds = List.fold (fun acc action -> Map.add action (build_mmd action) acc) Map.empty possible_actions
 
+        let main_mmd = { (snd (List.head (Map.toList mmds))) with MinimalAST.Actions = List.concat (List.map (fun (_,mmd:MinimalAST.ModuleDecl<Model.TypeInfos,Model.Environment>) -> mmd.Actions) (List.append (Map.toList mmds) init_actions)) }
+
         // Let's go!
 
         let counterexample =
@@ -275,7 +277,7 @@ let do_analysis1 init_actions md decls build_mmd manual verbose =
             let wpr = WPR.simplify_z3_value wpr
             let wpr = testing
 
-            TwoState.is_k_invariant mmds init_actions 1 wpr
+            TwoState.is_k_invariant main_mmd init_actions 1 wpr
 
             (*
             printfn "wpr: %s" (Printer.z3value_to_string decls wpr)

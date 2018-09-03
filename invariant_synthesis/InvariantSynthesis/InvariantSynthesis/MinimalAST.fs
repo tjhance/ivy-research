@@ -58,10 +58,6 @@
         List.find (fun (decl:FunDecl) -> decl.Name = str) m.Funs
 
     let rec find_action (m:ModuleDecl<'a,'b>) str =
-        printfn "looking for action %s" str
-        List.iter (fun (decl:ActionDecl) ->
-          printfn "available %s" decl.Name
-        ) m.Actions
         List.find (fun (decl:ActionDecl) -> decl.Name = str) m.Actions
 
     let find_interpreted_action (m:ModuleDecl<'a,'b>) str =
