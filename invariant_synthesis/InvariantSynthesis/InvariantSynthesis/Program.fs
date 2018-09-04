@@ -218,11 +218,11 @@ let testing =
                             pnd 0 0;
                             n (pnd 0 1);
                             n (pnd 0 2);
+                            n (pnd 1 0);
                             n (pnd 1 1);
-                            n (pnd 1 1);
-                            n (pnd 1 1);
-                            n (pnd 2 2);
-                            n (pnd 2 2);
+                            n (pnd 1 2);
+                            n (pnd 2 0);
+                            n (pnd 2 1);
                             n (pnd 2 2);
                             ne (nid 0) (int_to_id 0);
                             ne (nid 0) (int_to_id 1);
