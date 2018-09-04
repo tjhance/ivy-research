@@ -153,12 +153,12 @@
       let rec aux v =
           let forall_exists symbol (vdecl: AST.VarDecl) v =
             let name = match vdecl.Representation.DisplayName with | None -> vdecl.Name | Some s -> s
-            let u = symbol + " " + get_name name + ":" + type_to_string vdecl.Type + " . " + aux v
+            let u = symbol + " " + name + ":" + type_to_string vdecl.Type + " . " + aux v
             "(" + u + ")"
 
           match v with
             | WPR.Z3Const c -> const_value_to_string c
-            | WPR.Z3Var s -> get_name s
+            | WPR.Z3Var s -> s //get_name s
             | WPR.Z3Fun (s, vs) -> s + "(" + (String.concat ", " (List.map aux vs)) + ")"
             | WPR.Z3Equal (a, b) -> aux a + " = " + aux b
             | WPR.Z3Or _ -> "(" + (String.concat " | " (List.map aux (get_disjuncts v))) + ")"
@@ -171,9 +171,19 @@
             | WPR.Z3Exists (de, b) -> forall_exists "∃" de b
             | WPR.Z3Hole -> "_"
 
+      let do_single v =
+        match v with 
+          | WPR.Z3Imply (a, b) ->
+              let bs = get_conjuncts b
+              match bs with
+                | [x] -> "    " + aux a + " -> " + aux x
+                | _ -> "    " + aux a + " ->\n" + String.concat "\n" (List.map (fun v -> "        " + aux v) bs)
+          | _ -> "    " + aux v
+
       if pretty then
         match v with
-          | WPR.Z3And _ -> "AND\n" + String.concat "" (List.map (fun v -> "    " + aux v + "\n") (get_conjuncts v))
+          | WPR.Z3And _ ->
+            "AND\n" + String.concat "" (List.map (fun v -> do_single v + "\n") (get_conjuncts v))
           | _ -> aux v
       else
         aux v

@@ -492,11 +492,52 @@ module TwoState
     let make_sat_problem_for_k_exec (mmd: ModuleDecl<'a,'b>) (init_actions : List<string>) (k : int) (invariant : Z3Value) =
       let ts = make_two_state_for_k_exec mmd init_actions k
       let inv_formula = subst (Z3Not invariant) ts.post
-      (Z3And (ts.formula, inv_formula), ts.vars, ts.funs)
+      (Z3And (WPR.simplify_z3_value ts.formula, inv_formula), ts.vars, ts.funs)
+
+    let z3sat (mmd: ModuleDecl<'a, 'b>)
+              (f: Z3Value)
+              (the_vars: Map<string, Type>)
+              (the_funs: Map<string, FunType>)
+              : bool =
+      let ctx = new Microsoft.Z3.Context()
+      let sorts = ref Map.empty 
+      let funs = ref Map.empty 
+      let vars = ref Map.empty 
+      for d in mmd.Types do
+          match d.Infos with
+          | AST.UninterpretedTypeDecl -> sorts := Map.add d.Name (ctx.MkUninterpretedSort(d.Name) :> Microsoft.Z3.Sort) (!sorts)
+          | AST.EnumeratedTypeDecl strs -> sorts := Map.add d.Name (ctx.MkEnumSort(d.Name, List.toArray strs) :> Microsoft.Z3.Sort) (!sorts)
+
+      for (name, (ty_args, ty_out)) in Map.toList the_funs do
+          let domain = List.map (Z3Utils.sort_of_type ctx (!sorts)) ty_args
+          let range = Z3Utils.sort_of_type ctx (!sorts) ty_out
+          if List.length domain = 0 then
+            funs := Map.add name (ctx.MkConstDecl(name, range)) !funs
+          else
+            funs := Map.add name (ctx.MkFuncDecl(name, Array.ofList domain, range)) !funs
+      for (name, ty) in Map.toList the_vars do
+          let range = Z3Utils.sort_of_type ctx (!sorts) ty
+          funs := Map.add name (ctx.MkConstDecl(name, range)) !funs
+      let z3ctx = {
+        Z3Utils.ModuleContext.Context = ctx;
+        Z3Utils.ModuleContext.Sorts = !sorts;
+        Z3Utils.ModuleContext.Funs = !funs;
+      }
+      let z3e = Z3Utils.build_value z3ctx !funs Map.empty f
+      match Z3Utils.check z3ctx z3e 5000 with
+        | Z3Utils.UNSAT -> false
+        | Z3Utils.UNKNOWN -> failwith "got unknown"
+        | Z3Utils.SAT model ->
+            printfn "%s\n" (model.ToString())
+            true
 
     let is_k_invariant (mmd: ModuleDecl<'a, 'b>) init_actions (k : int) (invariant : Z3Value) =
       let init_actions = List.map fst init_actions
-      let sat_prob, _, _ = make_sat_problem_for_k_exec mmd init_actions k invariant
+      let sat_prob, vars, funs = make_sat_problem_for_k_exec mmd init_actions k invariant
+      let sat_prob = WPR.simplify_z3_value sat_prob
 
       printfn "%s\n" (Printer.z3value_to_string_pretty sat_prob)
+      let is_sat = z3sat mmd sat_prob vars funs
+
+      printfn (if is_sat then "SAT" else "UNSAT")
 
