@@ -489,10 +489,44 @@ module TwoState
           | Z3Hole -> Z3Hole
       aux Set.empty v
 
+    let skolemize formula init_vars =
+      let vars = ref init_vars
+      let var_map = ref Map.empty
+      let rec aux modify v =
+        match v with
+          | Z3Const c -> Z3Const c
+          | Z3Var v -> Z3Var (if Map.containsKey v !var_map then Map.find v !var_map else v)
+          | Z3Fun (f, args) -> Z3Fun (f, List.map (aux modify) args)
+          | Z3Equal (a, b) -> Z3Equal (aux modify a, aux modify b)
+          | Z3Or (a, b) -> Z3Or (aux modify a, aux modify b)
+          | Z3And (a, b) -> Z3And (aux modify a, aux modify b)
+          | Z3Imply (a, b) -> Z3Imply (aux modify a, aux modify b)
+          | Z3Not a -> Z3Not (aux modify a)
+          | Z3IfElse (a, b, c) -> Z3IfElse (aux modify a, aux modify b, aux modify c)
+          | Z3Forall (a, b) -> Z3Forall (a, aux false b)
+          | Z3Exists (a, b) ->
+              if modify then
+                let nname = (new_name "e")
+                vars := Map.add nname a.Type !vars
+                var_map := Map.add a.Name nname !var_map
+                aux modify b
+              else
+                Z3Exists (a, aux modify b)
+          | Z3Hole -> Z3Hole
+      let res = aux true formula
+      (res, !vars)
+
     let make_sat_problem_for_k_exec (mmd: ModuleDecl<'a,'b>) (init_actions : List<string>) (k : int) (invariant : Z3Value) =
       let ts = make_two_state_for_k_exec mmd init_actions k
       let inv_formula = subst (Z3Not invariant) ts.post
-      (Z3And (WPR.simplify_z3_value ts.formula, inv_formula), ts.vars, ts.funs)
+
+      let formula = WPR.simplify_z3_value (Z3And (ts.formula, inv_formula))
+      let vars = ts.vars
+      let funs = ts.funs
+
+      let formula, vars = skolemize formula vars
+
+      (formula, vars, funs)
 
     let z3sat (mmd: ModuleDecl<'a, 'b>)
               (f: Z3Value)

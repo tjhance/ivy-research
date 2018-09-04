@@ -207,32 +207,32 @@ let testing =
                             n (leader 1);
                             n (leader 2);
                             le aid aid;
-                            le bid bid;
-                            le cid cid;
-                            le aid cid;
-                            le cid bid;
                             le aid bid;
+                            le aid cid;
+                            le bid bid;
+                            le bid cid;
+                            le cid cid;
                             n (le cid aid);
-                            n (le bid cid);
+                            n (le cid bid);
                             n (le bid aid);
-                            pnd 0 0;
+                            n (pnd 0 0);
                             n (pnd 0 1);
                             n (pnd 0 2);
-                            n (pnd 1 0);
+                            (pnd 1 0);
                             n (pnd 1 1);
                             n (pnd 1 2);
                             n (pnd 2 0);
                             n (pnd 2 1);
                             n (pnd 2 2);
-                            ne (nid 0) (int_to_id 0);
+                            eq (nid 0) (int_to_id 0);
                             ne (nid 0) (int_to_id 1);
-                            eq (nid 0) (int_to_id 2);
+                            ne (nid 0) (int_to_id 2);
                             ne (nid 1) (int_to_id 0);
                             eq (nid 1) (int_to_id 1);
                             ne (nid 1) (int_to_id 2);
-                            eq (nid 2) (int_to_id 0);
+                            ne (nid 2) (int_to_id 0);
                             ne (nid 2) (int_to_id 1);
-                            ne (nid 2) (int_to_id 2);
+                            eq (nid 2) (int_to_id 2);
                             n (btw 0 0 0);
                             n (btw 0 0 1);
                             n (btw 0 0 2);
@@ -277,7 +277,7 @@ let do_analysis1 init_actions md decls build_mmd manual verbose =
             let wpr = WPR.simplify_z3_value wpr
             let wpr = testing
 
-            TwoState.is_k_invariant main_mmd init_actions 1 wpr
+            TwoState.is_k_invariant main_mmd init_actions 2 wpr
 
             (*
             printfn "wpr: %s" (Printer.z3value_to_string decls wpr)
