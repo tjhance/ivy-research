@@ -506,7 +506,7 @@ module TwoState
           | Z3Forall (a, b) -> Z3Forall (a, aux false b)
           | Z3Exists (a, b) ->
               if modify then
-                let nname = (new_name "e")
+                let nname = (new_name a.Name)
                 vars := Map.add nname a.Type !vars
                 var_map := Map.add a.Name nname !var_map
                 aux modify b
@@ -562,7 +562,7 @@ module TwoState
         | Z3Utils.UNSAT -> false
         | Z3Utils.UNKNOWN -> failwith "got unknown"
         | Z3Utils.SAT model ->
-            printfn "%s\n" (model.ToString())
+            (*printfn "%s\n" (model.ToString())*)
             true
 
     let is_k_invariant (mmd: ModuleDecl<'a, 'b>) init_actions (k : int) (invariant : Z3Value) =

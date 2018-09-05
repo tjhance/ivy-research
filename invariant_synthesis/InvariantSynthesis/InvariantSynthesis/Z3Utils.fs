@@ -146,6 +146,7 @@
         let s = ctx.Context.MkSolver()
         //s.Set ("timeout", uint32(timeout))
         s.Assert ([|e:?> BoolExpr|])
+        (*printfn "%A\n" e*)
         match s.Check () with
         | Status.UNKNOWN ->
             printfn "ERROR: Satisfiability can't be decided!"
