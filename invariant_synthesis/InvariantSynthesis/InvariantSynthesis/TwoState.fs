@@ -42,8 +42,11 @@ module TwoState
       snd (Map.find s cx.cx_fun_map)
 
     let cx_add_var (s: string) (t: string) (ty: Type) (cx: Context) : Context =
+      (*
+      printfn "adding key %s" s
       if Map.containsKey s cx.cx_var_map then
-        failwith "cx_add_var: expected var not to be in map"
+        failwith ("cx_add_var: expected var " + s + " not to be in map")
+        *)
       {cx_var_map = Map.add s (t, ty) cx.cx_var_map ; cx_fun_map = cx.cx_fun_map }
 
     let cx_update_var (s: string) (t: string) (ty: Type) (cx: Context) : Context =
@@ -593,8 +596,9 @@ module TwoState
       let sat_prob, vars, funs = make_sat_problem_for_k_exec mmd init_actions k invariant
       let sat_prob = WPR.simplify_z3_value sat_prob
 
-      printfn "%s\n" (Printer.z3value_to_string_pretty sat_prob)
+      (*printfn "%s\n" (Printer.z3value_to_string_pretty sat_prob)*)
       let is_sat = z3sat mmd sat_prob vars funs
 
-      printfn (if is_sat then "SAT" else "UNSAT")
-
+      (*printfn (if is_sat then "SAT" else "UNSAT")*)
+      not is_sat
+      

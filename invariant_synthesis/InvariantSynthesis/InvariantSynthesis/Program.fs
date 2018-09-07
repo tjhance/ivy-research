@@ -275,17 +275,14 @@ let do_analysis1 init_actions md decls build_mmd manual verbose =
 
             let wpr = WPR.wpr_for_action mmd (Solver.minimal_formula_to_z3 mmd formula) action_name false
             let wpr = WPR.simplify_z3_value wpr
-            let wpr = testing
 
-            TwoState.is_k_invariant main_mmd init_actions 3 wpr
+            //let wpr = testing
+            //TwoState.is_k_invariant main_mmd init_actions 3 wpr
 
-            (*
-            printfn "wpr: %s" (Printer.z3value_to_string decls wpr)
+            printfn "wpr: %s" (Printer.z3value_to_string wpr)
 
-            let actions = Map.toList mmds
-            let mini = AwesomeMinimize.minimize md mmd decls actions init_actions wpr
-            printfn "minimized: %s" (Printer.z3value_to_string decls mini)
-            *)
+            let mini = AwesomeMinimize.minimize md main_mmd decls init_actions wpr
+            printfn "minimized: %s" (Printer.z3value_to_string mini)
 
 
 let do_analysis init_actions md decls build_mmd manual verbose =
