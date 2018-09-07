@@ -65,6 +65,8 @@ module TwoState
         failwith "cx_update_fun: expected ty to match"
       {cx_fun_map = Map.add s (t, ty) cx.cx_fun_map ; cx_var_map = cx.cx_var_map }
 
+    let lit_true = Z3Const (AST.ConstBool true)
+
     let mergeMaps maps = Map.ofList (List.concat (List.map Map.toList maps))
 
     let rec and_list (v: Z3Value list) : Z3Value =
@@ -102,12 +104,9 @@ module TwoState
       List.fold (fun expr -> fun (_, decl) -> Z3Forall (decl, expr)) inner vars
 
     let make_two_state_for_stmt (mmd : ModuleDecl<'a,'b>) (args: List<VarDecl>) (content: Statement) =
-      let assumptions = ref []
-      let add_assumption (z: Z3Value) =
-        assumptions := z :: !assumptions
       let skolem_vars : Map<string, Type> ref = ref Map.empty
       let skolem_funs : Map<string, FunType> ref = ref Map.empty
-      
+
       let new_skolem_var (basename : string) (ty : Type) : string =
         let name = new_name basename
         skolem_vars := Map.add name ty !skolem_vars
@@ -122,38 +121,64 @@ module TwoState
         let name = new_name basename
         (name, AST.default_var_decl name ty)
 
-      let expression (cx : Context) (v : Value) : Z3Value =
-        let rec aux cx v : Z3Value =
+      let expression (cx : Context) (v : Value) : Z3Value * Z3Value =
+        let rec aux cx v : Z3Value * Z3Value =
           match v with
-            | ValueConst c -> Z3Const c
-            | ValueStar ty -> Z3Var (new_skolem_var "star" ty)
-            | ValueVar v -> Z3Var (cx_lookup_var v cx)
-            | ValueFun (fname, args) -> Z3Fun (cx_lookup_fun fname cx, List.map (aux cx) args)
-            | ValueEqual (a, b) -> Z3Equal (aux cx a, aux cx  b)
-            | ValueOr (a, b) -> Z3Or (aux cx a, aux cx b)
-            | ValueAnd (a, b) -> Z3And (aux cx a, aux cx b)
-            | ValueNot a -> Z3Not (aux cx a)
+            | ValueConst c -> (lit_true, Z3Const c)
+            | ValueStar ty -> (lit_true, Z3Var (new_skolem_var "star" ty))
+            | ValueVar v -> (lit_true, Z3Var (cx_lookup_var v cx))
+            | ValueFun (fname, args) ->
+                let ar = List.map (aux cx) args
+                let ass = and_list (List.map fst ar)
+                let res = Z3Fun (cx_lookup_fun fname cx, List.map snd ar)
+                (ass, res)
+            | ValueEqual (a, b) ->
+                let (ass1, res1) = aux cx a
+                let (ass2, res2) = aux cx b
+                (Z3And (ass1, ass2), Z3Equal (res1, res2))
+            | ValueOr (a, b) ->
+                let (ass1, res1) = aux cx a
+                let (ass2, res2) = aux cx b
+                (Z3And (ass1, ass2), Z3Or (res1, res2))
+            | ValueAnd (a, b) ->
+                let (ass1, res1) = aux cx a
+                let (ass2, res2) = aux cx b
+                (Z3And (ass1, ass2), Z3And (res1, res2))
+            | ValueNot a ->
+                let (ass1, res1) = aux cx a
+                (ass1, Z3Not res1)
             | ValueSomeElse (decl, cond, default_v) ->
                 let v = new_skolem_var decl.Name decl.Type
                 let (qv, qvdecl) = new_var decl.Name decl.Type
-                let z3_default_v = aux cx default_v
-                add_assumption (
+                let (ass0, z3_default_v) = aux cx default_v
+                let (ass1, res_cond) = aux (cx_add_var decl.Name v decl.Type cx) cond
+                let (ass2, res_cond') = aux (cx_add_var decl.Name qv decl.Type cx) cond
+                let ass = (
                   Z3Or (
-                    aux (cx_add_var decl.Name v decl.Type cx) cond,
+                    res_cond,
                     Z3And (
                       Z3Equal (Z3Var v, z3_default_v),
-                      Z3Forall (qvdecl, Z3Not (aux (cx_add_var decl.Name qv decl.Type cx) cond))
+                      Z3Forall (qvdecl, Z3Not res_cond')
                     )
                   )
                 )
-                Z3Var v
-            | ValueIfElse (a, b, c) -> Z3IfElse (aux cx a, aux cx b, aux cx c)
-            | ValueForall (de, v) -> Z3Forall (de, aux (cx_add_var de.Name de.Name de.Type cx) v)
-            | ValueExists (de, v) -> Z3Exists (de, aux (cx_add_var de.Name de.Name de.Type cx) v)
+                (and_list [ass0; ass1; ass2; ass], Z3Var v)
+            | ValueIfElse (a, b, c) ->
+                let (ass1, res1) = aux cx a
+                let (ass2, res2) = aux cx b
+                let (ass3, res3) = aux cx c
+                (and_list [ass1; ass2; ass3], Z3IfElse (res1, res2, res3))
+            | ValueForall (de, v) ->
+                let (ass1, res1) = aux (cx_add_var de.Name de.Name de.Type cx) v
+                (ass1, Z3Forall (de, res1))
+            | ValueExists (de, v) ->
+                let (ass1, res1) = aux (cx_add_var de.Name de.Name de.Type cx) v
+                (ass1, Z3Exists (de, res1))
             | ValueInterpreted _ -> failwith "TODO implement ValueInterpeted"
         aux cx v
 
       let merge (cond_var: string) (cx_orig: Context) (cx_then: Context) (cx_else: Context) =
+        let assms = ref []
         let cx_var_map =
           Map.map (fun var_name -> fun _ ->
             let var_then = cx_lookup_var var_name cx_then
@@ -166,7 +191,7 @@ module TwoState
               var_then, ty
             else
               let v = new_skolem_var var_name ty
-              add_assumption (Z3Equal (Z3Var v, Z3IfElse (Z3Var cond_var, Z3Var var_then, Z3Var var_else)))
+              assms := (Z3Equal (Z3Var v, Z3IfElse (Z3Var cond_var, Z3Var var_then, Z3Var var_else))) :: !assms
               v, ty
           ) cx_orig.cx_var_map
 
@@ -199,45 +224,40 @@ module TwoState
                 List.fold (fun assm -> fun (_, vdecl) ->
                   Z3Forall (vdecl, assm)
                 ) inner_assumption new_vars
-              add_assumption full_assumption
+              assms := full_assumption :: !assms
               f, ty
           ) cx_orig.cx_fun_map
 
-        { cx_var_map = cx_var_map ; cx_fun_map = cx_fun_map }
+        (and_list !assms, { cx_var_map = cx_var_map ; cx_fun_map = cx_fun_map })
 
-      let rec statement (cx: Context) (stmt: Statement) : Context =
+      let rec statement (cx: Context) (stmt: Statement) : Z3Value * Context =
         match stmt with
-          | AtomicGroup [x] -> statement cx x
           | AtomicGroup stmts ->
-            (* TODO is this right? *)
-            List.fold (fun cx -> fun stmt ->
-              statement cx stmt
-            ) cx stmts
-            (*
-              printfn "blah: %A" l
-              failwith "TwoState: TODO implement AtomicGroup"
-              *)
+            List.fold (fun (ass0, cx) -> fun stmt ->
+              let ass1, cx' = statement cx stmt
+              (Z3And (ass0, ass1), cx')
+            ) (lit_true, cx) stmts
           | NewBlock (var_decls, stmts) ->
             let cx =
               List.fold (fun cx -> fun (var_decl : VarDecl) ->
                 let v = new_skolem_var var_decl.Name var_decl.Type
                 cx_add_var var_decl.Name v var_decl.Type cx
               ) cx var_decls
-            List.fold (fun cx -> fun stmt ->
-              statement cx stmt
-            ) cx stmts
+            List.fold (fun (ass0, cx) -> fun stmt ->
+              let ass1, cx' = statement cx stmt
+              (Z3And (ass0, ass1), cx')
+            ) (lit_true, cx) stmts
             (* TODO remove the vars that were added from cx *)
           | VarAssign (varname, value) ->
-            let z3value = expression cx value
+            let ass0, z3value = expression cx value
             let ty = cx_lookup_var_type varname cx
-            let value_var =
+            let ass, value_var =
               match z3value with
-                | Z3Var name -> name
+                | Z3Var name -> ass0, name
                 | _ ->
                   let v = new_skolem_var "x" ty
-                  add_assumption (Z3Equal (Z3Var v, z3value))
-                  v
-            cx_update_var varname value_var ty cx
+                  Z3And (ass0, (Z3Equal (Z3Var v, z3value))), v
+            (ass, cx_update_var varname value_var ty cx)
           | VarAssignAction _ -> failwith "TwoState: TODO implement VarAssignAction"
           | FunAssign (funname, args, value) ->
             let fun_ty = cx_lookup_fun_type funname cx
@@ -249,7 +269,7 @@ module TwoState
                 cx_ := cx_add_var arg.Name v ty !cx_
                 (v, vdecl)
               ) args
-            let z3value = expression !cx_ value
+            let ass0, z3value = expression !cx_ value
             let new_fn = new_skolem_fun funname fun_ty
             let inner_assumption =
               Z3Equal (
@@ -260,27 +280,30 @@ module TwoState
               List.fold (fun assm -> fun (_v, vdecl) ->
                 Z3Forall (vdecl, assm)
               ) inner_assumption new_vars
-            add_assumption full_assumption
-            cx_update_fun funname new_fn fun_ty cx
+            let ass1 = full_assumption
+            Z3And (ass0, ass1), cx_update_fun funname new_fn fun_ty cx
           | IfElse (value, then_block, else_block) ->
-            let z3value = expression cx value
-            let cond_var =
+            let ass0, z3value = expression cx value
+            let ass1, cond_var =
               match z3value with
-                | Z3Var name -> name
+                | Z3Var name -> lit_true, name
                 | _ ->
                   let v = new_skolem_var "cond" AST.Bool
-                  add_assumption (Z3Equal (Z3Var v, z3value))
-                  v
+                  (Z3Equal (Z3Var v, z3value), v)
 
-            let cx_then = statement cx then_block
-            let cx_else = statement cx else_block
+            let ass2, cx_then = statement cx then_block
+            let ass3, cx_else = statement cx else_block
 
-            merge cond_var cx cx_then cx_else
+            let ass4, cx' = merge cond_var cx cx_then cx_else
+
+            let ass = and_list [ ass0; ass1; ass4; Z3Imply (Z3Var cond_var, ass2); Z3Imply (Z3Not (Z3Var cond_var), ass3) ]
+
+            ass, cx'
 
           | IfSomeElse _ -> failwith "TwoState: TODO implement IfSomeElse"
           | Assume v ->
-            add_assumption (expression cx v)
-            cx
+            let ass0, ass1 = expression cx v
+            Z3And (ass0, ass1), cx
           | Assert _ -> failwith "TwoState: TODO implement Assert"
 
       let pre_cx = {
@@ -297,7 +320,7 @@ module TwoState
             (vardecl.Name, (v, ty))
           ) args);
       }
-      let post_cx = statement pre_cx (content)
+      let assumptions, post_cx = statement pre_cx (content)
 
       let globals_only (cx: Context) : Context =
         {
@@ -310,7 +333,7 @@ module TwoState
       {
         pre = globals_only pre_cx;
         post = globals_only post_cx;
-        formula = and_list !assumptions;
+        formula = assumptions;
         vars = !skolem_vars;
         funs = !skolem_funs;
       }

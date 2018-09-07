@@ -218,12 +218,12 @@ let testing =
                             n (pnd 0 0);
                             n (pnd 0 1);
                             n (pnd 0 2);
-                            (pnd 1 0);
+                            n (pnd 1 0);
                             n (pnd 1 1);
                             n (pnd 1 2);
                             n (pnd 2 0);
                             n (pnd 2 1);
-                            n (pnd 2 2);
+                            (pnd 2 2);
                             eq (nid 0) (int_to_id 0);
                             ne (nid 0) (int_to_id 1);
                             ne (nid 0) (int_to_id 2);
@@ -277,7 +277,7 @@ let do_analysis1 init_actions md decls build_mmd manual verbose =
             let wpr = WPR.simplify_z3_value wpr
             let wpr = testing
 
-            TwoState.is_k_invariant main_mmd init_actions 2 wpr
+            TwoState.is_k_invariant main_mmd init_actions 3 wpr
 
             (*
             printfn "wpr: %s" (Printer.z3value_to_string decls wpr)
