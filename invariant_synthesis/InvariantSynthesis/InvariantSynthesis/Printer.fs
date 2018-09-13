@@ -153,12 +153,13 @@
       let rec aux v =
           let forall_exists symbol (vdecl: AST.VarDecl) v =
             let name = match vdecl.Representation.DisplayName with | None -> vdecl.Name | Some s -> s
+            let name = get_name name
             let u = symbol + " " + name + ":" + type_to_string vdecl.Type + " . " + aux v
             "(" + u + ")"
 
           match v with
             | WPR.Z3Const c -> const_value_to_string c
-            | WPR.Z3Var s -> s //get_name s
+            | WPR.Z3Var s -> get_name s
             | WPR.Z3Fun (s, vs) -> s + "(" + (String.concat ", " (List.map aux vs)) + ")"
             | WPR.Z3Equal (a, b) -> aux a + " = " + aux b
             | WPR.Z3Or _ -> "(" + (String.concat " | " (List.map aux (get_disjuncts v))) + ")"
