@@ -1,0 +1,55 @@
+#lang ivy1.3
+
+type node
+type nset_t
+
+relation voted(X: node, Y: node)
+relation isleader(X: node)
+individual quorum: nset_t
+
+relation member(N: node, S: nset_t)
+relation majority(S: nset_t)
+axiom majority(SA) & majority(SB) -> exists N . member(N, SA) & member(N, SB)
+
+after init {
+  voted(NA, NB) := false;
+  isleader(N) := false;
+}
+
+action vote(v: node, n: node) = {
+  assume ~voted(v, NP);
+  voted(v, n) := true;
+}
+
+action become_leader(n: node, s: nset_t) = {
+  assume majority(s) & (forall NP . member(NP,s) -> voted(NP, n));
+  isleader(n) := true;
+  quorum := s;
+}
+
+export vote
+export become_leader
+
+conjecture isleader(NA) & isleader(NB) -> NA = NB
+conjecture voted(N, NA) & voted(N, NB) -> NA = NB
+#conjecture isleader(N) -> (majority(quorum) & (forall NP . member(NP, quorum) -> voted(NP, N)))
+
+# invariant found: (starting with first 2)
+# (isleader(NA) & isleader(NB)) -> NA = NB
+# (voted(N,NA) & voted(N,NB)) -> NA = NB
+# ~(isleader(P) & ~voted(P,P) & member(P,quorum))
+# ~(isleader(Q) & ~voted(N,Q) & member(N,quorum))
+# ~(isleader(N) & ~majority(quorum))
+
+# invariatn found:
+#(isleader(NA) & isleader(NB)) -> NA = NB
+#~(isleader(P) & ~isleader(Q) & voted(P,Q) & member(P,quorum))
+#~(isleader(N) & ~voted(Q,N) & member(Q,quorum))
+#~(N:node ~= @NB & voted(@NB,N) & voted(@NB,@NB))
+#~(isleader(N) & ~isleader(P) & voted(P,N) & voted(P,P))
+#~(isleader(P) & ~majority(quorum))
+#~(N:node ~= @NB & voted(P,N) & voted(P,@NB))
+#~(N:node ~= @Q & voted(N,N) & voted(N,@Q))
+#~(isleader(N) & ~isleader(Q) & voted(R,Q) & member(R,quorum))
+#~(N:node ~= @P & voted(@P,N) & voted(@P,@P))
+#~(N:node ~= P & voted(Q,N) & voted(Q,P))

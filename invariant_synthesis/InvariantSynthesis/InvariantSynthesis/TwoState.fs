@@ -345,23 +345,12 @@ module TwoState
       make_two_state_for_stmt mmd action.Args action.Content
 
     let rename_states (ts: TwoState) (name_map : Map<string, string * string>) : TwoState =
-      (*
-      printfn "ts.pre"
-      Map.iter (fun key -> fun (s, ty) -> printfn "%s -> %s" key s) ts.pre.cx_fun_map
-      printfn "ts.post"
-      Map.iter (fun key -> fun (s, ty) -> printfn "%s -> %s" key s) ts.post.cx_fun_map
-      printfn "name map"
-      Map.iter (fun key -> fun (a, b) -> printfn "%s -> (%s, %s)" key a b) name_map
-      *)
-
       let map_ : Map<string, string> ref = ref Map.empty
       let extra_equals = ref []
       let funs = ref ts.funs
       Map.iter (fun fun_name -> fun (pre_fun_name, post_fun_name) ->
         let cur_pre = fst (Map.find fun_name ts.pre.cx_fun_map)
         let cur_post = fst (Map.find fun_name ts.post.cx_fun_map)
-        (*printfn "cur_pre %s" cur_pre
-        printfn "cur_post %s" cur_post*)
         let ty = Map.find cur_pre ts.funs
         if pre_fun_name = post_fun_name then
           if cur_pre <> cur_post then
@@ -411,15 +400,17 @@ module TwoState
       let all_formulas = (aux ts.formula) :: equal_formulas
       let full_formula = and_list all_formulas
 
-      let map_cx (cx: Context) : Context =
+      let map_cx (cx: Context) is_pre : Context =
         {
           cx_var_map = cx.cx_var_map;
-          cx_fun_map = Map.map (fun _ -> fun (t, ty) -> (Map.find t map, ty)) cx.cx_fun_map;
+          cx_fun_map = Map.map (fun t -> fun (_, ty) ->
+              ((if is_pre then fst else snd) (Map.find t name_map), ty)
+            ) cx.cx_fun_map;
         }
 
       {
-        pre = map_cx ts.pre
-        post = map_cx ts.post
+        pre = map_cx ts.pre true;
+        post = map_cx ts.post false;
         formula = full_formula;
         vars = ts.vars;
         funs = !funs;
@@ -476,15 +467,18 @@ module TwoState
         pre = ts1.pre;
         post = ts2'.post;
         formula = Z3And (ts1.formula, ts2'.formula);
-        vars = mergeMaps [ts1.vars ; ts2.vars];
-        funs = mergeMaps [ts1.funs ; ts2.funs];
+        vars = mergeMaps [ts1.vars ; ts2'.vars];
+        funs = mergeMaps [ts1.funs ; ts2'.funs];
       }
 
     let rec composeListSequentially (l : List<TwoState>) =
       match l with
         | [] -> failwith "expected nonempty list"
         | [x] -> x
-        | x :: y -> composeSequentially x (composeListSequentially y)
+        | x :: y ->
+          let y1 = (composeListSequentially y)
+          let z = composeSequentially x y1
+          z
  
     let make_two_state_for_actions (mmd : ModuleDecl<'a,'b>) (actions : List<ActionDecl>) =
       let twoStates = List.map (fun action -> make_two_state_for_action mmd action) actions
@@ -588,7 +582,7 @@ module TwoState
         | Z3Utils.UNSAT -> false
         | Z3Utils.UNKNOWN -> failwith "got unknown"
         | Z3Utils.SAT model ->
-            (*printfn "%s\n" (model.ToString())*)
+            //printfn "%s\n" (model.ToString())
             true
 
     let is_k_invariant (mmd: ModuleDecl<'a, 'b>) init_actions (k : int) (invariant : Z3Value) =
@@ -596,9 +590,9 @@ module TwoState
       let sat_prob, vars, funs = make_sat_problem_for_k_exec mmd init_actions k invariant
       let sat_prob = WPR.simplify_z3_value sat_prob
 
-      (*printfn "%s\n" (Printer.z3value_to_string_pretty sat_prob)*)
+      //printfn "%s\n" (Printer.z3value_to_string_pretty sat_prob)
       let is_sat = z3sat mmd sat_prob vars funs
 
-      (*printfn (if is_sat then "SAT" else "UNSAT")*)
+      //printfn (if is_sat then "SAT\n" else "UNSAT\n")
       not is_sat
       

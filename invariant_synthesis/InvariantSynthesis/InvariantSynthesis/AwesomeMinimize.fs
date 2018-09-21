@@ -117,6 +117,7 @@ module AwesomeMinimize
     let axioms = Solver.z3_formula_for_axioms mmd
     let k = 3
     let is_valid (v: Z3Value) : bool =
+      //printfn "testing out %s" (Printer.z3value_to_string_pretty v)
       TwoState.is_k_invariant mmd init_actions k v
       (*
       let f = Z3And (axioms, Solver.has_k_exec_counterexample_formula v actions init_actions k)
@@ -132,13 +133,18 @@ module AwesomeMinimize
     let cur_invariants = Solver.z3_formula_for_axioms_and_conjectures mmd
     let is_redundant (a: Z3Value) (b: Z3Value) : bool =
       let v = Z3Not (Z3Imply (Z3And (cur_invariants, a), b))
+      //printfn "redundant %s" (Printer.z3value_to_string_pretty a)
+      //printfn "redundant %s" (Printer.z3value_to_string_pretty b)
       let z3ctx = Z3Utils.build_context md
       let z3e = Z3Utils.build_value z3ctx Map.empty Map.empty v
       match Z3Utils.check z3ctx z3e 5000 with
-        | Z3Utils.UNSAT -> true
+        | Z3Utils.UNSAT ->
+            //printfn "UNSAT\n"
+            true
         | Z3Utils.UNKNOWN -> failwith "got unknown"
         | Z3Utils.SAT model ->
             (*printfn "%s\n" (model.ToString())*)
+            //printfn "SAT\n"
             false
 
     let minimize_part v =
