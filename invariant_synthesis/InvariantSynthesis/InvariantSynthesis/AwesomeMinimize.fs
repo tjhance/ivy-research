@@ -148,7 +148,7 @@ module AwesomeMinimize
             false
 
     let minimize_part v =
-      printfn "trying to minimize %s" (Printer.z3value_to_string v)
+      //printfn "trying to minimize %s" (Printer.z3value_to_string v)
       let tree = z3_to_m v
 
       let rec traverse_and_edit_tree subtree inside_e : unit =
@@ -194,7 +194,7 @@ module AwesomeMinimize
 
       traverse_and_edit_tree tree false
       let result = m_to_z3 tree
-      printfn "got result %s" (Printer.z3value_to_string result)
+      //printfn "got result %s" (Printer.z3value_to_string result)
       result
 
     //let minimized = and_list (List.map minimize_part (get_conjuncts_including_forall v))

@@ -90,28 +90,28 @@ export learn
 
 conjecture (decision(NA, RA, VA) & decision(NB, RB, VB)) -> VA = VB
 
-conjecture propose_msg(R, VA) & propose_msg(R, VB) -> VA = VB
-conjecture vote_msg(N,R,V) -> propose_msg(R,V)
+#conjecture propose_msg(R, VA) & propose_msg(R, VB) -> VA = VB
+#conjecture vote_msg(N,R,V) -> propose_msg(R,V)
 conjecture (exists N . decision(N,R,V)) -> (exists Q . (forall N . member(N,Q) -> vote_msg(N,R,V)))
 
-conjecture (join_ack_msg(N,R,bot,V) & le(RP,R) & RP ~= R) -> ~(vote_msg(N,RP,VP))
-conjecture (join_ack_msg(N,R,RP,V) & RP ~= bot) -> (le(RP,R) & RP ~= R & vote_msg(N,RP,V))
-conjecture (join_ack_msg(N,R,RP,V) & RP ~= bot & le(RP,RPP) & RP~=RPP & le(RPP,R) & RPP~=R) -> ~(vote_msg(N,RPP,VP))
-conjecture ~(vote_msg(N,bot,V))
+#conjecture (join_ack_msg(N,R,bot,V) & le(RP,R) & RP ~= R) -> ~(vote_msg(N,RP,VP))
+#conjecture (join_ack_msg(N,R,RP,V) & RP ~= bot) -> (le(RP,R) & RP ~= R & vote_msg(N,RP,V))
+#conjecture (join_ack_msg(N,R,RP,V) & RP ~= bot & le(RP,RPP) & RP~=RPP & le(RPP,R) & RPP~=R) -> ~(vote_msg(N,RPP,VP))
+#conjecture ~(vote_msg(N,bot,V))
 
 # rewritten (12) -> (13)
-#conjecture (propose_msg(RB, VB) & le(RA,RB) & RA~=RB & VA~=VB) -> (exists N . member(N,Q) & (~(vote_msg(N,RA,VA))) & (left_round(N, RA)))
+conjecture (propose_msg(RB, VB) & le(RA,RB) & RA~=RB & VA~=VB) -> (exists N . member(N,Q) & (~(vote_msg(N,RA,VA))) & (left_round(N, RA)))
 
 #conjecture (propose_msg(RB, VB) & le(RA,RB) & RA~=RB & VA~=VB) -> (exists N . member(N,Q) & (~(vote_msg(N,RA,VA)))) & (forall M . member(M,Q) -> joined_round(M,RB))
 
 # (14)
 
-conjecture (le(RA,RB) & RA~=RB & joined_round(N,RB)) -> left_round(N,RA)
+#conjecture (le(RA,RB) & RA~=RB & joined_round(N,RB)) -> left_round(N,RA)
 
 # (15)
 
-conjecture join_ack_msg(N,R,RP,V) -> joined_round(N,R)
+#conjecture join_ack_msg(N,R,RP,V) -> joined_round(N,R)
 
 #conjecture ~(join_ack_msg(A, C, D, E) & le(B, C) & le(D, B) & ~left_round(A, B) & propose_msg(B, E) & B ~= C & B ~= D & B ~= bot & bot ~= D)
 
-conjecture (forall A:quorum . (forall B:value . (forall C:round . (forall D:node . ( C = bot() | (exists E:node . (member(E, A) & ~vote_msg(E, C, B))) | (forall F:value . (forall G:value . (forall H:round . (forall I:round . (forall J:node . (forall K:node .  ( ((K ~=  D | I ~= C | G ~= B) & ~decision(K, I, G)) | ((J ~= D | H ~= C | F ~= B) & ~decision(J, H, F)) | G = F))))))))))))
+#conjecture (forall A:quorum . (forall B:value . (forall C:round . (forall D:node . ( C = bot() | (exists E:node . (member(E, A) & ~vote_msg(E, C, B))) | (forall F:value . (forall G:value . (forall H:round . (forall I:round . (forall J:node . (forall K:node .  ( ((K ~=  D | I ~= C | G ~= B) & ~decision(K, I, G)) | ((J ~= D | H ~= C | F ~= B) & ~decision(J, H, F)) | G = F))))))))))))

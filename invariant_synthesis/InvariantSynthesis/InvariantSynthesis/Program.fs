@@ -119,12 +119,15 @@ let auto_counterexample (md:ModuleDecl) decls main_module mmds =
             if !first_loop
             then
                 first_loop := false
-                printfn "Searching assertions fail..."
+                //printfn "Searching assertions fail..."
                 Some [(-1,MinimalAST.ValueConst (ConstBool true))]
             else
+                (*
                 printfn "Select the conjecture(s) to test (separated by space, '*' for all):"
                 List.iteri (fun i (d:AST.InvariantDecl) -> printfn "%i. [%s] %s" i d.Module (Printer.value_to_string decls d.Formula 0)) invs
                 let line = Console.ReadLine()
+                *)
+                let line = "*"
                 let nbs =
                     if line = "*"
                     then List.mapi (fun i _ -> sprintf "%i" i) invs
@@ -244,6 +247,102 @@ let testing =
                             n (btw 0 2 2);
                           ]
                         )))))))
+
+let makeUniversalInvariantExcludingSubstructure
+      md
+      (infos : Model.TypeInfos)
+      (env : Model.Environment) =
+    let vars : Map<string, List<VarDecl> > =
+          Map.map (fun name -> fun sz ->
+            List.map (fun i ->
+              let tydecl = List.find (fun (typeDecl : TypeDecl) -> (typeDecl.Name = name)) md.Types
+              let ty : Type =
+                  match tydecl.Infos with
+                    | UninterpretedTypeDecl -> Uninterpreted tydecl.Name
+                    | EnumeratedTypeDecl _ -> failwith "Enumerated not implement for this func" //Enumerated tydecl.Name
+
+              let varDecl: VarDecl = {
+                Name = name + "." + i.ToString();
+                Type = ty;
+                Representation = { DisplayName = None; Flags = Set.empty };
+               }
+              varDecl
+            ) [ 0 .. sz ]
+          ) infos
+
+    let rec all_pairs (vars : VarDecl list) : (VarDecl * VarDecl) list =
+          match vars with
+          | [] -> []
+          | [x] -> []
+          | x::xs -> List.append (List.map (fun y -> (x,y)) xs) (all_pairs xs)
+    let not_equal_preds (vars : VarDecl list) =
+          List.map (fun (v1 : VarDecl, v2 : VarDecl) ->
+            ValueEqual (ValueVar v1.Name, ValueVar v2.Name)
+          ) (all_pairs vars)
+    let all_ne_preds = List.concat (List.map (fun (_, vars) -> not_equal_preds vars) (Map.toList vars))
+
+    let fn_preds =
+          List.map (fun ((fun_name : string, args : ConstValue list), output : ConstValue) ->
+            let cToVar a =
+                  match a with
+                    | ConstInt (sort_name, arg_value) ->
+                        ValueVar ((Map.find sort_name vars).[arg_value].Name)
+                    | _ -> ValueConst a
+
+            let fn_expr = ValueFun (fun_name, List.map (fun arg ->
+                    cToVar arg
+                  ) args)
+            let o = cToVar output
+            ValueEqual (fn_expr, o)
+          ) (Map.toList env.f)
+
+    let all_preds = List.append all_ne_preds fn_preds
+    let disj = AST.or_list (List.map ValueNot all_preds)
+    let all_vars : List<VarDecl> = List.concat (List.map (fun (_,vs) -> vs) (Map.toList vars))
+    let full = List.foldBack (fun v -> fun expr -> ValueForall (v, expr)) all_vars disj
+
+    full
+
+let repeatedly_construct_universals init_actions md decls build_mmd manual verbose =
+    // Choose the action to analyze
+    printfn "Please enter the name of the module containing the actions to analyze:"
+    let main_module = Console.ReadLine ()
+    let possible_actions = List.filter (fun (prov,_) -> prov = main_module) md.Exports
+    let possible_actions = List.map (fun (_,str) -> str) possible_actions
+
+    // Build minimal ASTs
+    let action_mmds = List.fold (fun acc action -> Map.add action (build_mmd action) acc) Map.empty possible_actions
+
+    let main_mmd : MinimalAST.ModuleDecl<Model.TypeInfos, Model.Environment> = { (snd (List.head (Map.toList action_mmds))) with MinimalAST.Actions = List.concat (List.map (fun (_,mmd:MinimalAST.ModuleDecl<Model.TypeInfos,Model.Environment>) -> mmd.Actions) (List.append (Map.toList action_mmds) init_actions)) }
+
+    //List.iter (fun (inv : InvariantDecl) -> printfn "module is '%s'" inv.Module) md.Invariants
+    
+    let invariants_ref = ref md.Invariants
+    let make_counterexample () =
+          let md' = AST.set_invariants md !invariants_ref
+          if manual
+          then manual_counterexample md' decls possible_actions action_mmds verbose
+          else auto_counterexample md' decls main_module action_mmds
+    let counterexample_ref = ref (make_counterexample())
+
+    while Option.isSome !counterexample_ref do
+        let counterexample  = Option.get !counterexample_ref
+        let (action_name, infos, env, cs, formula, tr) = counterexample
+        //printfn "%A" infos
+        //printfn "%A" env
+        let new_inv = makeUniversalInvariantExcludingSubstructure md infos env
+        let z3_new_inv = snd (WPR.minimal_val2z3_val main_mmd (MinimalAST.value2minimal md new_inv))
+
+        let z3_new_inv_min = AwesomeMinimize.minimize md main_mmd decls init_actions z3_new_inv
+        let new_inv_min = MinimalAST.value2ast (WPR.z3value_to_value z3_new_inv_min)
+
+        printfn "Adding invariant: %s" (Printer.value_to_string decls new_inv_min 0)
+        invariants_ref := List.append !invariants_ref [{InvariantDecl.Module = ""; Formula = new_inv_min}]
+
+        counterexample_ref := make_counterexample()
+
+    printfn "done!"
+
 
 let do_analysis1 init_actions md decls build_mmd manual verbose =
     // Choose the action to analyze
@@ -485,7 +584,9 @@ let main argv =
     let init_actions = List.sortWith init_actions_cmp (Set.toList init_actions)
     let init_actions = List.map (fun str -> (str,build_mmd str)) init_actions
 
-    do_analysis1 init_actions md decls build_mmd manual verbose
+
+    repeatedly_construct_universals init_actions md decls build_mmd manual verbose
+    //do_analysis1 init_actions md decls build_mmd manual verbose
 
     //while true do
     //    do_analysis init_actions md decls build_mmd manual verbose

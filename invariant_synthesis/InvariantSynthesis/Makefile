@@ -26,7 +26,7 @@ SRCS = \
 
 
 bin/InvariantSynthesis.exe: $(SRCS)
-	fsharpc \
+	fsharpc --debug:full \
 		-r:bin/Microsoft.Z3.dll \
 		-r:bin/FParsec.dll \
 		-r:bin/FParsecCS.dll \

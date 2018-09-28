@@ -53,3 +53,5 @@ conjecture voted(N, NA) & voted(N, NB) -> NA = NB
 #~(isleader(N) & ~isleader(Q) & voted(R,Q) & member(R,quorum))
 #~(N:node ~= @P & voted(@P,N) & voted(@P,@P))
 #~(N:node ~= P & voted(Q,N) & voted(Q,P))
+
+conjecture (forall A:nset_t . (forall B:node . (~majority(A) | (exists C:node . (member(C, A) & ~voted(C, B))) | (forall D:node . (forall E:node . (E ~= B | ~isleader(D) | E = D))))))

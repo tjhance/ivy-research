@@ -123,6 +123,20 @@
             Exports=[]
         }
 
+    let set_invariants md invs =
+        {
+            Name=md.Name;
+            Types=md.Types;
+            Funs=md.Funs;
+            Actions=md.Actions;
+            Macros=md.Macros;
+            Invariants=invs;
+            InterpretedActions=md.InterpretedActions;
+            Axioms=md.Axioms;
+            Exports=md.Exports;
+        }
+
+
     let default_var_decl name t =
         { VarDecl.Name = name ; VarDecl.Type = t ; VarDecl.Representation = default_representation }
 
@@ -368,3 +382,15 @@
         match hexpr with
         | Expr e -> type_of_expr m e dico
         | Hole d -> d.Type
+
+    let rec and_list (l : Value list) : Value =
+        match l with
+        | [] -> ValueConst (ConstBool true)
+        | [x] -> x
+        | x::ys -> ValueAnd (x, and_list ys)
+
+    let rec or_list (l : Value list) : Value =
+        match l with
+        | [] -> ValueConst (ConstBool false)
+        | [x] -> x
+        | x::ys -> ValueOr (x, and_list ys)

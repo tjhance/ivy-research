@@ -78,6 +78,7 @@
         | AST.ConstBool false -> ctx.Context.MkFalse() :> Expr
         | AST.ConstInt (t, i) ->
             let name = name_of_constint (t,i)
+            Map.iter (fun k -> fun _ -> printfn "has key %s" k) lvars
             let fd = Map.find name lvars
             ctx.Context.MkConst(fd)
         | AST.ConstEnumerated (t, str) ->
