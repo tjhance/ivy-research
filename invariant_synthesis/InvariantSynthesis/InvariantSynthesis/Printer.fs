@@ -143,15 +143,12 @@
         i := j + 1
         string (char (int 'A' + int (j % 26))) + (if j < 26 then "" else (string (j / 26)))
       let get_name (x:string) =
-        x
-        (*
         if Map.containsKey x !name_map then
           Map.find x !name_map
         else
           let n = new_name()
           name_map := Map.add x n !name_map
           n
-          *)
 
       let rec aux v =
           let forall_exists symbol (vdecl: AST.VarDecl) v =

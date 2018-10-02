@@ -180,7 +180,19 @@
             | Z3Const c -> Z3Const c
             | Z3Var str -> Z3Var str
             | Z3Fun (str,vs) -> Z3Fun (str, List.map aux vs)
-            | Z3Equal (v1,v2) -> Z3Equal (aux v1, aux v2)
+            | Z3Equal (v1,v2) ->
+                let v1 = aux v1
+                let v2 = aux v2
+                if v1 = Z3Const (AST.ConstBool true) then
+                  v2
+                else if v1 = Z3Const (AST.ConstBool false) then
+                  Z3Not v2
+                else if v2 = Z3Const (AST.ConstBool true) then
+                  v1
+                else if v2 = Z3Const (AST.ConstBool false) then
+                  Z3Not v1
+                else
+                  Z3Equal (v1, v2)
             | Z3Or (v1, v2) -> Z3Or (aux v1, aux v2)
             | Z3And (v1, v2) -> Z3And (aux v1, aux v2)
             | Z3Imply (v1, v2) -> Z3Imply (aux v1, aux v2)

@@ -393,4 +393,4 @@
         match l with
         | [] -> ValueConst (ConstBool false)
         | [x] -> x
-        | x::ys -> ValueOr (x, and_list ys)
+        | x::ys -> ValueOr (x, or_list ys)

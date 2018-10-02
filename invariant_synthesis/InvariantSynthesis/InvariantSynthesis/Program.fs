@@ -277,10 +277,13 @@ let makeUniversalInvariantExcludingSubstructure
           | x::xs -> List.append (List.map (fun y -> (x,y)) xs) (all_pairs xs)
     let not_equal_preds (vars : VarDecl list) =
           List.map (fun (v1 : VarDecl, v2 : VarDecl) ->
-            ValueEqual (ValueVar v1.Name, ValueVar v2.Name)
+            ValueNot (ValueEqual (ValueVar v1.Name, ValueVar v2.Name))
           ) (all_pairs vars)
     let all_ne_preds = List.concat (List.map (fun (_, vars) -> not_equal_preds vars) (Map.toList vars))
 
+    let facts_list = (Map.toList env.f)
+    (* XXX super hack *)
+    let facts_list = List.filter (fun ((fun_name,_), _) -> fun_name <> "node.<") facts_list
     let fn_preds =
           List.map (fun ((fun_name : string, args : ConstValue list), output : ConstValue) ->
             let cToVar a =
@@ -294,7 +297,7 @@ let makeUniversalInvariantExcludingSubstructure
                   ) args)
             let o = cToVar output
             ValueEqual (fn_expr, o)
-          ) (Map.toList env.f)
+          ) facts_list
 
     let all_preds = List.append all_ne_preds fn_preds
     let disj = AST.or_list (List.map ValueNot all_preds)
@@ -316,17 +319,28 @@ let repeatedly_construct_universals init_actions md decls build_mmd manual verbo
     let main_mmd : MinimalAST.ModuleDecl<Model.TypeInfos, Model.Environment> = { (snd (List.head (Map.toList action_mmds))) with MinimalAST.Actions = List.concat (List.map (fun (_,mmd:MinimalAST.ModuleDecl<Model.TypeInfos,Model.Environment>) -> mmd.Actions) (List.append (Map.toList action_mmds) init_actions)) }
 
     //List.iter (fun (inv : InvariantDecl) -> printfn "module is '%s'" inv.Module) md.Invariants
+
+    let invariants_to_min (invs : List<AST.InvariantDecl>) : List<MinimalAST.InvariantDecl> =
+        List.map (fun (inv : InvariantDecl) ->
+          {MinimalAST.Module = inv.Module; Formula = MinimalAST.value2minimal md inv.Formula}
+        ) invs
     
     let invariants_ref = ref md.Invariants
     let make_counterexample () =
-          let md' = AST.set_invariants md !invariants_ref
+          let md = AST.set_invariants md !invariants_ref
+          let action_mmds = Map.map (fun _ -> fun mmd -> MinimalAST.set_invariants mmd (invariants_to_min !invariants_ref)) action_mmds
           if manual
-          then manual_counterexample md' decls possible_actions action_mmds verbose
-          else auto_counterexample md' decls main_module action_mmds
+          then manual_counterexample md decls possible_actions action_mmds verbose
+          else auto_counterexample md decls main_module action_mmds
     let counterexample_ref = ref (make_counterexample())
 
     while Option.isSome !counterexample_ref do
         let counterexample  = Option.get !counterexample_ref
+
+        let md = AST.set_invariants md !invariants_ref
+        let action_mmds = Map.map (fun _ -> fun mmd -> MinimalAST.set_invariants mmd (invariants_to_min !invariants_ref)) action_mmds
+        let main_mmd = MinimalAST.set_invariants main_mmd (invariants_to_min !invariants_ref)
+
         let (action_name, infos, env, cs, formula, tr) = counterexample
         //printfn "%A" infos
         //printfn "%A" env
@@ -336,7 +350,7 @@ let repeatedly_construct_universals init_actions md decls build_mmd manual verbo
         let z3_new_inv_min = AwesomeMinimize.minimize md main_mmd decls init_actions z3_new_inv
         let new_inv_min = MinimalAST.value2ast (WPR.z3value_to_value z3_new_inv_min)
 
-        printfn "Adding invariant: %s" (Printer.value_to_string decls new_inv_min 0)
+        printfn "Adding invariant: %s" (Printer.z3value_to_string z3_new_inv_min)
         invariants_ref := List.append !invariants_ref [{InvariantDecl.Module = ""; Formula = new_inv_min}]
 
         counterexample_ref := make_counterexample()

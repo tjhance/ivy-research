@@ -52,6 +52,17 @@
           Axioms: List<AxiomDecl> 
         }
 
+    let set_invariants md invs =
+        {
+            Name=md.Name;
+            Types=md.Types;
+            Funs=md.Funs;
+            InterpretedActions=md.InterpretedActions;
+            Actions=md.Actions;
+            Invariants=invs;
+            Axioms=md.Axioms;
+        }
+
     // Utility functions
 
     let find_function (m:ModuleDecl<'a,'b>) str =

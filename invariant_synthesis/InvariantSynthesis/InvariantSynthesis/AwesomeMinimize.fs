@@ -110,6 +110,17 @@ module AwesomeMinimize
               | MExists (de, b) -> Z3Exists (de, aux b)
       aux v
 
+  let normal_minimize (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (decls:Model.Declarations) init_actions (v: Z3Value) : Z3Value =
+    let v = simplify_z3_value (Z3Not v)
+    let v = push_negations_down v
+
+    let axioms = Solver.z3_formula_for_axioms mmd
+
+    let conjuncts = get_conjuncts v
+
+    let ctx = Microsoft.Z3.Context()
+
+
   let minimize (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (decls:Model.Declarations) init_actions (v: Z3Value) : Z3Value =
     let v = simplify_z3_value v
     let v = push_negations_down v
@@ -133,8 +144,9 @@ module AwesomeMinimize
     let cur_invariants = Solver.z3_formula_for_axioms_and_conjectures mmd
     let is_redundant (a: Z3Value) (b: Z3Value) : bool =
       let v = Z3Not (Z3Imply (Z3And (cur_invariants, a), b))
-      //printfn "redundant %s" (Printer.z3value_to_string_pretty a)
-      //printfn "redundant %s" (Printer.z3value_to_string_pretty b)
+      //printfn "redundant inv: %s" (Printer.z3value_to_string_pretty cur_invariants)
+      //printfn "redundant a: %s" (Printer.z3value_to_string_pretty a)
+      //printfn "redundant b: %s" (Printer.z3value_to_string_pretty b)
       let z3ctx = Z3Utils.build_context md
       let z3e = Z3Utils.build_value z3ctx Map.empty Map.empty v
       match Z3Utils.check z3ctx z3e 5000 with
@@ -149,7 +161,10 @@ module AwesomeMinimize
 
     let minimize_part v =
       //printfn "trying to minimize %s" (Printer.z3value_to_string v)
-      let tree = z3_to_m v
+      let tree =
+        match z3_to_m v with
+          | MAnd l -> MAnd l
+          | x -> MAnd (ref [x])
 
       let rec traverse_and_edit_tree subtree inside_e : unit =
         match subtree with
