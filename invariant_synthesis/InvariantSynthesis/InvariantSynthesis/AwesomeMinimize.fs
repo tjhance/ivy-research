@@ -116,10 +116,8 @@ module AwesomeMinimize
 
     let axioms = Solver.z3_formula_for_axioms mmd
 
-    let conjuncts = get_conjuncts v
-
-    let ctx = Microsoft.Z3.Context()
-
+    let k = 3
+    TwoState.k_invariant_core mmd init_actions k v
 
   let minimize (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (decls:Model.Declarations) init_actions (v: Z3Value) : Z3Value =
     let v = simplify_z3_value v

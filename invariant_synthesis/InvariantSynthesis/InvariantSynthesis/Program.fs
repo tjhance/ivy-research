@@ -347,7 +347,7 @@ let repeatedly_construct_universals init_actions md decls build_mmd manual verbo
         let new_inv = makeUniversalInvariantExcludingSubstructure md infos env
         let z3_new_inv = snd (WPR.minimal_val2z3_val main_mmd (MinimalAST.value2minimal md new_inv))
 
-        let z3_new_inv_min = AwesomeMinimize.minimize md main_mmd decls init_actions z3_new_inv
+        let z3_new_inv_min = AwesomeMinimize.normal_minimize md main_mmd decls init_actions z3_new_inv
         let new_inv_min = MinimalAST.value2ast (WPR.z3value_to_value z3_new_inv_min)
 
         printfn "Adding invariant: %s" (Printer.z3value_to_string z3_new_inv_min)

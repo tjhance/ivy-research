@@ -536,24 +536,33 @@ module TwoState
       let res = aux true formula
       (res, !vars)
 
-    let make_sat_problem_for_k_exec (mmd: ModuleDecl<'a,'b>) (init_actions : List<string>) (k : int) (invariant : Z3Value) =
+    let make_sat_problem_for_k_exec
+          (mmd: ModuleDecl<'a,'b>)
+          (init_actions : List<string>)
+          (k : int)
+          (inv_neg : Z3Value) =
       let ts = make_two_state_for_k_exec mmd init_actions k
-      let inv_formula = subst (Z3Not invariant) ts.post
 
-      let formula = WPR.simplify_z3_value (Z3And (ts.formula, inv_formula))
+      let main_formula = WPR.simplify_z3_value (ts.formula)
+      let inv_neg = WPR.simplify_z3_value (subst inv_neg ts.post)
+
       let vars = ts.vars
       let funs = ts.funs
 
-      let formula, vars = skolemize formula vars
+      let formula, vars = skolemize main_formula vars
 
-      (formula, vars, funs)
+      (formula, inv_neg, vars, funs)
 
-    let z3sat (mmd: ModuleDecl<'a, 'b>)
-              (f: Z3Value)
+    let make_context
+              (enable_unsat_core: bool)
+              (mmd: ModuleDecl<'a, 'b>)
               (the_vars: Map<string, Type>)
               (the_funs: Map<string, FunType>)
-              : bool =
-      let ctx = new Microsoft.Z3.Context()
+              : Z3Utils.ModuleContext =
+      let settings = new System.Collections.Generic.Dictionary<string,string>()
+      settings.Add("unsat_core", if enable_unsat_core then "true" else "false")
+
+      let ctx = new Microsoft.Z3.Context(settings)
       let sorts = ref Map.empty 
       let funs = ref Map.empty 
       let vars = ref Map.empty 
@@ -577,22 +586,143 @@ module TwoState
         Z3Utils.ModuleContext.Sorts = !sorts;
         Z3Utils.ModuleContext.Funs = !funs;
       }
-      let z3e = Z3Utils.build_value z3ctx !funs Map.empty f
-      match Z3Utils.check z3ctx z3e 5000 with
-        | Z3Utils.UNSAT -> false
-        | Z3Utils.UNKNOWN -> failwith "got unknown"
-        | Z3Utils.SAT model ->
-            //printfn "%s\n" (model.ToString())
+      z3ctx
+
+    let z3sat (mmd: ModuleDecl<'a, 'b>)
+              (f: Z3Value)
+              (inv_neg: Z3Value)
+              (the_vars: Map<string, Type>)
+              (the_funs: Map<string, FunType>)
+              : bool =
+      let z3ctx = make_context false mmd the_vars the_funs
+      let ctx = z3ctx.Context
+      let sorts = z3ctx.Sorts
+      let funs = z3ctx.Funs
+
+      let s = ctx.MkSolver()
+
+      let z3e = Z3Utils.build_value z3ctx funs Map.empty (Z3And (f, inv_neg))
+      s.Assert ([|z3e:?> Microsoft.Z3.BoolExpr|])
+
+      match s.Check () with
+        | Microsoft.Z3.Status.UNSATISFIABLE -> false
+        | Microsoft.Z3.Status.UNKNOWN -> failwith "got unknown"
+        | Microsoft.Z3.Status.SATISFIABLE ->
+            //printfn "%s\n" (s.Model)
             true
+        | _ -> failwith "solver returned unknown status"
+
+    let z3unsat_core
+          (s: Microsoft.Z3.Solver)
+          (z3ctx: Z3Utils.ModuleContext)
+          (exprs: List<Microsoft.Z3.Expr>)
+          : List<Microsoft.Z3.BoolExpr> option =
+
+      match s.Check (Seq.cast exprs) with
+      //match s.Check() with
+        | Microsoft.Z3.Status.UNSATISFIABLE ->
+            let core = s.UnsatCore
+            //Some (List.map (fun (c : Microsoft.Z3.BoolExpr) -> Map.find c.Id !map) (Seq.toList (Seq.cast core)))
+            Some (Seq.toList (Seq.cast core))
+        | Microsoft.Z3.Status.UNKNOWN -> failwith "got unknown"
+        | Microsoft.Z3.Status.SATISFIABLE -> None
+        | _ -> failwith "solver returned unknown status"
+       
+
+    let minimum_ish_core
+          (mmd: ModuleDecl<'a, 'b>)
+          (f: Z3Value)
+          (fs: List<Z3Value>)
+          (the_vars: Map<string, Type>)
+          (the_funs: Map<string, FunType>)
+          : List<int> =
+      // based off of ivy_core.py
+
+      let z3ctx = make_context true mmd the_vars the_funs
+      let ctx = z3ctx.Context
+      let sorts = z3ctx.Sorts
+      let funs = z3ctx.Funs
+      let s = ctx.MkSolver()
+      s.Set("unsat_core", true)
+
+      let z3e = Z3Utils.build_value z3ctx funs Map.empty f
+      s.Assert ([|z3e:?> Microsoft.Z3.BoolExpr|])
+      //printfn "main: %A" z3e
+
+      let map : Map<uint32, int> ref = ref Map.empty
+      let idx = ref 0
+      let exprs =
+        List.map (fun f ->
+          let boolVar = ctx.MkConst (ctx.MkConstDecl("__clause__" + (!idx).ToString(), ctx.BoolSort :> Microsoft.Z3.Sort))
+          let expr = Z3Utils.build_value z3ctx z3ctx.Funs Map.empty f
+          let eq = ctx.MkEq (boolVar, expr)
+          s.Assert ([|eq|])
+
+          map := Map.add boolVar.Id !idx !map
+          idx := !idx + 1
+          boolVar
+        ) fs
+
+      let core = ref (Option.get (z3unsat_core s z3ctx exprs))
+      let mus = ref []
+      let ids : Map<uint32, bool> ref = ref Map.empty
+      while !core <> [] do
+        let c = List.head !core
+        let new_core = List.append !mus (List.tail !core)
+        match z3unsat_core s z3ctx (List.map (fun (x:Microsoft.Z3.BoolExpr) -> x :> Microsoft.Z3.Expr) new_core) with
+          | None ->
+              mus := List.append !mus [c]
+              ids := Map.add c.Id true !ids
+              core := List.tail !core
+          | Some new_core ->
+              core := List.filter (fun c -> not (Map.containsKey c.Id !ids)) new_core
+      
+      let final = List.map (fun (c : Microsoft.Z3.BoolExpr) -> Map.find c.Id !map) !mus
+      final
 
     let is_k_invariant (mmd: ModuleDecl<'a, 'b>) init_actions (k : int) (invariant : Z3Value) =
       let init_actions = List.map fst init_actions
-      let sat_prob, vars, funs = make_sat_problem_for_k_exec mmd init_actions k invariant
+      let sat_prob, inv_neg, vars, funs = make_sat_problem_for_k_exec mmd init_actions k (Z3Not invariant)
       let sat_prob = WPR.simplify_z3_value sat_prob
+      let inv_neg = WPR.simplify_z3_value inv_neg
 
       //printfn "%s\n" (Printer.z3value_to_string_pretty sat_prob)
-      let is_sat = z3sat mmd sat_prob vars funs
+      let is_sat = z3sat mmd sat_prob inv_neg vars funs
 
       //printfn (if is_sat then "SAT\n" else "UNSAT\n")
       not is_sat
       
+
+    let k_invariant_core
+        (mmd: ModuleDecl<'a, 'b>)
+        init_actions
+        (k : int)
+        (invariant_negation : Z3Value)
+        : Z3Value =
+      let init_actions = List.map fst init_actions
+      let sat_prob, invariant_negation', vars, funs = make_sat_problem_for_k_exec mmd init_actions k invariant_negation
+
+      let sat_prob = WPR.simplify_z3_value sat_prob
+      let invariant_negation' = WPR.simplify_z3_value invariant_negation'
+
+      let rec get_rid_of_existentials e vars =
+          match e with
+          | Z3Exists (vardecl, e') ->
+              let e'', vars, vardecls = get_rid_of_existentials e' vars
+              let vars = Map.add vardecl.Name vardecl.Type vars
+              e'', vars, (vardecl :: vardecls)
+          | _ -> e, vars, []
+      let rec get_conjuncts (v: Z3Value) =
+          match v with
+              | Z3And(a, b) -> List.append (get_conjuncts a) (get_conjuncts b)
+              | _ -> [v]
+
+      let inner, _, _ = get_rid_of_existentials invariant_negation Map.empty
+      let conjuncts = get_conjuncts inner
+
+      let inner', vars, vardecls = get_rid_of_existentials invariant_negation' vars
+      let conjuncts' = get_conjuncts inner'
+
+      let indices = minimum_ish_core mmd sat_prob conjuncts' vars funs
+
+      List.foldBack (fun vardecl -> fun e -> Z3Forall (vardecl, e)) vardecls (Z3Not (and_list (List.map (fun idx -> conjuncts.[idx]) indices)))
