@@ -106,7 +106,6 @@ let manual_allowed_path (md:ModuleDecl) decls (env:Model.Environment) cs m um =
 // ----- AUTO MODE -----
 
 let auto_counterexample (md:ModuleDecl) decls main_module mmds =
-
     let counterexample = ref None
     let first_loop = ref true
     let finished = ref false
@@ -114,6 +113,7 @@ let auto_counterexample (md:ModuleDecl) decls main_module mmds =
     let invs = AST.find_invariants md main_module
 
     while not (!finished) do
+        printfn "loopin..."
 
         let formulas =
             if !first_loop
@@ -305,6 +305,37 @@ let makeUniversalInvariantExcludingSubstructure
     let full = List.foldBack (fun v -> fun expr -> ValueForall (v, expr)) all_vars disj
 
     full
+
+let do_check init_actions md decls build_mmd manual verbose =
+    let main_module = ""
+    let possible_actions = List.filter (fun (prov,_) -> prov = main_module) md.Exports
+    let possible_actions = List.map (fun (_,str) -> str) possible_actions
+
+    // Build minimal ASTs
+    let action_mmds = List.fold (fun acc action -> Map.add action (build_mmd action) acc) Map.empty possible_actions
+
+    let main_mmd : MinimalAST.ModuleDecl<Model.TypeInfos, Model.Environment> = { (snd (List.head (Map.toList action_mmds))) with MinimalAST.Actions = List.concat (List.map (fun (_,mmd:MinimalAST.ModuleDecl<Model.TypeInfos,Model.Environment>) -> mmd.Actions) (List.append (Map.toList action_mmds) init_actions)) }
+
+    let inv =
+          TwoState.and_list (List.map (fun (invdecl : MinimalAST.InvariantDecl) ->
+            snd (WPR.minimal_val2z3_val main_mmd invdecl.Formula)
+          ) main_mmd.Invariants)
+
+    if not (TwoState.is_good_at_init main_mmd init_actions inv) then
+      printfn "not valid at init"
+    else
+      let formulas =
+          List.mapi (fun idx -> fun (invdecl : MinimalAST.InvariantDecl) ->
+            (idx, invdecl.Formula)
+          ) main_mmd.Invariants
+      let counterexample =
+          Solver.find_counterexample md action_mmds formulas
+
+      if Option.isSome counterexample then
+        printfn "non-inductive"
+      else
+        printfn "inductive"
+ 
 
 let repeatedly_construct_universals init_actions md decls build_mmd manual verbose =
     // Choose the action to analyze
@@ -540,6 +571,7 @@ let main argv =
 
     let verbose = Array.contains "-v" argv
     let manual = Array.contains "-m" argv
+    let check = Array.contains "--check" argv
 
     let filename = 
         match Array.tryLast argv with
@@ -554,7 +586,7 @@ let main argv =
             printfn "Loading hardcoded test module 'queue'..."
             TestModule.Queue.queue_module
         else
-            printfn "Parsing module..."
+            //printfn "Parsing module..."
             let args = Config.parser_args.Replace("%IN%", "\"" + filename + "\"").Replace("%OUT%", "\"" + Config.parser_output_path + "\"").Replace("%ERR%", "\"" + Config.parser_error_path + "\"")
             System.IO.File.Delete(Config.parser_output_path)
             System.IO.File.Delete(Config.parser_error_path)
@@ -570,13 +602,14 @@ let main argv =
             else
                 let content = System.IO.File.ReadAllText(Config.parser_output_path)
                 let parsed_elts = ParserAST.deserialize content
-                printfn "Converting parsed AST..."
+                //printfn "Converting parsed AST..."
                 ParserAST.ivy_elements_to_ast_module filename parsed_elts
 
     // Remove unwanted implementations from the module decl
-    printfn "Please enter the names of the concrete modules to ignore:"
-    let str = read_until_line_jump ()
-    let banned_modules = str.Split([|Environment.NewLine|], StringSplitOptions.RemoveEmptyEntries)
+    //printfn "Please enter the names of the concrete modules to ignore:"
+    //let str = read_until_line_jump ()
+    //let banned_modules = str.Split([|Environment.NewLine|], StringSplitOptions.RemoveEmptyEntries)
+    let banned_modules = []
     let md = AST.exclude_from_module md (Seq.toList banned_modules)
     let decls = Model.declarations_of_module md
 
@@ -598,10 +631,14 @@ let main argv =
     let init_actions = List.sortWith init_actions_cmp (Set.toList init_actions)
     let init_actions = List.map (fun str -> (str,build_mmd str)) init_actions
 
+    if check then
+      // just check if it's invariant, don't try to do anything else
+      do_check init_actions md decls build_mmd manual verbose
+    else
+      repeatedly_construct_universals init_actions md decls build_mmd manual verbose
+      //do_analysis1 init_actions md decls build_mmd manual verbose
 
-    repeatedly_construct_universals init_actions md decls build_mmd manual verbose
-    //do_analysis1 init_actions md decls build_mmd manual verbose
+      //while true do
+      //    do_analysis init_actions md decls build_mmd manual verbose
 
-    //while true do
-    //    do_analysis init_actions md decls build_mmd manual verbose
     0

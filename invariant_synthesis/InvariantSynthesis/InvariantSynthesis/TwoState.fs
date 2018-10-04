@@ -691,7 +691,9 @@ module TwoState
 
       //printfn (if is_sat then "SAT\n" else "UNSAT\n")
       not is_sat
-      
+
+    let is_good_at_init (mmd: ModuleDecl<'a, 'b>) init_actions (invariant : Z3Value) =
+      is_k_invariant mmd init_actions 0 invariant
 
     let k_invariant_core
         (mmd: ModuleDecl<'a, 'b>)
