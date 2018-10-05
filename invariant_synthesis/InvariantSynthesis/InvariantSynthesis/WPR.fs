@@ -372,9 +372,7 @@
 
     type ActionDecl = { Name: string; Args: List<VarDecl>; Output: VarDecl; Content: Statement }
 
-    let minimal_action2wpr_action<'a,'b> (m:ModuleDecl<'a,'b>) action rename_args =
-        let action = find_action m action
-
+    let minimal_action2wpr_action<'a,'b> (m:ModuleDecl<'a,'b>) (action:MinimalAST.ActionDecl) rename_args =
         let rename_decl renaming (decl:VarDecl) =
             if Map.containsKey decl.Name renaming
             then { decl with Name = Map.find decl.Name renaming } else decl
@@ -480,7 +478,7 @@
                 let f = replace_var str v f
                 replace_holes_with f ctx
             | VarAssignAction (str, action, vs) ->
-                let action = minimal_action2wpr_action m action true
+                let action = minimal_action2wpr_action m (find_action m action) true
                 // Note: No need to assume axioms here because these vars are local (so no axiom is involving them)
                 let f = replace_var str (Z3Var action.Output.Name) f
                 let f = aux f action.Content
@@ -515,7 +513,7 @@
                     with :? ValueNotAllowed -> printfn "Illegal axiom/conjecture ignored..." ; acc
             ) [] conj
 
-    let wpr_for_action<'a,'b> (m:ModuleDecl<'a,'b>) f action negate =
+    let wpr_for_action<'a,'b> (m:ModuleDecl<'a,'b>) f (action:MinimalAST.ActionDecl) negate =
         let action = minimal_action2wpr_action m action (not negate) // If negate is true, we must not rename args since the args of the function will be colloected later.
         let axioms = conjectures_to_z3values m (MinimalAST.axioms_decls_to_formulas m.Axioms)
         let res = weakest_precondition m axioms f action.Content

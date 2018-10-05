@@ -47,6 +47,7 @@
           Types: List<TypeDecl>;
           Funs: List<FunDecl>;
           InterpretedActions: List<InterpretedActionDecl<'a,'b>>;
+          InitActions: List<ActionDecl>;
           Actions: List<ActionDecl>;
           Invariants: List<InvariantDecl>;
           Axioms: List<AxiomDecl> 
@@ -58,6 +59,7 @@
             Types=md.Types;
             Funs=md.Funs;
             InterpretedActions=md.InterpretedActions;
+            InitActions=md.InitActions;
             Actions=md.Actions;
             Invariants=invs;
             Axioms=md.Axioms;
@@ -68,7 +70,7 @@
     let find_function (m:ModuleDecl<'a,'b>) str =
         List.find (fun (decl:FunDecl) -> decl.Name = str) m.Funs
 
-    let rec find_action (m:ModuleDecl<'a,'b>) str =
+    let rec find_action (m:ModuleDecl<'a,'b>) str : ActionDecl =
         List.find (fun (decl:ActionDecl) -> decl.Name = str) m.Actions
 
     let find_interpreted_action (m:ModuleDecl<'a,'b>) str =
@@ -437,4 +439,4 @@
         let axioms = List.map (fun (d:AST.AxiomDecl) -> { Module=d.Module ; Formula=value2minimal m d.Formula }) m.Axioms
 
         { Name = m.Name; Types = m.Types; Funs = m.Funs; InterpretedActions = m.InterpretedActions;
-            Actions = actions ; Invariants = invariants; Axioms = axioms }
+            Actions = actions ; Invariants = invariants; Axioms = axioms; InitActions = [] }

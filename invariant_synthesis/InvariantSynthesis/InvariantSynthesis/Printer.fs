@@ -31,7 +31,8 @@
         then sprintf "(%s)" str
         else str
 
-    let rec value_to_string (decls:Model.Declarations) v prec =
+    let value_to_string (md:ModuleDecl<Model.TypeInfos,Model.Environment>) v prec =
+      let rec aux (decls:Model.Declarations) v prec =
         let fun_macro_to_string str vs rep =
             let str = 
                 match rep.DisplayName with
@@ -40,20 +41,20 @@
             if Set.contains Infix rep.Flags
             then
                 (*let str = *)
-                sprintf "(%s %s %s)" ((fun v -> value_to_string decls v 6) (List.head vs)) str ((fun v -> value_to_string decls v 6) (List.head (List.tail vs)))
+                sprintf "(%s %s %s)" ((fun v -> aux decls v 6) (List.head vs)) str ((fun v -> aux decls v 6) (List.head (List.tail vs)))
                 //add_parenthesis_if_needed str 6 prec
-            else sprintf "%s%s" str (list_to_args_str (List.map (fun v -> value_to_string decls v 0) vs))
+            else sprintf "%s%s" str (list_to_args_str (List.map (fun v -> aux decls v 0) vs))
         match v with
         // ----- Syntaxic sugars -----
         | ValueNot (ValueEqual (v1,v2)) ->
-            let str = sprintf "%s ~= %s" (value_to_string decls v1 5) (value_to_string decls v2 5)
+            let str = sprintf "%s ~= %s" (aux decls v1 5) (aux decls v2 5)
             add_parenthesis_if_needed str 5 prec
         | ValueEqual (v, ValueConst (ConstBool true))
         | ValueEqual (ValueConst (ConstBool true), v) ->
-            sprintf "%s" (value_to_string decls v prec)
+            sprintf "%s" (aux decls v prec)
         | ValueEqual (v, ValueConst (ConstBool false))
         | ValueEqual (ValueConst (ConstBool false), v) ->
-            let str = sprintf "~%s" (value_to_string decls v 7)
+            let str = sprintf "~%s" (aux decls v 7)
             add_parenthesis_if_needed str 7 prec
         // ---------------------------
         | ValueConst cv -> const_value_to_string cv
@@ -69,47 +70,49 @@
                 let d = Map.find str decls.f
                 fun_macro_to_string str vs d.Representation
             with :? System.Collections.Generic.KeyNotFoundException ->
-                sprintf "%s%s" str (list_to_args_str (List.map (fun v -> value_to_string decls v 0) vs))
+                sprintf "%s%s" str (list_to_args_str (List.map (fun v -> aux decls v 0) vs))
         | ValueMacro (str, vs) ->
             try
                 let d = Map.find str decls.m
                 fun_macro_to_string str vs d.Representation
             with :? System.Collections.Generic.KeyNotFoundException ->
-                sprintf "%s%s" str (list_to_args_str (List.map (fun v -> value_to_string decls v 0) vs))
+                sprintf "%s%s" str (list_to_args_str (List.map (fun v -> aux decls v 0) vs))
         | ValueInterpreted (str, vs) ->
             try
                 let d = Map.find str decls.i
                 fun_macro_to_string str vs d.Representation
             with :? System.Collections.Generic.KeyNotFoundException ->
-                sprintf "%s%s" str (list_to_args_str (List.map (fun v -> value_to_string decls v 0) vs))
+                sprintf "%s%s" str (list_to_args_str (List.map (fun v -> aux decls v 0) vs))
         | ValueEqual (v1, v2) ->
-            let str = sprintf "%s = %s" (value_to_string decls v1 5) (value_to_string decls v2 5)
+            let str = sprintf "%s = %s" (aux decls v1 5) (aux decls v2 5)
             add_parenthesis_if_needed str 5 prec
         | ValueOr (f1,f2) ->
-            let str = sprintf "%s | %s" (value_to_string decls f1 3) (value_to_string decls f2 3)
+            let str = sprintf "%s | %s" (aux decls f1 3) (aux decls f2 3)
             add_parenthesis_if_needed str 3 prec
         | ValueAnd (f1,f2) ->
-            let str = sprintf "%s & %s" (value_to_string decls f1 4) (value_to_string decls f2 4)
+            let str = sprintf "%s & %s" (aux decls f1 4) (aux decls f2 4)
             add_parenthesis_if_needed str 4 prec
         | ValueNot f ->
-            let str = sprintf "~%s" (value_to_string decls f 7)
+            let str = sprintf "~%s" (aux decls f 7)
             add_parenthesis_if_needed str 7 prec
         | ValueForall (vd, f) ->
             let decls = Model.add_var_declaration vd decls
-            let str = sprintf "∀ %s. %s" (var_decl_to_string vd) (value_to_string decls f 1)
+            let str = sprintf "∀ %s. %s" (var_decl_to_string vd) (aux decls f 1)
             add_parenthesis_if_needed str 1 prec
         | ValueExists (vd, f) ->
             let decls = Model.add_var_declaration vd decls
-            let str = sprintf "∃ %s. %s" (var_decl_to_string vd) (value_to_string decls f 1)
+            let str = sprintf "∃ %s. %s" (var_decl_to_string vd) (aux decls f 1)
             add_parenthesis_if_needed str 1 prec
         | ValueImply (f1,f2) ->
-            let str = sprintf "%s -> %s" (value_to_string decls f1 2) (value_to_string decls f2 2)
+            let str = sprintf "%s -> %s" (aux decls f1 2) (aux decls f2 2)
             add_parenthesis_if_needed str 2 prec
         | ValueSomeElse (d,f,v) ->
             let decls' = Model.add_var_declaration d decls
-            sprintf "(some %s. %s else %s)" (var_decl_to_string d) (value_to_string decls' f 0) (value_to_string decls v 0)
+            sprintf "(some %s. %s else %s)" (var_decl_to_string d) (aux decls' f 0) (aux decls v 0)
         | ValueIfElse (f,v1,v2) ->
-            sprintf "(%s if %s else %s)" (value_to_string decls v1 0) (value_to_string decls f 0) (value_to_string decls v2 0)
+            sprintf "(%s if %s else %s)" (aux decls v1 0) (aux decls f 0) (aux decls v2 0)
+      let decls = Model.declarations_of_module md
+      aux decls v prec
 
     (*
     Precedence:
@@ -122,8 +125,8 @@
     F E : 1
     *)
 
-    let mvalue_to_string (decls:Model.Declarations) (v: MinimalAST.Value) : string =
-        value_to_string decls (MinimalAST.value2ast v) 0
+    let mvalue_to_string (md:ModuleDecl<Model.TypeInfos,Model.Environment>) (v: MinimalAST.Value) : string =
+        value_to_string md (MinimalAST.value2ast v) 0
 
     let z3value_to_string_ (v: WPR.Z3Value) pretty : string =
       let rec get_conjuncts (v: WPR.Z3Value) =
@@ -195,16 +198,16 @@
     let z3value_to_string_pretty (v: WPR.Z3Value) : string =
       z3value_to_string_ v true
 
-    let varmark_to_string decls (env:Model.Environment) str =
+    let varmark_to_string md (env:Model.Environment) str =
         let value = Map.find str env.v
         let v = ValueEqual (ValueVar str, ValueConst value)
-        value_to_string decls v 0
+        value_to_string md v 0
 
-    let funmark_to_string decls (env:Model.Environment) (str, cvs) =
+    let funmark_to_string md (env:Model.Environment) (str, cvs) =
         let value = Map.find (str, cvs) env.f
         let cvs = List.map (fun cv -> ValueConst cv) cvs
         let v = ValueEqual (ValueFun (str, cvs), ValueConst value)
-        value_to_string decls v 0
+        value_to_string md v 0
 
 
     let print_model infos (env: Model.Environment) =

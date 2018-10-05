@@ -1,5 +1,7 @@
 ﻿module Solver
 
+    open MinimalAST
+
     let decompose_marks (m:Marking.Marks) =
         let var_mark_singleton str =
             {Marking.empty_marks with v=Set.singleton str}
@@ -43,25 +45,25 @@
         | Z3Utils.UNKNOWN -> UNKNOWN
         | Z3Utils.SAT m -> SAT (Z3Utils.z3model_to_ast_model md z3ctx args_decl z3lvars z3concrete_map m)
 
-    let check_z3_disjunction (md:AST.ModuleDecl<'a,'b>) f fs timeout =
+    let check_z3_disjunction (md:AST.ModuleDecl<'a,'b>) (mmd:ModuleDecl<'a,'b>) f timeout =
         let z3ctx = Z3Utils.build_context md
 
         let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars [] z3ctx Map.empty f
         let z3e = Z3Utils.build_value z3ctx z3lvars Map.empty f
 
-        let declare_lvars (mmd, action, f) =
-            let args_decl = (MinimalAST.find_action mmd action).Args
+        let declare_lvars (action : ActionDecl) =
+            let args_decl = action.Args
             let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars_ext args_decl z3ctx Map.empty f (z3lvars, z3concrete_map)
-            (mmd, action, Z3Utils.build_value z3ctx z3lvars Map.empty f, (z3lvars, z3concrete_map))
-        let fs = List.map declare_lvars fs
+            (action, Z3Utils.build_value z3ctx z3lvars Map.empty f, (z3lvars, z3concrete_map))
+        let fs = List.map declare_lvars mmd.Actions
 
-        let es = List.map (fun (_,action,es,_) -> (action, es)) fs
+        let es = List.map (fun (action:ActionDecl ,es,_) -> (action.Name, es)) fs
         match Z3Utils.check_disjunction z3ctx z3e es timeout with
         | (Z3Utils.UNSAT, _) -> (UNSAT, None)
         | (Z3Utils.UNKNOWN, _) -> (UNKNOWN, None)
         | (Z3Utils.SAT _, None) -> failwith "Can't retrieve action of counterexample..."
         | (Z3Utils.SAT m, Some action) ->
-            let (mmd, _, _, (z3lvars, z3concrete_map)) = List.find (fun (_,action',_,_) -> action' = action) fs
+            let (_, _, (z3lvars, z3concrete_map)) = List.find (fun (action':ActionDecl,_,_) -> action'.Name = action) fs
             let args_decl = (MinimalAST.find_action mmd action).Args
             (SAT (Z3Utils.z3model_to_ast_model md z3ctx args_decl z3lvars z3concrete_map m), Some action)
 
@@ -80,13 +82,13 @@
         
         Z3Utils.check_conjunction_fix z3ctx z3e z3_es timeout
     
-    let find_counterexample_action md mmd action formulas =
+    let find_counterexample_action md mmd (action : ActionDecl) formulas =
         let axioms_conjectures = z3_formula_for_axioms_and_conjectures mmd
         let counterexample = ref None
 
         let treat_formula (i,formula) =
             let f = WPR.Z3And (axioms_conjectures, WPR.wpr_for_action mmd (minimal_formula_to_z3 mmd formula) action true)
-            let res = check_z3_formula md (args_decl_for_action mmd action) f 3000
+            let res = check_z3_formula md action.Args f 3000
         
             counterexample :=
                 match res with
@@ -100,15 +102,18 @@
         List.iter treat_formula formulas
         !counterexample
 
-    let find_counterexample md mmds formulas =
-        let (_,tmp_mmd) = (List.head (Map.toList mmds)) // We arbitrary take axioms and conjectures of the first mmd (they should be exactly the same for every mmd)
-        let axioms_conjectures = z3_formula_for_axioms_and_conjectures tmp_mmd
+    let find_counterexample md mmd =
+        let formulas = 
+          List.mapi (fun idx -> fun (invdecl : MinimalAST.InvariantDecl) ->
+            (idx, invdecl.Formula)
+          ) mmd.Invariants
+
+        let axioms_conjectures = z3_formula_for_axioms_and_conjectures mmd 
         let counterexample = ref None
 
         let treat_formula (i,formula) =
-            let fs = List.map (fun (action,mmd) -> (mmd, action, WPR.wpr_for_action mmd (minimal_formula_to_z3 mmd formula) action true)) (Map.toList mmds)
-            let res = check_z3_disjunction md axioms_conjectures fs 3000
-            
+            let res = check_z3_disjunction md mmd axioms_conjectures 3000
+
             counterexample :=
                 match res with
                 | (UNSAT, _) | (UNKNOWN, _) -> !counterexample
@@ -120,7 +125,13 @@
                 | (SAT _, None) -> failwith "Can't retrieve the main action of the counterexample."
 
         List.iter treat_formula formulas
-        !counterexample
+        match !counterexample with
+          | None -> None
+          | Some (i, action, formula, infos, env) ->
+            let action_args = (MinimalAST.find_action mmd action).Args
+            let tr = TInterpreter.trace_action mmd infos env action (List.map (fun (d:VarDecl) -> MinimalAST.ValueVar d.Name) action_args) AST.impossible_var_factor
+
+            Some (action, infos, env, [], formula, tr)
 
     let not_already_allowed_state_formula (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) common_cvs allowed_execs =
         let f = Formula.generate_semi_generalized_formulas common_cvs (0, Map.empty) allowed_execs
@@ -128,23 +139,23 @@
         let f = MinimalAST.value2minimal md f
         minimal_formula_to_z3 mmd f
 
-    let wpr_for_actions actions formula =
-        let wprs = List.map (fun (action,mmd) -> WPR.wpr_for_action mmd formula action false) actions
+    let wpr_for_actions mmd formula =
+        let wprs = List.map (fun (action:ActionDecl) -> WPR.wpr_for_action mmd formula action false) mmd.Actions
         WPR.conjunction_of wprs
 
-    let wpr_based_valid_state_formula (mmd:MinimalAST.ModuleDecl<'a,'b>) actions formula =
-        let wpr = wpr_for_actions actions (minimal_formula_to_z3 mmd formula)
+    let wpr_based_valid_state_formula (mmd:MinimalAST.ModuleDecl<'a,'b>) formula =
+        let wpr = wpr_for_actions mmd (minimal_formula_to_z3 mmd formula)
         WPR.Z3And (z3_formula_for_axioms_and_conjectures mmd, wpr)
 
-    let wpr_based_invalid_state_formula (mmd:MinimalAST.ModuleDecl<'a,'b>) actions formula =
-        let wpr = WPR.Z3Not (wpr_for_actions actions (minimal_formula_to_z3 mmd formula))
+    let wpr_based_invalid_state_formula (mmd:MinimalAST.ModuleDecl<'a,'b>) formula =
+        let wpr = WPR.Z3Not (wpr_for_actions mmd (minimal_formula_to_z3 mmd formula))
         WPR.Z3And (z3_formula_for_axioms_and_conjectures mmd, wpr)
 
     let terminating_or_failing_run_formula (mmd:MinimalAST.ModuleDecl<'a,'b>) action =
         WPR.wpr_for_action mmd (WPR.Z3Const (AST.ConstBool false)) action true
 
     let find_allowed_execution (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) formula
-        action (m:Marking.Marks) all_actions common_cvs prev_allowed only_terminating_run =
+        action (m:Marking.Marks) common_cvs prev_allowed only_terminating_run =
 
         if common_cvs <> (Formula.concrete_values_of_marks env m) then failwith "Some common values does not appear in any constraint..."
 
@@ -153,7 +164,7 @@
         // 2. NOT previous allowed state
         let f = not_already_allowed_state_formula md mmd common_cvs prev_allowed
         // 3. Possibly valid state
-        let valid_run = wpr_based_valid_state_formula mmd all_actions formula
+        let valid_run = wpr_based_valid_state_formula mmd formula
         // 4. If we only want a terminating run...
         let trc =
             if only_terminating_run
@@ -164,7 +175,7 @@
         // All together
         let f = WPR.Z3And (WPR.Z3And(cs, trc), WPR.Z3And(f,valid_run))
         // Solve!
-        match check_z3_formula md (args_decl_for_action mmd action) f 3000 with
+        match check_z3_formula md action.Args f 3000 with
         | UNSAT | UNKNOWN -> None
         | SAT (i,e) -> Some (i,e)
 
@@ -211,14 +222,14 @@
         // TODO: marks (=constraints) should be partially sorted by decreasing order of "strength" (for instance, `<' is weaker than `succ')
 
     let wpr_based_minimization (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) infos (env:Model.Environment) action
-        all_actions formula (m:Marking.Marks) common_cvs (alt_exec:List<Marking.Marks*Model.Environment>) only_consider_terminating_runs =
+        formula (m:Marking.Marks) common_cvs (alt_exec:List<Marking.Marks*Model.Environment>) only_consider_terminating_runs =
         
         let save_m = m
         let m = expand_marks md mmd infos env m // We expand marks so some weak constraints can be kept instead of stronger constraints
         
         // Unsat core!
         let f = not_already_allowed_state_formula md mmd common_cvs alt_exec
-        let f = WPR.Z3And (f, wpr_based_valid_state_formula mmd all_actions formula)
+        let f = WPR.Z3And (f, wpr_based_valid_state_formula mmd formula)
         let f =
             if only_consider_terminating_runs
             then WPR.Z3And (f, terminating_or_failing_run_formula mmd action)
@@ -228,7 +239,7 @@
         let labeled_ms = List.mapi (fun i m -> (sprintf "%i" i, m)) ms
         let labeled_cs = List.map (fun (i,m) -> (i, z3_formula_for_constraints md mmd env m)) labeled_ms
 
-        match z3_unsat_core md (args_decl_for_action mmd action) [] f labeled_cs 5000 with
+        match z3_unsat_core md action.Args [] f labeled_cs 5000 with
         | (Z3Utils.SolverResult.UNSAT, lst) ->
             let labeled_ms = List.filter (fun (str,_) -> List.contains str lst) labeled_ms
             let ms = List.map (fun (_,m) -> m) labeled_ms
@@ -251,13 +262,13 @@
         else None
 
     let wpr_based_minimization_existential_part (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) infos (env:Model.Environment)
-        all_actions formula (m:Marking.Marks) common_cvs env' m' =
+        formula (m:Marking.Marks) common_cvs env' m' =
 
         let save_m' = m'
         let m' = expand_marks md mmd infos env' (Marking.marks_union m m')
         let m' = Marking.marks_diff m' (expand_marks md mmd infos env m)
 
-        let not_valid_state = wpr_based_invalid_state_formula mmd all_actions formula
+        let not_valid_state = wpr_based_invalid_state_formula mmd formula
         let counterexample_state = z3_formula_for_constraints md mmd env m
         let base_f = WPR.Z3And (not_valid_state, counterexample_state)
         let give_correct_invariant m' =
@@ -276,7 +287,7 @@
             save_m'
         | Some m' -> m'
 
-    let has_k_exec_counterexample_formula formula actions init_actions boundary =
+    let has_k_exec_counterexample_formula mmd formula boundary =
 
         let rec compute_next_iterations fs n =
             match n with
@@ -284,16 +295,16 @@
             | n ->
                 //printfn "Computing level %i..." n
                 let prev = List.head fs
-                let wpr = wpr_for_actions actions prev
+                let wpr = wpr_for_actions mmd prev
                 compute_next_iterations (wpr::fs) (n-1)
 
         let paths = compute_next_iterations [formula] boundary
         let f = WPR.conjunction_of paths
         // Add initializations
-        let f = List.fold (fun f (action,mmd) -> WPR.wpr_for_action mmd f action false) f init_actions
+        let f = List.fold (fun f (init_action:ActionDecl) -> WPR.wpr_for_action mmd f init_action false) f mmd.InitActions
         WPR.Z3Not f
         
-    let sbv_based_minimization (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) infos (env:Model.Environment) actions init_actions (m:Marking.Marks) common_cvs (alt_exec:List<Marking.Marks*Model.Environment>) boundary =
+    let sbv_based_minimization (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) infos (env:Model.Environment) (m:Marking.Marks) common_cvs (alt_exec:List<Marking.Marks*Model.Environment>) boundary =
 
         let save_m = m
         let m = expand_marks md mmd infos env m // We expand marks so some weak constraints can be kept instead of stronger constraints
@@ -301,7 +312,7 @@
         let axioms = z3_formula_for_axioms mmd
         let give_k_invariant m =
             let f = minimal_formula_to_z3 mmd (MinimalAST.value2minimal md (Formula.generate_invariant env common_cvs m alt_exec))
-            let f = WPR.Z3And (axioms, has_k_exec_counterexample_formula f actions init_actions boundary)
+            let f = WPR.Z3And (axioms, has_k_exec_counterexample_formula mmd f boundary)
             match check_z3_formula md [] f 5000 with
             | SolverResult.UNKNOWN ->
                 printfn "Can't decide of satisfiability!"

@@ -110,16 +110,16 @@ module AwesomeMinimize
               | MExists (de, b) -> Z3Exists (de, aux b)
       aux v
 
-  let normal_minimize (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (decls:Model.Declarations) init_actions (v: Z3Value) : Z3Value =
+  let normal_minimize (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (v: Z3Value) : Z3Value =
     let v = simplify_z3_value (Z3Not v)
     let v = push_negations_down v
 
     let axioms = Solver.z3_formula_for_axioms mmd
 
     let k = 3
-    TwoState.k_invariant_core mmd init_actions k v
+    TwoState.k_invariant_core mmd k v
 
-  let minimize (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (decls:Model.Declarations) init_actions (v: Z3Value) : Z3Value =
+  let minimize (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (v: Z3Value) : Z3Value =
     let v = simplify_z3_value v
     let v = push_negations_down v
 
@@ -127,9 +127,9 @@ module AwesomeMinimize
     let k = 3
     let is_valid (v: Z3Value) : bool =
       //printfn "testing out %s" (Printer.z3value_to_string_pretty v)
-      TwoState.is_k_invariant mmd init_actions k v
+      TwoState.is_k_invariant mmd k v
       (*
-      let f = Z3And (axioms, Solver.has_k_exec_counterexample_formula v actions init_actions k)
+      let f = Z3And (axioms, Solver.has_k_exec_counterexample_formula v actions k)
       printfn ""
       printfn "formula: %s" (Printer.z3value_to_string v)
       printfn "formula to check sat of: %s" (Printer.z3value_to_string f)

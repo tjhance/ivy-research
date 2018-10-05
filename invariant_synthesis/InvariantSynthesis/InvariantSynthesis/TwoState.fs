@@ -484,11 +484,11 @@ module TwoState
       let twoStates = List.map (fun action -> make_two_state_for_action mmd action) actions
       composeChoice mmd twoStates
 
-    let make_two_state_for_k_exec (mmd: ModuleDecl<'a,'b>) init_actions (k : int) =
+    let make_two_state_for_k_exec (mmd: ModuleDecl<'a,'b>) (k : int) =
       composeListSequentially (List.concat
         [
           (List.map (fun (axiom:AxiomDecl) -> make_two_state_for_stmt mmd [] (Assume axiom.Formula)) mmd.Axioms);
-          (List.map (fun action -> make_two_state_for_action mmd (find_action mmd action)) init_actions);
+          (List.map (fun action -> make_two_state_for_action mmd action) mmd.InitActions);
           (List.init k (fun _ -> composeChoice mmd (List.map (fun action -> make_two_state_for_action mmd action) mmd.Actions)));
         ])
 
@@ -538,10 +538,9 @@ module TwoState
 
     let make_sat_problem_for_k_exec
           (mmd: ModuleDecl<'a,'b>)
-          (init_actions : List<string>)
           (k : int)
           (inv_neg : Z3Value) =
-      let ts = make_two_state_for_k_exec mmd init_actions k
+      let ts = make_two_state_for_k_exec mmd k
 
       let main_formula = WPR.simplify_z3_value (ts.formula)
       let inv_neg = WPR.simplify_z3_value (subst inv_neg ts.post)
@@ -680,9 +679,8 @@ module TwoState
       let final = List.map (fun (c : Microsoft.Z3.BoolExpr) -> Map.find c.Id !map) !mus
       final
 
-    let is_k_invariant (mmd: ModuleDecl<'a, 'b>) init_actions (k : int) (invariant : Z3Value) =
-      let init_actions = List.map fst init_actions
-      let sat_prob, inv_neg, vars, funs = make_sat_problem_for_k_exec mmd init_actions k (Z3Not invariant)
+    let is_k_invariant (mmd: ModuleDecl<'a, 'b>) (k : int) (invariant : Z3Value) =
+      let sat_prob, inv_neg, vars, funs = make_sat_problem_for_k_exec mmd k (Z3Not invariant)
       let sat_prob = WPR.simplify_z3_value sat_prob
       let inv_neg = WPR.simplify_z3_value inv_neg
 
@@ -692,17 +690,15 @@ module TwoState
       //printfn (if is_sat then "SAT\n" else "UNSAT\n")
       not is_sat
 
-    let is_good_at_init (mmd: ModuleDecl<'a, 'b>) init_actions (invariant : Z3Value) =
-      is_k_invariant mmd init_actions 0 invariant
+    let is_good_at_init (mmd: ModuleDecl<'a, 'b>) (invariant : Z3Value) =
+      is_k_invariant mmd 0 invariant
 
     let k_invariant_core
         (mmd: ModuleDecl<'a, 'b>)
-        init_actions
         (k : int)
         (invariant_negation : Z3Value)
         : Z3Value =
-      let init_actions = List.map fst init_actions
-      let sat_prob, invariant_negation', vars, funs = make_sat_problem_for_k_exec mmd init_actions k invariant_negation
+      let sat_prob, invariant_negation', vars, funs = make_sat_problem_for_k_exec mmd k invariant_negation
 
       let sat_prob = WPR.simplify_z3_value sat_prob
       let invariant_negation' = WPR.simplify_z3_value invariant_negation'
