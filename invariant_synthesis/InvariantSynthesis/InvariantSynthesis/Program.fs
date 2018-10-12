@@ -41,6 +41,43 @@ let auto_allowed_path (md:ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) 
     (action_name:string) (m:Marking.Marks) prev_allowed only_terminating_run =
     Solver.find_allowed_execution md mmd env formula (MinimalAST.find_action mmd action_name) m prev_allowed only_terminating_run
 
+let auto_counterexample (md:ModuleDecl) (mmd:MinimalAST.ModuleDecl<Model.TypeInfos,Model.Environment>) =
+    let counterexample = ref None
+    let first_loop = ref true
+    let finished = ref false
+
+    //let invs = List.map (fun (invdecl: MinimalAST.InvariantDecl) -> invdecl.Formula) mmd.Invariants
+    let invs = mmd.Invariants
+
+    while not (!finished) do
+        let formulas =
+            if !first_loop
+            then
+                first_loop := false
+                //printfn "Searching assertions fail..."
+                Some [(-1,MinimalAST.ValueConst (ConstBool true))]
+            else
+                finished := true
+                let formulas =
+                  List.mapi (fun idx -> fun (invdecl : MinimalAST.InvariantDecl) ->
+                    (idx, invdecl.Formula)
+                  ) mmd.Invariants
+                Some formulas
+
+        match formulas with
+        | None -> finished := true
+        | Some formulas ->
+            match Solver.find_counterexample md mmd formulas with
+            | None -> counterexample := None
+            | Some c -> finished := true ; counterexample := Some c
+
+    match !counterexample with
+    | None -> None
+    | Some (i, action, formula, infos, env) ->
+        let action_args = (MinimalAST.find_action mmd action).Args
+        let tr = TInterpreter.trace_action mmd infos env action (List.map (fun (d:VarDecl) -> MinimalAST.ValueVar d.Name) action_args) AST.impossible_var_factor
+        Some (action, infos, env, [], formula, tr)
+
 
 // ----- MAIN -----
 
@@ -196,7 +233,7 @@ let do_check md mmd verbose =
     if not (TwoState.is_good_at_init mmd inv) then
       printfn "not valid at init"
     else
-      let counterexample = Solver.find_counterexample md mmd
+      let counterexample = auto_counterexample md mmd
 
       if Option.isSome counterexample then
         printfn "non-inductive"
@@ -214,7 +251,7 @@ let repeatedly_construct_universals md mmd verbose =
     let make_counterexample () =
           let md = AST.set_invariants md !invariants_ref
           let mmd = MinimalAST.set_invariants mmd (invariants_to_min !invariants_ref)
-          Solver.find_counterexample md mmd
+          auto_counterexample md mmd
     let counterexample_ref = ref (make_counterexample())
 
     while Option.isSome !counterexample_ref do
@@ -241,7 +278,7 @@ let repeatedly_construct_universals md mmd verbose =
 
 
 let do_analysis1 md mmd verbose =
-    let counterexample = Solver.find_counterexample md mmd
+    let counterexample = auto_counterexample md mmd
 
     match counterexample with
     | None -> ()
@@ -264,7 +301,7 @@ let do_analysis1 md mmd verbose =
 let do_analysis md mmd manual verbose =
     // Let's go!
 
-    let counterexample = Solver.find_counterexample md mmd
+    let counterexample = auto_counterexample md mmd
 
     match counterexample with
     | None -> ()

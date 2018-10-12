@@ -45,17 +45,17 @@
         | Z3Utils.UNKNOWN -> UNKNOWN
         | Z3Utils.SAT m -> SAT (Z3Utils.z3model_to_ast_model md z3ctx args_decl z3lvars z3concrete_map m)
 
-    let check_z3_disjunction (md:AST.ModuleDecl<'a,'b>) (mmd:ModuleDecl<'a,'b>) f timeout =
+    let check_z3_disjunction (md:AST.ModuleDecl<'a,'b>) (mmd:ModuleDecl<'a,'b>) f fs timeout =
         let z3ctx = Z3Utils.build_context md
 
         let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars [] z3ctx Map.empty f
         let z3e = Z3Utils.build_value z3ctx z3lvars Map.empty f
 
-        let declare_lvars (action : ActionDecl) =
+        let declare_lvars (action : ActionDecl, fmla : WPR.Z3Value) =
             let args_decl = action.Args
-            let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars_ext args_decl z3ctx Map.empty f (z3lvars, z3concrete_map)
-            (action, Z3Utils.build_value z3ctx z3lvars Map.empty f, (z3lvars, z3concrete_map))
-        let fs = List.map declare_lvars mmd.Actions
+            let (z3lvars, z3concrete_map) = Z3Utils.declare_lvars_ext args_decl z3ctx Map.empty fmla (z3lvars, z3concrete_map)
+            (action, Z3Utils.build_value z3ctx z3lvars Map.empty fmla, (z3lvars, z3concrete_map))
+        let fs = List.map declare_lvars fs
 
         let es = List.map (fun (action:ActionDecl ,es,_) -> (action.Name, es)) fs
         match Z3Utils.check_disjunction z3ctx z3e es timeout with
@@ -87,32 +87,33 @@
         let counterexample = ref None
 
         let treat_formula (i,formula) =
-            let f = WPR.Z3And (axioms_conjectures, WPR.wpr_for_action mmd (minimal_formula_to_z3 mmd formula) action true)
-            let res = check_z3_formula md action.Args f 3000
-        
-            counterexample :=
-                match res with
-                | UNSAT | UNKNOWN -> !counterexample
-                | SAT (infos, env) ->
-                    let former_cardinal = match !counterexample with None -> System.Int32.MaxValue | Some (_,_,infos,_) -> Model.cardinal infos
-                    if Model.cardinal infos < former_cardinal
-                    then Some (i, formula, infos, env)
-                    else !counterexample
+            if not (Option.isSome !counterexample) then
+                let f = WPR.Z3And (axioms_conjectures, WPR.wpr_for_action mmd (minimal_formula_to_z3 mmd formula) action true)
+                let res = check_z3_formula md action.Args f 3000
+            
+                counterexample :=
+                    match res with
+                    | UNSAT | UNKNOWN -> !counterexample
+                    | SAT (infos, env) ->
+                        let former_cardinal = match !counterexample with None -> System.Int32.MaxValue | Some (_,_,infos,_) -> Model.cardinal infos
+                        if Model.cardinal infos < former_cardinal
+                        then Some (i, formula, infos, env)
+                        else !counterexample
 
         List.iter treat_formula formulas
         !counterexample
 
-    let find_counterexample md mmd =
-        let formulas = 
-          List.mapi (fun idx -> fun (invdecl : MinimalAST.InvariantDecl) ->
-            (idx, invdecl.Formula)
-          ) mmd.Invariants
-
+    let find_counterexample md mmd formulas =
         let axioms_conjectures = z3_formula_for_axioms_and_conjectures mmd 
         let counterexample = ref None
 
         let treat_formula (i,formula) =
-            let res = check_z3_disjunction md mmd axioms_conjectures 3000
+            let fs =
+              List.map (fun (action: ActionDecl) ->
+                (action,
+                 WPR.wpr_for_action mmd (minimal_formula_to_z3 mmd formula) action true)
+              ) (mmd.Actions)
+            let res = check_z3_disjunction md mmd axioms_conjectures fs 3000
 
             counterexample :=
                 match res with
@@ -125,13 +126,7 @@
                 | (SAT _, None) -> failwith "Can't retrieve the main action of the counterexample."
 
         List.iter treat_formula formulas
-        match !counterexample with
-          | None -> None
-          | Some (i, action, formula, infos, env) ->
-            let action_args = (MinimalAST.find_action mmd action).Args
-            let tr = TInterpreter.trace_action mmd infos env action (List.map (fun (d:VarDecl) -> MinimalAST.ValueVar d.Name) action_args) AST.impossible_var_factor
-
-            Some (action, infos, env, [], formula, tr)
+        !counterexample
 
     let not_already_allowed_state_formula (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) common_cvs allowed_execs =
         let f = Formula.generate_semi_generalized_formulas common_cvs (0, Map.empty) allowed_execs
